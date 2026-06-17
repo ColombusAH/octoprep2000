@@ -34,7 +34,9 @@ function LandingPage() {
   return (
     <main className="container landing">
       <h1>🐙 OctoPrep2000</h1>
-      <p>AI presentation coach. Upload your deck, record your practice, get scored.</p>
+      <p className="text-balance opacity-80">
+        AI presentation coach. Upload your deck, record your practice, get scored.
+      </p>
 
       <form onSubmit={handleStart}>
         <label>
