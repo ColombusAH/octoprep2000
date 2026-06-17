@@ -1,6 +1,8 @@
 """AudioAgent — ElevenLabs Scribe v1 STT + filler/WPM detection.
 
 2-second PCM 16kHz chunks (NFR-002 reconciliation, v1.4).
+Browser sends raw PCM 16-bit mono. We wrap with a RIFF/WAVE header before
+POST to Scribe — the API requires a real audio container, not raw samples.
 Emits TranscriptPayload + optional AudioWarningPayload to Orchestrator.
 """
 
@@ -8,6 +10,7 @@ from __future__ import annotations
 
 import logging
 import re
+import struct
 import time
 import uuid
 from collections import deque
@@ -129,7 +132,8 @@ class AudioAgent:
 
     async def _transcribe(self, pcm_bytes: bytes) -> str:
         s = get_settings()
-        files = {"file": ("chunk.wav", pcm_bytes, "audio/wav")}
+        wav_bytes = _wrap_pcm_as_wav(pcm_bytes, sample_rate=16000, channels=1, bits_per_sample=16)
+        files = {"file": ("chunk.wav", wav_bytes, "audio/wav")}
         data = {"model_id": "scribe_v1"}
         resp = await self._http.post(
             ELEVENLABS_STT_URL,
@@ -142,3 +146,37 @@ class AudioAgent:
 
     async def aclose(self) -> None:
         await self._http.aclose()
+
+
+def _wrap_pcm_as_wav(
+    pcm_bytes: bytes,
+    sample_rate: int,
+    channels: int,
+    bits_per_sample: int,
+) -> bytes:
+    """Prepend a RIFF/WAVE header so raw PCM is decodable as audio/wav.
+
+    Scribe (and most audio APIs) require a real container — raw samples won't decode.
+    Header is 44 bytes for PCM (format 1).
+    """
+    byte_rate = sample_rate * channels * bits_per_sample // 8
+    block_align = channels * bits_per_sample // 8
+    subchunk2_size = len(pcm_bytes)
+    chunk_size = 36 + subchunk2_size
+    header = struct.pack(
+        "<4sI4s4sIHHIIHH4sI",
+        b"RIFF",
+        chunk_size,
+        b"WAVE",
+        b"fmt ",
+        16,             # subchunk1_size (PCM)
+        1,              # audio_format (PCM)
+        channels,
+        sample_rate,
+        byte_rate,
+        block_align,
+        bits_per_sample,
+        b"data",
+        subchunk2_size,
+    )
+    return header + pcm_bytes

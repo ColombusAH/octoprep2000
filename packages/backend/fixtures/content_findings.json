@@ -1,0 +1,14 @@
+{
+  "content_score": 72,
+  "findings": [
+    {"type": "STRENGTH",
+     "message": "Clear, technically precise explanation of Server Actions and useTransition",
+     "context_quote": "Server Actions let you call mutations directly from forms"},
+    {"type": "COVERAGE_GAP",
+     "message": "React Compiler not mentioned — audiences will expect this React 19 headline feature",
+     "context_quote": ""},
+    {"type": "FACTUAL_ERROR",
+     "message": "React Server Components were stabilised in React 19, not introduced in React 18",
+     "context_quote": "as we got in version 18"}
+  ]
+}

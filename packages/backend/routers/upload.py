@@ -10,7 +10,6 @@ from pathlib import Path
 from fastapi import APIRouter, BackgroundTasks, Depends, File, HTTPException, UploadFile, status
 
 from agents.pptx_agent import PPTXAgent
-from db.repository import PostgreSQLRepository, get_repo
 from middleware.session_auth import require_session_owner
 from orchestrator.agno_orchestrator import AgnoOrchestrator
 
@@ -25,7 +24,6 @@ async def upload_pptx(
     background: BackgroundTasks,
     file: UploadFile = File(...),
     _=Depends(require_session_owner),
-    repo: PostgreSQLRepository = Depends(get_repo),
 ):
     if not file.filename or not file.filename.lower().endswith(".pptx"):
         raise HTTPException(status_code=400, detail="Only .pptx accepted")
@@ -38,7 +36,7 @@ async def upload_pptx(
     tmp.write_bytes(data)
 
     async def run_agent():
-        orch = AgnoOrchestrator(repo)
+        orch = AgnoOrchestrator()
         agent = PPTXAgent(orch)
         try:
             await agent.analyse(session_id, str(tmp))

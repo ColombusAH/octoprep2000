@@ -6,6 +6,8 @@ Weights (FR-008):
 
 Per §3 Backend Post-Processing Rule: deduplication is mandatory. Recurring events
 are grouped by type into a single insight with a timestamps[]/slides[] array.
+
+Owns its own AsyncSession via get_session_maker() (independent of request scope).
 """
 
 from __future__ import annotations
@@ -21,19 +23,22 @@ from agents.schemas import (
     ReportPayload,
 )
 from db.repository import PostgreSQLRepository
+from db.session import get_session_maker
 
 logger = logging.getLogger(__name__)
 
 
 class ReportAgent:
-    def __init__(self, repo: PostgreSQLRepository, content_agent: ContentAnalysisAgent) -> None:
-        self.repo = repo
-        self.content_agent = content_agent
+    def __init__(self, content_agent: ContentAnalysisAgent | None = None) -> None:
+        self.content_agent = content_agent or ContentAnalysisAgent()
 
     async def generate(self, session_id: uuid.UUID, fallback_mode: bool = False) -> ReportPayload:
-        transcripts = await self.repo.read_transcript(session_id)
-        video_events = await self.repo.read_video_events(session_id)
-        slide_analyses = await self.repo.read_slide_analyses(session_id)
+        async with get_session_maker()() as db:
+            repo = PostgreSQLRepository(db)
+            transcripts = await repo.read_transcript(session_id)
+            video_events = await repo.read_video_events(session_id)
+            slide_analyses = await repo.read_slide_analyses(session_id)
+
         content = await self.content_agent.analyse(session_id)
 
         voice_insights, voice_score = self._score_voice(transcripts)
@@ -66,11 +71,9 @@ class ReportAgent:
         if not entries:
             return [Insight(category="voice", type="IMPROVEMENT", message="No speech captured")], 0.0
         filler_ts: dict[str, list[int]] = defaultdict(list)
-        total_words = 0
         for e in entries:
             for f in e.filler_flags or []:
                 filler_ts[f.lower()].append(e.start_ms)
-            total_words += len(e.text.split())
 
         insights: list[Insight] = []
         total_fillers = sum(len(v) for v in filler_ts.values())
@@ -86,7 +89,6 @@ class ReportAgent:
                 )
             )
 
-        # naive scoring — penalise high filler density
         penalty = min(40, total_fillers * 2)
         score = max(0.0, 100.0 - penalty)
         if score > 70:
@@ -99,10 +101,22 @@ class ReportAgent:
         if not events:
             return [], 70.0  # neutral default if no events captured
         grouped: dict[str, list[int]] = defaultdict(list)
+        strengths: list[Insight] = []
         for e in events:
+            if e.event_type == "SMILING_STRONG":
+                # Positive signal from GCV face_detection — surface as a Strength
+                strengths.append(
+                    Insight(
+                        category="body",
+                        type="STRENGTH",
+                        message="Engaging, smiling delivery.",
+                        timestamps=[e.timestamp_ms],
+                    )
+                )
+                continue
             grouped[e.event_type].append(e.timestamp_ms)
 
-        insights: list[Insight] = []
+        insights: list[Insight] = list(strengths)
         for etype, ts in grouped.items():
             insights.append(
                 Insight(
@@ -112,14 +126,15 @@ class ReportAgent:
                     timestamps=sorted(ts),
                 )
             )
-        penalty = min(40, len(events) * 2)
+        # Score by improvements only — smiles are bonus, don't penalise their absence
+        improvement_count = sum(len(ts) for ts in grouped.values())
+        penalty = min(40, improvement_count * 2)
         score = max(0.0, 100.0 - penalty)
         return insights, score
 
     def _score_slides(self, analyses) -> tuple[list[Insight], float]:
         if not analyses:
             return [Insight(category="slide", type="IMPROVEMENT", message="No deck uploaded")], 0.0
-        # Group by playbook_factor + finding_type
         grouped: dict[tuple[int, str], list[tuple[int, str]]] = defaultdict(list)
         for a in analyses:
             grouped[(a.playbook_factor, a.finding_type)].append((a.slide_index, a.description))

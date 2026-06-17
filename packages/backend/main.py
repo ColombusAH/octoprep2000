@@ -17,7 +17,6 @@ from slowapi.middleware import SlowAPIMiddleware
 
 from config import get_settings
 from core.rate_limit import limiter
-from db.session import init_db
 from routers import audio_ws, feedback_ws, health, sessions, upload, video_ws
 
 logging.basicConfig(
@@ -32,10 +31,7 @@ settings = get_settings()
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     logger.info("starting OctoPrep2000 backend (demo_mode=%s)", settings.demo_mode or "off")
-    try:
-        await init_db()
-    except Exception as exc:  # noqa: BLE001
-        logger.warning("init_db skipped: %s (Alembic handles migrations in prod)", exc)
+    # Schema is managed by Alembic: `cd packages/backend && uv run alembic upgrade head`.
     yield
     logger.info("shutdown")
 

@@ -24,6 +24,12 @@ db-down:
 backend:
 	cd packages/backend && uv run uvicorn main:app --reload --host 0.0.0.0 --port 8000
 
+db-migrate:
+	cd packages/backend && uv run alembic upgrade head
+
+db-rev:
+	cd packages/backend && uv run alembic revision --autogenerate -m "$(m)"
+
 frontend:
 	pnpm --filter @octoprep/web-dashboard dev
 

@@ -1,9 +1,8 @@
 /**
  * Scorecard per PRD §10 + FR-009.
  * Hero score + lock/unlock at 80, 4 sub-category panels w/ Strengths + Improvements.
+ * Mentor URL injected via prop (sourced from GET /config at runtime).
  */
-
-const MENTOR_BOOKING_URL = "https://calendly.com/tikal-experts/30min";
 
 type Insight = {
   category: "voice" | "body" | "slide" | "content";
@@ -88,7 +87,13 @@ function Panel({
   );
 }
 
-export function ScoreCard({ report }: { report: ReportData }) {
+export function ScoreCard({
+  report,
+  mentorBookingUrl,
+}: {
+  report: ReportData;
+  mentorBookingUrl: string;
+}) {
   const overall = report.overall_score;
   const unlocked = report.mentor_unlocked;
   const delta = Math.max(0, 80 - overall);
@@ -107,7 +112,7 @@ export function ScoreCard({ report }: { report: ReportData }) {
         {unlocked ? (
           <div className="unlock">
             <h2>🎉 Mentor unlocked</h2>
-            <a className="cta" href={MENTOR_BOOKING_URL} target="_blank" rel="noreferrer">
+            <a className="cta" href={mentorBookingUrl} target="_blank" rel="noreferrer">
               Book Your 1-on-1 with a Tikal Expert →
             </a>
           </div>

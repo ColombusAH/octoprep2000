@@ -27,7 +27,7 @@ async def audio_stream(
         return
 
     await ws.accept()
-    rt = await registry.get_or_create(session_id, repo)
+    rt = await registry.get_or_create(session_id)
 
     try:
         while True:

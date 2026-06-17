@@ -1,0 +1,14 @@
+[
+  {"slide_index": 1, "playbook_factor": 8, "finding_type": "STRENGTH",
+   "description": "Clean title slide with high-contrast dark background — strong first impression"},
+  {"slide_index": 3, "playbook_factor": 4, "finding_type": "IMPROVEMENT",
+   "description": "Dense paragraphs of text — violates 'Keep it visual'. Break into bullet points or move to speaker notes"},
+  {"slide_index": 4, "playbook_factor": 7, "finding_type": "IMPROVEMENT",
+   "description": "10+ objects on slide — cognitive overload. Trim to ≤6 elements"},
+  {"slide_index": 5, "playbook_factor": 10, "finding_type": "IMPROVEMENT",
+   "description": "Full code block with no animation — audience cannot follow. Highlight or reveal lines progressively"},
+  {"slide_index": 6, "playbook_factor": 6, "finding_type": "STRENGTH",
+   "description": "Strong supporting diagram — visual anchors the explanation"},
+  {"slide_index": 7, "playbook_factor": 5, "finding_type": "IMPROVEMENT",
+   "description": "Body font ~18pt — violates 10-20-30 rule. Increase to ≥30pt"}
+]

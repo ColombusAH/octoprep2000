@@ -1,6 +1,7 @@
 """DEMO_MODE=replay — load canned event fixtures instead of calling live APIs.
 
 Per FR-010a + §10b.2. Dev 5 owns. Team Lead flips DEMO_MODE only if live APIs flake.
+Fixtures cover Vision frame events, Audio chunks, PPTX slide findings, Content findings.
 """
 
 from __future__ import annotations
@@ -10,22 +11,29 @@ import uuid
 from functools import lru_cache
 from pathlib import Path
 
-from agents.schemas import AudioWarningPayload, TranscriptPayload, VideoEventPayload
+from agents.schemas import (
+    AudioWarningPayload,
+    ContentAnalysisPayload,
+    ContentFinding,
+    SlideAnalysisPayload,
+    TranscriptPayload,
+    VideoEventPayload,
+)
 
 FIXTURE_DIR = Path(__file__).resolve().parent.parent / "fixtures"
 
 
-@lru_cache(maxsize=2)
-def _load(name: str) -> list[dict]:
+@lru_cache(maxsize=8)
+def _load(name: str):
     path = FIXTURE_DIR / name
     if not path.exists():
-        return []
+        return None
     return json.loads(path.read_text())
 
 
 def replay_vision_events(session_id: uuid.UUID) -> list[VideoEventPayload]:
     out: list[VideoEventPayload] = []
-    for raw in _load("vision_events.json"):
+    for raw in _load("vision_events.json") or []:
         try:
             out.append(VideoEventPayload(session_id=session_id, **raw))
         except Exception:  # noqa: BLE001
@@ -37,7 +45,7 @@ def replay_audio_events(
     session_id: uuid.UUID,
 ) -> list[TranscriptPayload | AudioWarningPayload]:
     out: list[TranscriptPayload | AudioWarningPayload] = []
-    for raw in _load("audio_events.json"):
+    for raw in _load("audio_events.json") or []:
         kind = raw.pop("kind", "transcript")
         try:
             if kind == "transcript":
@@ -47,3 +55,29 @@ def replay_audio_events(
         except Exception:  # noqa: BLE001
             continue
     return out
+
+
+def replay_slide_findings() -> list[SlideAnalysisPayload]:
+    out: list[SlideAnalysisPayload] = []
+    for raw in _load("slide_findings.json") or []:
+        try:
+            out.append(SlideAnalysisPayload(**raw))
+        except Exception:  # noqa: BLE001
+            continue
+    return out
+
+
+def replay_content_analysis(session_id: uuid.UUID, topic: str) -> ContentAnalysisPayload:
+    data = _load("content_findings.json") or {}
+    findings: list[ContentFinding] = []
+    for raw in data.get("findings", []):
+        try:
+            findings.append(ContentFinding(**raw))
+        except Exception:  # noqa: BLE001
+            continue
+    return ContentAnalysisPayload(
+        session_id=session_id,
+        topic=topic,
+        content_score=float(data.get("content_score", 0)),
+        findings=findings,
+    )

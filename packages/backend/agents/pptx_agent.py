@@ -14,31 +14,48 @@ import uuid
 from pptx import Presentation
 
 from agents.llm import get_llm
+from agents.replay_fixtures import replay_slide_findings
 from agents.schemas import SlideAnalysisBundle, SlideAnalysisPayload
 from config import get_settings
 from orchestrator.agno_orchestrator import AgnoOrchestrator
 
 logger = logging.getLogger(__name__)
 
-PLAYBOOK_PROMPT = """You evaluate a slide against the Tikal Presentation Skills Playbook.
+PLAYBOOK_PROMPT = """You evaluate a slide deck against the Tikal Presentation Skills Playbook.
 
-Key factors (numbered, 1-12):
-  1  Triangle of Alliances — slide supports the talk, not replaces it
-  2  Trust / credibility — clarity of authorship + credentials
-  3  Authenticity — original, not generic
-  4  Keep it visual — limit text, use imagery instead of paragraphs
-  5  10-20-30 rule — ~10 slides, font ≥30
-  6  Use imagery — a picture is worth a thousand words
-  7  Object count ≤6 per slide (cognitive load)
-  8  Dark background + bright text (high contrast)
-  9  Consistent fonts/header sizes
- 10  Code display — animate or highlight, never overwhelm
- 11  Speaker notes belong in notes area, not on slide
- 12  Blank slides when you want all eyes on you
+The 12 factors (verbatim from the Tikal handbook):
+  1  Triangle of Alliances — slides support the talk, NOT replace it. Plan the talk first
+     as if there were no slides at all; only then think about slides.
+  2  Trust & Credibility — clarity of authorship, credentials shown when appropriate;
+     a strong first impression (clean title slide) builds trust.
+  3  Authenticity — content should be original, unfamiliar, refreshing. If borrowing
+     from specific sources, credit them on the slide.
+  4  Keep it visual — limit text and bullet points; present information in small chunks.
+     A picture is worth a thousand words; an interesting picture is worth even more.
+  5  10-20-30 rule — ~10 slides, ~20 minutes, font size ≥ 30.
+  6  Use imagery — high-resolution images that support the message; avoid stock-photo cliché.
+  7  Object count ≤6 per slide — the human brain counts up to 6 instantly; 7+ causes delay.
+     Avoid redundant slide numbers and logos on every slide.
+  8  Dark background + bright text — high contrast keeps eyes on screen; switching to a
+     blank slide lets the speaker reclaim attention.
+  9  Consistent fonts, headers, and title sizes across all slides.
+ 10  Code display — animate or highlight specific lines; never dump unscoped code.
+     Have a Plan B for live coding (code on slides or pre-recorded clip).
+ 11  Speaker notes belong in the notes area, NOT on the slide itself.
+ 12  Blank slides — insert a blank when you want all attention on the speaker.
 
-Reply JSON: {"findings": [{"slide_index": int (1-based), "playbook_factor": int (1-12),
-"finding_type": "STRENGTH" | "IMPROVEMENT", "description": "short, actionable"}]}.
-Aim for 5+ distinct factors covered across the deck."""
+Return JSON only:
+{"findings": [{
+  "slide_index": int (1-based, matches the deck order shown to you),
+  "playbook_factor": int (1-12, must match the factor numbering above),
+  "finding_type": "STRENGTH" | "IMPROVEMENT",
+  "description": "short, actionable, slide-specific (≤140 chars). Reference what is on
+                  that slide. For STRENGTH: explain why it works. For IMPROVEMENT:
+                  state the fix."
+}]}
+
+Cover at least 5 distinct factors across the deck. Prefer concrete, slide-anchored
+findings over vague advice. Both Strengths and Improvements per deck are welcome."""
 
 
 class PPTXAgent:
@@ -50,15 +67,16 @@ class PPTXAgent:
             slides_raw = await asyncio.to_thread(self._extract_text, pptx_path)
         except Exception as exc:  # noqa: BLE001
             logger.exception("PPTX parse failed: %s", exc)
-            return
+            slides_raw = []
 
-        # Persist raw text immediately (§10b.6 — restart-safe)
-        # Build empty bundle first to set slides_raw_text via Orchestrator.
-        try:
-            findings = await self._evaluate(slides_raw)
-        except Exception as exc:  # noqa: BLE001
-            logger.exception("PPTX LLM eval failed: %s", exc)
-            findings = []
+        if get_settings().demo_replay:
+            findings = replay_slide_findings()
+        else:
+            try:
+                findings = await self._evaluate(slides_raw)
+            except Exception as exc:  # noqa: BLE001
+                logger.exception("PPTX LLM eval failed: %s", exc)
+                findings = []
 
         await self.orchestrator.on_slide_analysis(
             SlideAnalysisBundle(

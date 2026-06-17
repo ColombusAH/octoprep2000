@@ -1,6 +1,7 @@
 """ContentAnalysisAgent — post-session technical accuracy + coverage gap analysis.
 
 Reads transcript from DB (read-only) + session topic. Emits ContentAnalysisPayload.
+Uses get_session_maker() to own its own AsyncSession (decoupled from request scope).
 """
 
 from __future__ import annotations
@@ -10,9 +11,11 @@ import logging
 import uuid
 
 from agents.llm import get_llm
+from agents.replay_fixtures import replay_content_analysis
 from agents.schemas import ContentAnalysisPayload, ContentFinding
 from config import get_settings
 from db.repository import PostgreSQLRepository
+from db.session import get_session_maker
 
 logger = logging.getLogger(__name__)
 
@@ -27,15 +30,17 @@ Disclose uncertainty for topics that may post-date training cutoff."""
 
 
 class ContentAnalysisAgent:
-    def __init__(self, repo: PostgreSQLRepository) -> None:
-        self.repo = repo
-
     async def analyse(self, session_id: uuid.UUID) -> ContentAnalysisPayload | None:
-        session = await self.repo.get_session(session_id)
-        if not session:
-            return None
+        async with get_session_maker()() as db:
+            repo = PostgreSQLRepository(db)
+            session = await repo.get_session(session_id)
+            if not session:
+                return None
+            entries = await repo.read_transcript(session_id)
 
-        entries = await self.repo.read_transcript(session_id)
+        if get_settings().demo_replay:
+            return replay_content_analysis(session_id, session.topic)
+
         transcript = " ".join(e.text for e in entries).strip()
         if not transcript:
             return ContentAnalysisPayload(

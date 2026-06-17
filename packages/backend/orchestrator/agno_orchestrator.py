@@ -6,6 +6,10 @@ forwards warnings to the FeedbackBroadcaster.
 Per §10b.5 — VideoEvent inserts are batched (every 1s OR N=20).
 Per §6 (open decision 4) — Agno is brand-tax. If Agno PoC fails, replace inner
 machinery with raw `asyncio.create_task`; this public API stays identical.
+
+Lifecycle note (B2 fix): Orchestrator does NOT hold an AsyncSession. Each write
+opens a fresh session via `get_session_maker()`. Survives request-scope teardown
+because no DB handle is captured in instance state.
 """
 
 from __future__ import annotations
@@ -13,6 +17,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import uuid
+from collections.abc import Awaitable, Callable
 from typing import Any
 
 from agents.schemas import (
@@ -25,6 +30,7 @@ from agents.schemas import (
 )
 from core.feedback_broadcaster import broadcaster
 from db.repository import PostgreSQLRepository
+from db.session import get_session_maker
 
 logger = logging.getLogger(__name__)
 
@@ -33,12 +39,17 @@ VIDEO_FLUSH_INTERVAL_S = 1.0
 
 
 class AgnoOrchestrator:
-    def __init__(self, repo: PostgreSQLRepository) -> None:
-        self.repo = repo
+    def __init__(self) -> None:
         self._video_buffer: dict[uuid.UUID, list[dict[str, Any]]] = {}
         self._tasks: dict[uuid.UUID, dict[str, asyncio.Task]] = {}
         self._fallback_active: set[uuid.UUID] = set()
         self._flush_task: asyncio.Task | None = None
+
+    # ── DB write helper: fresh session per call ──────────────────────
+    async def _with_repo(self, fn: Callable[[PostgreSQLRepository], Awaitable[Any]]) -> Any:
+        async with get_session_maker()() as db:
+            repo = PostgreSQLRepository(db)
+            return await fn(repo)
 
     # ── Session lifecycle ────────────────────────────────────────────
     async def start_session(self, session_id: uuid.UUID) -> None:
@@ -53,11 +64,11 @@ class AgnoOrchestrator:
             task.cancel()
             logger.debug("cancelled task %s for %s", name, session_id)
         await self._flush_video_events(session_id)
-        await self.repo.set_session_status(session_id, "ENDED")
+        await self._with_repo(lambda r: r.set_session_status(session_id, "ENDED"))
         logger.info("Orchestrator: session %s ended", session_id)
 
     async def mark_report_ready(self, session_id: uuid.UUID) -> None:
-        await self.repo.set_session_status(session_id, "REPORT_READY")
+        await self._with_repo(lambda r: r.set_session_status(session_id, "REPORT_READY"))
         await broadcaster.publish(
             session_id, {"type": "REPORT_READY", "session_id": str(session_id)}
         )
@@ -87,12 +98,14 @@ class AgnoOrchestrator:
             await self._flush_video_events(payload.session_id)
 
     async def on_transcript(self, payload: TranscriptPayload) -> None:
-        await self.repo.insert_transcript_entry(
-            session_id=payload.session_id,
-            start_ms=payload.start_ms,
-            end_ms=payload.end_ms,
-            text=payload.text,
-            filler_flags=payload.filler_flags or None,
+        await self._with_repo(
+            lambda r: r.insert_transcript_entry(
+                session_id=payload.session_id,
+                start_ms=payload.start_ms,
+                end_ms=payload.end_ms,
+                text=payload.text,
+                filler_flags=payload.filler_flags or None,
+            )
         )
 
     async def on_audio_warning(self, payload: AudioWarningPayload) -> None:
@@ -107,39 +120,42 @@ class AgnoOrchestrator:
         )
 
     async def on_slide_analysis(self, bundle: SlideAnalysisBundle) -> None:
-        await self.repo.insert_slide_analyses(
-            [
-                {
-                    "session_id": bundle.session_id,
-                    "slide_index": f.slide_index,
-                    "playbook_factor": f.playbook_factor,
-                    "finding_type": f.finding_type,
-                    "description": f.description,
-                }
-                for f in bundle.findings
-            ]
-        )
-        await self.repo.mark_pptx_ready(bundle.session_id, bundle.slides_raw_text)
+        async def write(repo: PostgreSQLRepository) -> None:
+            await repo.insert_slide_analyses(
+                [
+                    {
+                        "session_id": bundle.session_id,
+                        "slide_index": f.slide_index,
+                        "playbook_factor": f.playbook_factor,
+                        "finding_type": f.finding_type,
+                        "description": f.description,
+                    }
+                    for f in bundle.findings
+                ]
+            )
+            await repo.mark_pptx_ready(bundle.session_id, bundle.slides_raw_text)
+
+        await self._with_repo(write)
 
     async def on_content_analysis(self, payload: ContentAnalysisPayload) -> None:
-        # Held in memory until ReportAgent runs; could be cached here.
-        # For now report agent re-runs content if needed; this hook reserved.
         await broadcaster.publish(
             payload.session_id, {"type": "CONTENT_READY", "score": payload.content_score}
         )
 
     async def on_report(self, payload: ReportPayload) -> None:
-        await self.repo.insert_report(
-            {
-                "session_id": payload.session_id,
-                "overall_score": payload.overall_score,
-                "voice_score": payload.voice_score,
-                "body_score": payload.body_score,
-                "slide_score": payload.slide_score,
-                "content_score": payload.content_score,
-                "insights": [i.model_dump() for i in payload.insights],
-                "mentor_unlocked": payload.mentor_unlocked,
-            }
+        await self._with_repo(
+            lambda r: r.insert_report(
+                {
+                    "session_id": payload.session_id,
+                    "overall_score": payload.overall_score,
+                    "voice_score": payload.voice_score,
+                    "body_score": payload.body_score,
+                    "slide_score": payload.slide_score,
+                    "content_score": payload.content_score,
+                    "insights": [i.model_dump() for i in payload.insights],
+                    "mentor_unlocked": payload.mentor_unlocked,
+                }
+            )
         )
         await self.mark_report_ready(payload.session_id)
 
@@ -169,7 +185,7 @@ class AgnoOrchestrator:
             return
         events, self._video_buffer[session_id] = buf, []
         try:
-            await self.repo.bulk_insert_video_events(events)
+            await self._with_repo(lambda r: r.bulk_insert_video_events(events))
         except Exception as exc:  # noqa: BLE001
             logger.exception("video_events flush failed: %s", exc)
 

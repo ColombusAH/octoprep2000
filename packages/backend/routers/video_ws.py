@@ -27,7 +27,7 @@ async def video_stream(
         return
 
     await ws.accept()
-    rt = await registry.get_or_create(session_id, repo)
+    rt = await registry.get_or_create(session_id)
     if rt.orchestrator.is_fallback(session_id):
         await ws.close(code=1000)
         return

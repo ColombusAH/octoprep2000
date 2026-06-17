@@ -49,10 +49,16 @@ class VisionAgent:
         self._last_event_type: str | None = None
         self._last_face_event: str | None = None
         self._timeout_ms = get_settings().vision_timeout_ms
+        # GCV rate limit — cap to ~1 fps to keep cost bounded (NFR-004)
+        self._gcv_min_interval_ms = 1000
+        self._gcv_last_ms = -10_000
 
     async def push_frame(self, frame_bytes: bytes) -> None:
-        # GCV face detection runs on every kept frame, in parallel with LLM batch building.
-        asyncio.create_task(self._run_face_detection(frame_bytes))
+        # GCV face detection runs at most once per second (cost cap, NFR-004).
+        now_ms = int(time.monotonic() * 1000)
+        if now_ms - self._gcv_last_ms >= self._gcv_min_interval_ms:
+            self._gcv_last_ms = now_ms
+            asyncio.create_task(self._run_face_detection(frame_bytes))
 
         self._frame_buf.append(frame_bytes)
         if len(self._frame_buf) >= BATCH_SIZE:

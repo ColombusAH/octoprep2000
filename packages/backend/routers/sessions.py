@@ -47,19 +47,17 @@ async def get_session(
 async def end_session(
     session_id: uuid.UUID,
     session=Depends(require_session_owner),
-    repo: PostgreSQLRepository = Depends(get_repo),
 ):
     rt = registry.get(session_id)
     fallback = rt.orchestrator.is_fallback(session_id) if rt else False
     await registry.end(session_id)
 
-    report_agent = await build_report_agent(repo)
+    report_agent = build_report_agent()
     payload = await report_agent.generate(session_id, fallback_mode=fallback)
 
-    # Persist via a fresh Orchestrator wired to this request's repo.
-    from orchestrator.agno_orchestrator import AgnoOrchestrator  # local import: cycle-safe
+    from orchestrator.agno_orchestrator import AgnoOrchestrator
 
-    orch = AgnoOrchestrator(repo)
+    orch = AgnoOrchestrator()
     await orch.on_report(payload)
 
     return {"status": "REPORT_READY", "session_id": str(session_id)}

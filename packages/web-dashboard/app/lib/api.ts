@@ -87,3 +87,15 @@ export async function createShareLink(sessionId: string): Promise<{ share_url: s
   if (!res.ok) throw new Error(`share failed: ${res.status}`);
   return res.json();
 }
+
+export type PublicConfig = {
+  mentor_booking_url: string;
+  demo_mode: boolean;
+  audio_chunk_seconds: number;
+};
+
+export async function getPublicConfig(): Promise<PublicConfig> {
+  const res = await fetch(`${BACKEND_URL}/config`);
+  if (!res.ok) throw new Error(`config failed: ${res.status}`);
+  return res.json();
+}

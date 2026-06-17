@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
-import { createShareLink, getReport } from "~/lib/api";
+import { createShareLink, getPublicConfig, getReport, type PublicConfig } from "~/lib/api";
 import { ScoreCard, type ReportData } from "~/components/ScoreCard";
 
 export const Route = createFileRoute("/session/$id/report")({
@@ -14,20 +14,21 @@ function ReportPage() {
   const { id } = Route.useParams();
   const { share } = Route.useSearch();
   const [report, setReport] = useState<ReportData | null>(null);
+  const [config, setConfig] = useState<PublicConfig | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [shareUrl, setShareUrl] = useState<string | null>(null);
 
   useEffect(() => {
     let stop = false;
-    const fetchOnce = async () => {
-      try {
-        const r = await getReport(id, share);
-        if (!stop) setReport(r);
-      } catch (err) {
+    Promise.all([getReport(id, share), getPublicConfig()])
+      .then(([r, c]) => {
+        if (stop) return;
+        setReport(r);
+        setConfig(c);
+      })
+      .catch((err) => {
         if (!stop) setError(err instanceof Error ? err.message : String(err));
-      }
-    };
-    fetchOnce();
+      });
     return () => {
       stop = true;
     };
@@ -52,7 +53,7 @@ function ReportPage() {
     );
   }
 
-  if (!report) {
+  if (!report || !config) {
     return (
       <main className="container">
         <p style={{ color: "var(--muted)" }}>Generating report…</p>
@@ -70,7 +71,7 @@ function ReportPage() {
           </button>
         )}
       </header>
-      <ScoreCard report={report} />
+      <ScoreCard report={report} mentorBookingUrl={config.mentor_booking_url} />
     </main>
   );
 }
