@@ -1,0 +1,51 @@
+{
+  "name": "octoprep2000",
+  "version": "0.1.0",
+  "private": true,
+  "packageManager": "pnpm@9.12.0",
+  "scripts": {
+    "dev": "pnpm -r --parallel run dev",
+    "build": "pnpm -r run build",
+    "lint": "pnpm -r run lint",
+    "typecheck": "pnpm -r run typecheck",
+    "frontend:dev": "pnpm --filter @octoprep/web-dashboard dev",
+    "backend:dev": "pnpm --filter @octoprep/backend dev",
+    "db:up": "docker compose up -d db",
+    "db:down": "docker compose down"
+  },
+  "engines": {
+    "node": ">=20.0.0",
+    "pnpm": ">=9.0.0"
+  },
+  "pnpm": {
+    "overrides": {
+      "@tanstack/directive-functions-plugin": "1.120.17",
+      "@tanstack/history": "1.120.17",
+      "@tanstack/react-router": "1.120.20",
+      "@tanstack/react-router-devtools": "1.120.20",
+      "@tanstack/react-start": "1.120.20",
+      "@tanstack/react-start-client": "1.120.20",
+      "@tanstack/react-start-config": "1.120.20",
+      "@tanstack/react-start-plugin": "1.120.17",
+      "@tanstack/react-start-router-manifest": "1.120.19",
+      "@tanstack/react-start-server": "1.120.20",
+      "@tanstack/router-core": "1.120.19",
+      "@tanstack/router-devtools": "1.120.20",
+      "@tanstack/router-devtools-core": "1.120.19",
+      "@tanstack/router-generator": "1.120.20",
+      "@tanstack/router-plugin": "1.120.20",
+      "@tanstack/router-utils": "1.120.17",
+      "@tanstack/router-vite-plugin": "1.120.20",
+      "@tanstack/server-functions-plugin": "1.120.17",
+      "@tanstack/start-api-routes": "1.120.19",
+      "@tanstack/start-client-core": "1.120.19",
+      "@tanstack/start-server-core": "1.120.19",
+      "@tanstack/start-server-functions-client": "1.120.19",
+      "@tanstack/start-server-functions-fetcher": "1.120.19",
+      "@tanstack/start-server-functions-handler": "1.120.19",
+      "@tanstack/start-server-functions-server": "1.120.17",
+      "@tanstack/start-server-functions-ssr": "1.120.19",
+      "@tanstack/virtual-file-routes": "1.120.17"
+    }
+  }
+}

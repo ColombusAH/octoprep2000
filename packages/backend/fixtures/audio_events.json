@@ -1,0 +1,44 @@
+[
+  {
+    "kind": "transcript",
+    "start_ms": 0,
+    "end_ms": 2000,
+    "text": "Hi everyone, today um I want to talk about React 19 new features.",
+    "filler_flags": ["um"]
+  },
+  {
+    "kind": "warning",
+    "timestamp_ms": 1500,
+    "event_type": "FILLER_WORDS",
+    "severity": "LOW",
+    "message": "Filler word: um"
+  },
+  {
+    "kind": "transcript",
+    "start_ms": 2000,
+    "end_ms": 4000,
+    "text": "So like, the React Compiler is one of the headline features.",
+    "filler_flags": ["like"]
+  },
+  {
+    "kind": "transcript",
+    "start_ms": 4000,
+    "end_ms": 6000,
+    "text": "Server Actions let you call mutations directly from forms which is amazing.",
+    "filler_flags": []
+  },
+  {
+    "kind": "warning",
+    "timestamp_ms": 30000,
+    "event_type": "PACING_TOO_FAST",
+    "severity": "MEDIUM",
+    "message": "Speaking too fast (185 WPM)"
+  },
+  {
+    "kind": "transcript",
+    "start_ms": 28000,
+    "end_ms": 30000,
+    "text": "And then useTransition wraps state updates and yields back to React so the UI stays responsive.",
+    "filler_flags": []
+  }
+]

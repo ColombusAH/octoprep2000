@@ -1,0 +1,20 @@
+services:
+  db:
+    image: postgres:15-alpine
+    container_name: octoprep-db
+    environment:
+      POSTGRES_USER: octoprep
+      POSTGRES_PASSWORD: octoprep
+      POSTGRES_DB: octoprep
+    ports:
+      - "5432:5432"
+    volumes:
+      - octoprep_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U octoprep"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  octoprep_pgdata:

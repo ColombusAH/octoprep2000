@@ -1,0 +1,78 @@
+"""ContentAnalysisAgent — post-session technical accuracy + coverage gap analysis.
+
+Reads transcript from DB (read-only) + session topic. Emits ContentAnalysisPayload.
+"""
+
+from __future__ import annotations
+
+import json
+import logging
+import uuid
+
+from agents.llm import get_llm
+from agents.schemas import ContentAnalysisPayload, ContentFinding
+from config import get_settings
+from db.repository import PostgreSQLRepository
+
+logger = logging.getLogger(__name__)
+
+CONTENT_PROMPT = """You evaluate a presenter's transcript for technical accuracy and coverage
+against the stated topic. Return JSON:
+{"content_score": int (0-100), "findings": [
+  {"type": "FACTUAL_ERROR" | "COVERAGE_GAP" | "STRENGTH",
+   "message": "short, specific",
+   "context_quote": "verbatim phrase from transcript (or empty for COVERAGE_GAP)"}
+]}.
+Disclose uncertainty for topics that may post-date training cutoff."""
+
+
+class ContentAnalysisAgent:
+    def __init__(self, repo: PostgreSQLRepository) -> None:
+        self.repo = repo
+
+    async def analyse(self, session_id: uuid.UUID) -> ContentAnalysisPayload | None:
+        session = await self.repo.get_session(session_id)
+        if not session:
+            return None
+
+        entries = await self.repo.read_transcript(session_id)
+        transcript = " ".join(e.text for e in entries).strip()
+        if not transcript:
+            return ContentAnalysisPayload(
+                session_id=session_id,
+                topic=session.topic,
+                content_score=0,
+                findings=[],
+            )
+
+        s = get_settings()
+        client = get_llm()
+        prompt = f"Topic: {session.topic}\n\nTranscript:\n{transcript[:12000]}"
+        try:
+            resp = await client.chat.completions.create(
+                model=s.litellm_text_model,
+                messages=[
+                    {"role": "system", "content": CONTENT_PROMPT},
+                    {"role": "user", "content": prompt},
+                ],
+                response_format={"type": "json_object"},
+                max_tokens=1500,
+            )
+            data = json.loads(resp.choices[0].message.content or "{}")
+        except Exception as exc:  # noqa: BLE001
+            logger.exception("Content LLM failed: %s", exc)
+            return None
+
+        findings = []
+        for raw in data.get("findings", []):
+            try:
+                findings.append(ContentFinding(**raw))
+            except Exception as exc:  # noqa: BLE001
+                logger.warning("invalid content finding skipped: %s (%s)", raw, exc)
+
+        return ContentAnalysisPayload(
+            session_id=session_id,
+            topic=session.topic,
+            content_score=float(max(0, min(100, data.get("content_score", 0)))),
+            findings=findings,
+        )

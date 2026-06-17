@@ -1,0 +1,32 @@
+[
+  {
+    "timestamp_ms": 12000,
+    "event_type": "EYE_CONTACT_LOST",
+    "severity": "MEDIUM",
+    "message": "Look back at the camera"
+  },
+  {
+    "timestamp_ms": 45500,
+    "event_type": "POSTURE_ISSUE",
+    "severity": "LOW",
+    "message": "Stand a little straighter"
+  },
+  {
+    "timestamp_ms": 92000,
+    "event_type": "OUT_OF_FRAME",
+    "severity": "HIGH",
+    "message": "You're partially out of frame"
+  },
+  {
+    "timestamp_ms": 145000,
+    "event_type": "EYE_CONTACT_LOST",
+    "severity": "MEDIUM",
+    "message": "Re-engage the audience"
+  },
+  {
+    "timestamp_ms": 210000,
+    "event_type": "GESTURE_CLOSED",
+    "severity": "LOW",
+    "message": "Open your gestures — chest forward"
+  }
+]

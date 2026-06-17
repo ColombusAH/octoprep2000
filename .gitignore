@@ -1,0 +1,40 @@
+node_modules/
+.pnpm-store/
+.turbo/
+dist/
+build/
+.output/
+.nitro/
+.tanstack/
+.vite/
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.uv/
+
+# Env
+.env
+.env.local
+.env.*.local
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea/
+.vscode/
+*.swp
+
+# Logs
+*.log
+
+# Generated routes
+**/routeTree.gen.ts
