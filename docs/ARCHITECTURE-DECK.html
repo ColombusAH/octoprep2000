@@ -1,0 +1,713 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>OctoPrep2000 — Architecture Deck</title>
+<style>
+  :root{
+    --bg:#0b1120; --panel:#0f172a; --ink:#e2e8f0; --muted:#94a3b8;
+    --sky:#38bdf8; --green:#4ade80; --amber:#fbbf24; --violet:#a78bfa; --red:#f87171;
+    --border:#1e293b;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%}
+  body{
+    background:var(--bg); color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    overflow:hidden;
+  }
+  #deck{height:100vh;width:100vw;position:relative}
+  .slide{
+    position:absolute; inset:0;
+    display:none; flex-direction:column;
+    padding:48px 64px 72px; overflow:auto;
+    animation:fade .35s ease;
+  }
+  .slide.active{display:flex}
+  @keyframes fade{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+  .kicker{color:var(--sky);font-size:14px;letter-spacing:.18em;text-transform:uppercase;font-weight:700;margin-bottom:10px}
+  h1{font-size:54px;line-height:1.05;font-weight:800;letter-spacing:-.02em}
+  h2{font-size:34px;font-weight:800;letter-spacing:-.01em;margin-bottom:6px}
+  .sub{color:var(--muted);font-size:18px;margin-top:14px;max-width:60ch}
+  .body{flex:1;display:flex;flex-direction:column;justify-content:center;min-height:0}
+  .diagram{
+    background:var(--panel);border:1px solid var(--border);border-radius:16px;
+    padding:22px;display:flex;align-items:center;justify-content:center;
+    overflow:auto;flex:1;min-height:0;
+  }
+  .mermaid{width:100%;height:100%;display:flex;align-items:center;justify-content:center}
+  .mermaid svg{max-width:100% !important;max-height:100% !important;width:auto !important;height:auto !important}
+  ul{list-style:none;display:flex;flex-direction:column;gap:14px;margin-top:8px}
+  li{font-size:21px;line-height:1.4;padding-left:30px;position:relative}
+  li::before{content:"▸";color:var(--sky);position:absolute;left:0;font-weight:700}
+  li b{color:#fff}
+  code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;background:#1e293b;color:var(--amber);padding:2px 7px;border-radius:6px;font-size:.9em}
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-top:8px}
+  .card{background:var(--panel);border:1px solid var(--border);border-radius:14px;padding:22px}
+  .card h3{font-size:19px;margin-bottom:12px;display:flex;align-items:center;gap:8px}
+  .card .dot{width:10px;height:10px;border-radius:50%}
+  .card ul{gap:9px}
+  .card li{font-size:16px;padding-left:22px}
+  .card li::before{font-size:.8em}
+  table{width:100%;border-collapse:collapse;font-size:16px;margin-top:6px}
+  th,td{text-align:left;padding:9px 14px;border-bottom:1px solid var(--border)}
+  th{color:var(--sky);text-transform:uppercase;font-size:12px;letter-spacing:.1em}
+  td:first-child{color:#fff;font-weight:600}
+  td code{font-size:13px}
+  .two{display:grid;grid-template-columns:1.1fr .9fr;gap:28px;flex:1;min-height:0}
+  .two .diagram{flex:none;height:100%}
+  pre.json{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:18px;font-family:ui-monospace,monospace;font-size:14px;color:var(--green);overflow:auto;line-height:1.5}
+  pre.json .k{color:var(--sky)} pre.json .s{color:var(--amber)} pre.json .c{color:var(--muted)}
+  .codeblock{background:#020617;border:1px solid var(--border);border-radius:12px;padding:18px 22px;font-family:ui-monospace,monospace;font-size:15px;line-height:1.7;color:var(--ink)}
+  .codeblock .cmt{color:var(--muted)}
+  .codeblock .cmd{color:var(--green)}
+  /* footer nav */
+  #bar{position:fixed;bottom:0;left:0;right:0;height:52px;display:flex;align-items:center;justify-content:space-between;
+       padding:0 24px;background:rgba(2,6,23,.85);border-top:1px solid var(--border);backdrop-filter:blur(8px);z-index:50}
+  #bar .title{color:var(--muted);font-size:13px;font-weight:600}
+  #bar .nav{display:flex;align-items:center;gap:14px}
+  #bar button{background:var(--panel);color:var(--ink);border:1px solid var(--border);border-radius:8px;
+       width:34px;height:34px;cursor:pointer;font-size:16px;transition:.15s}
+  #bar button:hover{border-color:var(--sky);color:var(--sky)}
+  #counter{font-variant-numeric:tabular-nums;font-size:14px;color:var(--muted);min-width:54px;text-align:center}
+  #prog{position:fixed;top:0;left:0;height:3px;background:linear-gradient(90deg,var(--sky),var(--green));z-index:60;transition:width .3s}
+  .pill{display:inline-block;background:var(--panel);border:1px solid var(--border);color:var(--sky);
+        padding:6px 14px;border-radius:999px;font-size:13px;font-weight:600;margin-top:24px}
+  .hint{position:fixed;bottom:62px;right:18px;color:var(--muted);font-size:12px;opacity:.6;z-index:40}
+  .agenda{columns:2;column-gap:48px}
+  .agenda li{break-inside:avoid;margin-bottom:14px}
+  .stat{display:flex;gap:40px;margin-top:30px;flex-wrap:wrap}
+  .stat div{display:flex;flex-direction:column}
+  .stat .n{font-size:42px;font-weight:800;color:var(--sky);line-height:1}
+  .stat .l{color:var(--muted);font-size:15px;margin-top:6px}
+</style>
+</head>
+<body>
+<div id="prog"></div>
+<div id="deck">
+
+  <!-- 1 TITLE -->
+  <section class="slide active" data-title="Title">
+    <div class="body">
+      <div class="kicker">Technical Architecture Walkthrough</div>
+      <h1>OctoPrep2000<br/>Architecture &amp; Flows</h1>
+      <p class="sub">AI presentation coach. Upload deck → record live in browser → multi-agent analysis of voice, body, slides &amp; content → scored, timestamp-anchored report. Single FastAPI process, all agents as <code>asyncio</code> tasks.</p>
+      <div class="stat">
+        <div><span class="n">5</span><span class="l">Agno agents + 1 frame utility</span></div>
+        <div><span class="n">4</span><span class="l">scorecard vectors</span></div>
+        <div><span class="n">3</span><span class="l">containers</span></div>
+        <div><span class="n">5</span><span class="l">Postgres tables</span></div>
+      </div>
+      <span class="pill">Tikal Fuse Day · June 24 2026 · Single-process · Local-first · Railway (P3 bonus)</span>
+    </div>
+  </section>
+
+  <!-- 2 PROBLEM -->
+  <section class="slide" data-title="Problem & Solution">
+    <div class="kicker">Why</div><h2>Problem &amp; Solution</h2>
+    <div class="body">
+      <div class="grid">
+        <div class="card">
+          <h3><span class="dot" style="background:var(--red)"></span>Problem</h3>
+          <ul>
+            <li>Engineers prep talks with no feedback loop before going on stage</li>
+            <li>Speaking coaches expensive + asynchronous</li>
+            <li>Self-recorded video = tedious, unstructured, no metrics</li>
+            <li>Vague impressions, no quantified path to improve</li>
+          </ul>
+        </div>
+        <div class="card">
+          <h3><span class="dot" style="background:var(--green)"></span>Solution</h3>
+          <ul>
+            <li>Always-on AI co-pilot watches + listens in real time</li>
+            <li><b>Upload → Record → Analyse → Report</b> pipeline</li>
+            <li>4-vector scorecard: voice · body · slides · content</li>
+            <li>Timestamp + slide anchored insights · score /100 · mentor unlock ≥80</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 3 TECH STACK -->
+  <section class="slide" data-title="Tech Stack">
+    <div class="kicker">Stack</div><h2>Technology Stack</h2>
+    <div class="body">
+      <table>
+        <tr><th>Layer</th><th>Technology</th><th>Purpose</th></tr>
+        <tr><td>Frontend</td><td>TanStack Start · React · TypeScript</td><td>SSR/SPA app, webcam + mic capture, scorecard</td></tr>
+        <tr><td>Backend</td><td>FastAPI · Python 3.11+ · async</td><td>REST + WebSocket, single process</td></tr>
+        <tr><td>Orchestration</td><td>Agno (fallback: raw <code>asyncio</code>)</td><td>Spawns/cancels agent tasks per session</td></tr>
+        <tr><td>Vision AI</td><td>GPT-4o Vision via Tikal LiteLLM</td><td>Posture · eye contact · framing · gestures</td></tr>
+        <tr><td>LLM agents</td><td>Tikal LiteLLM gateway</td><td>PPTX · Content · Report evaluation</td></tr>
+        <tr><td>STT</td><td>ElevenLabs Scribe v1</td><td>Live transcription · filler · WPM</td></tr>
+        <tr><td>Frame filter</td><td><code>imagehash</code> dhash</td><td>60fps → ≤5fps, drop duplicate frames</td></tr>
+        <tr><td>PPTX</td><td>python-pptx</td><td>Slide text extraction</td></tr>
+        <tr><td>Data</td><td>PostgreSQL 15 · SQLAlchemy async · asyncpg · Alembic</td><td>5 tables, migrations</td></tr>
+        <tr><td>Monorepo</td><td>pnpm workspaces + uv</td><td>JS + Python packages</td></tr>
+      </table>
+    </div>
+  </section>
+
+  <!-- 4 C4 CONTEXT -->
+  <section class="slide" data-title="C4 — System Context">
+    <div class="kicker">C4 · Level 1</div><h2>System Context</h2>
+    <div class="body"><div class="diagram"><pre class="mermaid">
+graph LR
+    presenter(["👤 Presenter<br/>uploads deck · records<br/>session · gets scorecard"])
+    subgraph sys["🐙 OctoPrep2000"]
+        core["AI presentation coaching<br/>live warnings + scored report"]
+    end
+    vision(["🤖 GPT-4o Vision<br/>via Tikal LiteLLM<br/>posture · eye contact · framing"])
+    stt(["🎙️ ElevenLabs Scribe v1<br/>speech-to-text"])
+    cal(["📅 Calendly<br/>mentor booking · unlock ≥80"])
+    rail(["🚂 Railway<br/>hosting + Postgres · P3"])
+    presenter -->|"HTTPS + WSS"| core
+    core -->|"frame batches · REST"| vision
+    core -->|"audio chunks · WSS"| stt
+    core -.->|"deep-link redirect"| cal
+    core -.->|"deployed on"| rail
+    class presenter sky
+    class core green
+    class vision,stt,cal,rail violet
+    style sys fill:#0b1120,stroke:#4ade80,color:#86efac
+    </pre></div></div>
+  </section>
+
+  <!-- 5 CONTAINER -->
+  <section class="slide" data-title="C4 — Containers">
+    <div class="kicker">C4 · Level 2</div><h2>Container Diagram</h2>
+    <div class="body"><div class="diagram"><pre class="mermaid">
+graph TB
+    user(["👤 Presenter · Browser"])
+    subgraph rail["☁️ Railway / Local"]
+        fe["🖥️ Web Dashboard<br/>TanStack Start · React · TS<br/>SSR · webcam + mic capture"]
+        be["⚡ FastAPI Backend<br/>Python 3.11 · Agno<br/>single process · all agents<br/>REST + WebSocket"]
+        pg[("🐘 PostgreSQL 15<br/>5 tables")]
+    end
+    vision(["🤖 Vision LLM API"])
+    stt(["🎙️ STT Provider"])
+    user -->|"HTTPS · serves pages"| fe
+    fe -->|"REST · /sessions · /upload"| be
+    fe -->|"WSS · video + audio in"| be
+    fe -->|"WSS · realtime-feedback out"| be
+    be -->|"SQLAlchemy async"| pg
+    be -->|"REST · frame batches"| vision
+    be -->|"WSS · audio chunks"| stt
+    class user,fe,be sky
+    class pg violet
+    class vision,stt amber
+    style rail fill:#0f172a,stroke:#334155,color:#94a3b8
+    </pre></div></div>
+  </section>
+
+  <!-- 6 BACKEND COMPONENTS -->
+  <section class="slide" data-title="Backend Components">
+    <div class="kicker">C4 · Level 3</div><h2>Backend — Routes → Orchestrator → Agents</h2>
+    <div class="body"><div class="diagram"><pre class="mermaid">
+graph LR
+    subgraph Routes["🌐 Routes"]
+        direction TB
+        SR[SessionRouter]; UR[UploadRouter]; VW[VideoWS]; AW[AudioWS]; FW[FeedbackWS]
+    end
+    subgraph Core["⚙️ Core"]
+        direction TB
+        SM[SessionManager]; BC[Broadcaster]
+    end
+    subgraph Orch["🧠 Orchestrator"]
+        AG[AgnoOrchestrator<br/>sole DB writer]
+    end
+    subgraph Agents["🤖 Agents · async tasks"]
+        direction TB
+        FS[FrameService]; VA[VisionAgent]; AA[AudioAgent]
+        PA[PPTXAgent]; CA[ContentAgent]; RA[ReportAgent]
+    end
+    subgraph Data["💾 Data"]
+        RP[Repository]; DB[(PostgreSQL)]
+    end
+    SR --> SM --> AG
+    UR --> PA
+    VW --> AG
+    AW --> AG
+    FW --> BC
+    AG --> FS --> VA
+    AG --> AA
+    VA -->|emit payload| AG
+    AA -->|emit payload| AG
+    PA -->|emit payload| AG
+    CA -->|emit payload| AG
+    RA -->|emit payload| AG
+    AG --> BC
+    AG -->|validate + persist| RP --> DB
+    RA -.->|read-only| RP
+    CA -.->|read-only| RP
+    class SR,UR,VW,AW,FW sky
+    class SM,BC green
+    class AG violet
+    class FS,VA,AA,PA,CA,RA amber
+    class RP,DB violet
+    style Routes fill:#0b1120,stroke:#38bdf8,color:#7dd3fc
+    style Core fill:#0b1120,stroke:#4ade80,color:#86efac
+    style Orch fill:#0b1120,stroke:#a78bfa,color:#c4b5fd
+    style Agents fill:#0b1120,stroke:#fbbf24,color:#fcd34d
+    style Data fill:#0b1120,stroke:#a78bfa,color:#c4b5fd
+    </pre></div></div>
+  </section>
+
+  <!-- 7 AGENTS TABLE -->
+  <section class="slide" data-title="Agent Specs">
+    <div class="kicker">Agents · contract</div><h2>5 Agents + 1 Utility</h2>
+    <div class="body">
+      <table>
+        <tr><th>Agent</th><th>Phase</th><th>Model / Service</th><th>Emits</th></tr>
+        <tr><td>Frame Service</td><td>P1</td><td><code>imagehash</code> dhash (algorithmic)</td><td>filtered frame stream</td></tr>
+        <tr><td>Audio Agent</td><td>P1</td><td>ElevenLabs Scribe v1</td><td>Transcript + AudioWarning</td></tr>
+        <tr><td>Vision Agent</td><td>P2</td><td>GPT-4o Vision (LiteLLM)</td><td>VideoEvent</td></tr>
+        <tr><td>PPTX Agent</td><td>P1</td><td>LiteLLM · 12-factor Playbook</td><td>SlideAnalysis[]</td></tr>
+        <tr><td>Content Agent</td><td>P2</td><td>LiteLLM · reads transcript</td><td>ContentAnalysis</td></tr>
+        <tr><td>Report Agent</td><td>P1/P2</td><td>LiteLLM · reads all events</td><td>Report (4 vectors)</td></tr>
+      </table>
+      <p class="sub"><b>Golden rule:</b> agents are pure AI logic — they <b>emit typed Pydantic payloads</b> to the Orchestrator and never touch the DB. Orchestrator is the <b>sole writer</b>; Report + Content agents get read-only access for aggregation.</p>
+    </div>
+  </section>
+
+  <!-- 8 LIVE SESSION SEQUENCE -->
+  <section class="slide" data-title="Live Session Flow">
+    <div class="kicker">Runtime · main path</div><h2>Live Session — Sequence</h2>
+    <div class="body"><div class="diagram"><pre class="mermaid">
+sequenceDiagram
+    actor P as Presenter
+    participant FE as Dashboard
+    participant API as SessionRouter
+    participant ORC as Orchestrator
+    participant VA as VisionAgent
+    participant AA as AudioAgent
+    participant BC as Broadcaster
+    participant EXT as Vision/STT
+    participant DB as PostgreSQL
+    P->>FE: Click "Start Session"
+    FE->>API: POST /sessions
+    API->>DB: INSERT Session(session_id, access_token, ACTIVE)
+    API-->>FE: { session_id, access_token }
+    FE->>ORC: open 3 WS (video · audio · feedback) + token
+    Note over FE,ORC: token validated on handshake · invalid → close(4003)
+    ORC->>ORC: spawn video_task + audio_task
+    loop frames ~200ms
+        FE->>VA: JPEG frame (via FrameService delta filter)
+        VA->>EXT: analyse batch (3 frames)
+        EXT-->>VA: eye_contact · posture · framing
+        VA->>ORC: emit(VideoEventPayload)
+        ORC->>DB: INSERT VideoEvent (batched 1s/N=20)
+        ORC->>BC: publish warning
+        BC-->>P: 🔴 Toast "Look at the camera!"
+    end
+    loop audio ~2s
+        FE->>AA: PCM chunk
+        AA->>EXT: transcribe
+        EXT-->>AA: text + timestamps
+        AA->>ORC: emit(Transcript + AudioWarning)
+        ORC->>DB: INSERT TranscriptEntry
+    end
+    P->>FE: Click "End Session"
+    FE->>API: POST /sessions/:id/end
+    API->>ORC: cancel tasks → trigger ReportAgent
+    ORC->>DB: UPDATE status=REPORT_READY
+    BC-->>FE: REPORT_READY → /session/:id/report
+    </pre></div></div>
+  </section>
+
+  <!-- 9 PPTX UPLOAD SEQUENCE -->
+  <section class="slide" data-title="PPTX Upload Flow">
+    <div class="kicker">Runtime · ingestion</div><h2>PPTX Upload — Sequence</h2>
+    <div class="body"><div class="diagram"><pre class="mermaid">
+sequenceDiagram
+    actor P as Presenter
+    participant FE as Dashboard
+    participant UR as UploadRouter
+    participant PA as PPTXAgent
+    participant ORC as Orchestrator
+    participant DB as PostgreSQL
+    P->>FE: Drag &amp; drop .pptx
+    FE->>UR: POST /sessions/:id/upload (multipart)
+    UR->>UR: save /tmp/{session_id}.pptx
+    UR->>PA: analyse_async(path, session_id)
+    UR-->>FE: 202 Accepted
+    FE-->>P: "Analysing your deck…"
+    PA->>PA: python-pptx extract slide text
+    Note over PA: persist slides_raw_text to DB<br/>survives restart
+    PA->>PA: LLM eval vs 12-factor Playbook
+    PA->>ORC: emit(SlideAnalysisPayload[])
+    Note over ORC: Pydantic validation wall ✓
+    loop per validated finding
+        ORC->>DB: INSERT SlideAnalysis
+    end
+    ORC->>DB: UPDATE Session(pptx_ready=true)
+    FE->>FE: poll GET /sessions/:id
+    FE-->>P: "Deck analysed ✓ — ready to start"
+    </pre></div></div>
+  </section>
+
+  <!-- 10 FALLBACK SEQUENCE -->
+  <section class="slide" data-title="Audio Fallback">
+    <div class="kicker">Resilience · degrade gracefully</div><h2>Audio-Only Fallback</h2>
+    <div class="body"><div class="diagram"><pre class="mermaid">
+sequenceDiagram
+    participant FS as FrameService
+    participant VA as VisionAgent
+    participant ORC as Orchestrator
+    participant FE as Dashboard
+    participant P as Presenter
+    loop 3 consecutive frames, no response
+        FS->>VA: analyse_frame(frame)
+        Note over VA: no response within VISION_TIMEOUT_MS (5000)
+        VA--xORC: timeout
+    end
+    ORC->>ORC: activate_fallback_mode()
+    ORC->>ORC: cancel video_task
+    ORC->>ORC: reweight Voice 40% + Slides 30% + Content 30%
+    ORC->>FE: publish FALLBACK_ACTIVATED
+    FE-->>P: ⚠️ "Video unavailable — continuing with audio coaching"
+    Note over P: session continues with audio + slides only
+    </pre></div></div>
+  </section>
+
+  <!-- 11 FRAME OPTIMIZATION -->
+  <section class="slide" data-title="Frame Filter">
+    <div class="kicker">Algorithm · cost control</div><h2>Frame Delta Filtering</h2>
+    <div class="two">
+      <div class="diagram"><pre class="mermaid">
+flowchart TB
+    A([📷 getUserMedia<br/>60fps capture]) --> B["downscale 320×240<br/>JPEG q0.7 · every 200ms"]
+    B --> C{{"dhash<br/>Hamming distance"}}
+    C -->|"≤ 8 · duplicate"| D["🗑️ drop frame"]
+    C -->|"&gt; 8 · changed"| E["queue for batch"]
+    E --> F["batch 3 frames<br/>@ ~600ms"]
+    F --> G[("🤖 GPT-4o Vision<br/>1 call / batch")]
+    class A sky
+    class B,E,F amber
+    class C violet
+    class D red
+    class G green
+      </pre></div>
+      <div style="display:flex;flex-direction:column;justify-content:center">
+        <ul>
+          <li>60fps would be ruinous on latency + token cost — <b>banned</b></li>
+          <li><code>imagehash</code> dhash → Hamming distance vs last frame</li>
+          <li>Distance ≤ <b>8</b> → frame is redundant → drop silently</li>
+          <li>Survivors <b>batched 3 per call</b> to amortise tokens (~1000 calls / 10-min session)</li>
+          <li>Result: <b>≤5fps</b> reaches the Vision Agent</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- 12 AUTH / CAPABILITY TOKEN -->
+  <section class="slide" data-title="Session Isolation">
+    <div class="kicker">Security · no user accounts</div><h2>Capability Token Pattern</h2>
+    <div class="body"><div class="diagram"><pre class="mermaid">
+flowchart TB
+    Create(["POST /sessions"]) -->|returns| Pair["session_id (public)<br/>+ access_token (secret)"]
+    Pair --> LS["💾 localStorage<br/>token_{session_id}"]
+    subgraph Protected["🔴 require access_token"]
+        direction LR
+        E1["GET /sessions/:id"]; E2["POST /upload"]; E3["POST /end"]
+        E4["WS video · audio · feedback"]
+    end
+    subgraph Share["🟢 read-only share_token"]
+        direction LR
+        E5["GET /report?share=…"]
+    end
+    LS -->|"Bearer / ?token="| Protected
+    E6["POST /report/share"] -.->|generates| E5
+    class Create sky
+    class Pair,LS green
+    class E1,E2,E3,E4 red
+    class E5,E6 green
+    style Protected fill:#450a0a,stroke:#f87171,color:#fecaca
+    style Share fill:#052e16,stroke:#4ade80,color:#bbf7d0
+    </pre></div>
+    <p class="sub">Two UUIDs, zero login. <b>session_id</b> public (safe in URLs/logs), <b>access_token</b> secret in localStorage. Both required for every protected op. WS can't send headers → <code>?token=</code> query param, validated on handshake, <code>close(4003)</code> if invalid. Opt-in <b>share_token</b> grants read-only report access.</p>
+    </div>
+  </section>
+
+  <!-- 13 SCORING -->
+  <section class="slide" data-title="4-Vector Scorecard">
+    <div class="kicker">Output · the report</div><h2>4-Vector Scorecard</h2>
+    <div class="two">
+      <div style="display:flex;flex-direction:column;justify-content:center">
+        <ul>
+          <li>🗣️ <b>Voice &amp; Delivery</b> — fillers, WPM pacing</li>
+          <li>🎥 <b>Body Language</b> — eye contact, posture, framing</li>
+          <li>🖼️ <b>Slide Quality</b> — 12-factor Playbook</li>
+          <li>🧠 <b>Technical Accuracy</b> — transcript vs topic</li>
+          <li>ReportAgent <b>dedups</b> recurring events, collects timestamps[], <b>weighted average</b></li>
+          <li>Score ≥ <b>80</b> → 🔓 unlocks Tikal mentor booking</li>
+        </ul>
+      </div>
+      <pre class="json">{
+  <span class="k">"overall_score"</span>: <span class="s">74</span>,
+  <span class="k">"voice_score"</span>: <span class="s">68</span>,
+  <span class="k">"body_score"</span>: <span class="s">71</span>,
+  <span class="k">"slide_score"</span>: <span class="s">82</span>,
+  <span class="k">"content_score"</span>: <span class="s">75</span>,
+  <span class="k">"mentor_unlocked"</span>: <span class="s">false</span>,
+  <span class="k">"insights"</span>: [{
+    <span class="k">"category"</span>: <span class="s">"voice"</span>,
+    <span class="k">"type"</span>: <span class="s">"IMPROVEMENT"</span>,
+    <span class="k">"message"</span>: <span class="s">"Said 'um' 24×"</span>,
+    <span class="k">"timestamps"</span>: [<span class="s">72000</span>,<span class="s">225000</span>]
+  }]
+}</pre>
+    </div>
+  </section>
+
+  <!-- 14 ER DIAGRAM -->
+  <section class="slide" data-title="DB Schema (ER)">
+    <div class="kicker">Data · PostgreSQL</div><h2>Relational Schema — 5 Tables</h2>
+    <div class="body"><div class="diagram"><pre class="mermaid">
+erDiagram
+    sessions {
+        uuid session_id PK
+        uuid access_token
+        text topic
+        text status
+        boolean pptx_ready
+        jsonb slides_raw_text
+    }
+    transcript_entries {
+        serial id PK
+        uuid session_id FK
+        int start_ms
+        int end_ms
+        text text
+        text_array filler_flags
+    }
+    video_events {
+        serial id PK
+        uuid session_id FK
+        int timestamp_ms
+        text event_type
+        text severity
+    }
+    slide_analyses {
+        serial id PK
+        uuid session_id FK
+        int slide_index
+        int playbook_factor
+        text finding_type
+    }
+    reports {
+        serial id PK
+        uuid session_id FK
+        numeric overall_score
+        jsonb insights
+        boolean mentor_unlocked
+        uuid share_token
+    }
+    sessions ||--o{ transcript_entries : "has"
+    sessions ||--o{ video_events : "has"
+    sessions ||--o{ slide_analyses : "has"
+    sessions ||--|| reports : "produces"
+    </pre></div></div>
+  </section>
+
+  <!-- 15 WS CONTRACT -->
+  <section class="slide" data-title="WebSocket Contract">
+    <div class="kicker">Realtime · 3 channels</div><h2>WebSocket Contract</h2>
+    <div class="body">
+      <table>
+        <tr><th>Route</th><th>Dir</th><th>Format</th><th>Auth</th></tr>
+        <tr><td><code>/video-stream</code></td><td>browser → backend</td><td>Binary JPEG frame</td><td>access_token</td></tr>
+        <tr><td><code>/audio-stream</code></td><td>browser → backend</td><td>Binary PCM 16-bit 16kHz · 2s</td><td>access_token</td></tr>
+        <tr><td><code>/realtime-feedback</code></td><td>backend → browser</td><td>JSON events</td><td>access_token</td></tr>
+      </table>
+      <div class="grid" style="margin-top:18px">
+        <div class="card">
+          <h3><span class="dot" style="background:var(--sky)"></span>Event types out</h3>
+          <ul>
+            <li><code>EYE_CONTACT_LOST</code> · severity + timestamp_ms</li>
+            <li><code>REPORT_READY</code> · redirect signal</li>
+            <li><code>FALLBACK_ACTIVATED</code> · video down banner</li>
+          </ul>
+        </div>
+        <div class="card">
+          <h3><span class="dot" style="background:var(--green)"></span>Resilience</h3>
+          <ul>
+            <li>Token validated on handshake → <code>close(4003)</code></li>
+            <li>Browser reconnect: exp backoff 1·2·4·8s cap</li>
+            <li>session_id + token in localStorage → rebind same session</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 16 DEPLOYMENT -->
+  <section class="slide" data-title="Deployment">
+    <div class="kicker">Infra · Railway (P3)</div><h2>Deployment Architecture</h2>
+    <div class="body"><div class="diagram"><pre class="mermaid">
+graph TB
+    Deploy(["⬆️ git push main"]) -->|auto-deploy| Railway
+    subgraph Railway["☁️ Railway Project · octoprep2000"]
+        FE["🖥️ web-dashboard<br/>TanStack Start · Node"]
+        BE["⚡ backend<br/>FastAPI · all agents<br/>uvicorn :$PORT · /health"]
+        PG[("🐘 PostgreSQL 15<br/>plugin · DATABASE_URL")]
+    end
+    FE -->|HTTPS / WSS| BE
+    BE -->|asyncpg| PG
+    BE -.->|LITELLM_API_KEY| V(["🤖 LiteLLM gateway"])
+    BE -.->|ELEVENLABS_API_KEY| S(["🎙️ Scribe v1"])
+    class Deploy slate
+    class FE,BE sky
+    class PG violet
+    class V,S amber
+    style Railway fill:#0f172a,stroke:#334155,color:#94a3b8
+    </pre></div>
+    <p class="sub"><b>Local-first for the demo</b> — no deploy required. Railway is a P3 bonus: one project, one branch (<code>main</code>), Postgres plugin injects <code>DATABASE_URL</code>. Keep-warm pings <code>/health</code> every 30s. <code>DEMO_MODE=replay</code> swaps live Vision/STT for canned fixtures if APIs flake.</p>
+    </div>
+  </section>
+
+  <!-- 17 DECISIONS -->
+  <section class="slide" data-title="Key Decisions">
+    <div class="kicker">Rationale</div><h2>Why These Choices</h2>
+    <div class="body">
+      <div class="grid">
+        <div class="card">
+          <h3><span class="dot" style="background:var(--sky)"></span>Single FastAPI process</h3>
+          <ul><li>All agents = <code>asyncio</code> tasks, zero inter-service networking</li><li>Right for a 6-hour build · risk: blocking call stalls loop → <code>run_in_executor</code></li></ul>
+        </div>
+        <div class="card">
+          <h3><span class="dot" style="background:var(--violet)"></span>In-process pub/sub</h3>
+          <ul><li><code>asyncio.Queue</code> + <code>dict[session_id → set[WS]]</code></li><li>No Redis · clean interface, swappable post-hackathon</li></ul>
+        </div>
+        <div class="card">
+          <h3><span class="dot" style="background:var(--green)"></span>Orchestrator = sole DB writer</h3>
+          <ul><li>Agents pure AI, emit typed payloads · Pydantic validation wall</li><li>VideoEvents batched 1s/N=20 to avoid write bottleneck</li></ul>
+        </div>
+        <div class="card">
+          <h3><span class="dot" style="background:var(--amber)"></span>Capability tokens</h3>
+          <ul><li>Full session isolation, no login flow</li><li>Agno is brand-tax — fallback: raw <code>asyncio.create_task</code></li></ul>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 18 PHASES -->
+  <section class="slide" data-title="Build Phases">
+    <div class="kicker">Plan · ship incrementally</div><h2>Three Phases</h2>
+    <div class="body"><div class="diagram"><pre class="mermaid">
+graph LR
+    P1["🟢 Phase 1 · first 2h<br/>PPTX upload + slide analysis<br/>audio STT + filler/WPM<br/>simple report<br/>WS infra built"]
+    P2["🟡 Phase 2 · 2-3h<br/>Vision agent (body/eyes)<br/>Content accuracy agent<br/>4-vector scorecard<br/>lock/unlock ≥80"]
+    P3["🔵 Phase 3 · bonus<br/>live toasts + toggle<br/>Railway deploy<br/>Chrome extension<br/>PDF export"]
+    P1 --> P2 --> P3
+    style P1 fill:#14532d,stroke:#4ade80,color:#dcfce7
+    style P2 fill:#78350f,stroke:#fbbf24,color:#fef3c7
+    style P3 fill:#0c4a6e,stroke:#38bdf8,color:#e0f2fe
+    </pre></div>
+    <p class="sub"><b>Phase 1 alone is a demo.</b> WebSocket infra is built in P1 so live feedback switches on in P3 without rearchitecting. If the day runs short, P1 ships a working product.</p>
+    </div>
+  </section>
+
+  <!-- 19 END -->
+  <section class="slide" data-title="Summary">
+    <div class="body">
+      <div class="kicker">Recap</div>
+      <h1>Upload → Record → Analyse → Report</h1>
+      <p class="sub">Single FastAPI process · 5 Agno agents emit typed payloads → Orchestrator validates &amp; writes · frame delta filter + batched Vision calls · capability-token isolation · 4-vector weighted scorecard with timestamps · audio-only graceful fallback.</p>
+      <div class="stat">
+        <div><span class="n">Sole writer</span><span class="l">Orchestrator owns all DB writes</span></div>
+        <div><span class="n">≤5fps</span><span class="l">dhash drops duplicate frames</span></div>
+        <div><span class="n">2 tokens</span><span class="l">session isolation, no login</span></div>
+      </div>
+      <span class="pill">Details → docs/TECH-ARCHITECTURE-C4.md · docs/PRD.md</span>
+    </div>
+  </section>
+
+</div>
+
+<div class="hint">← → / Space · F fullscreen · Home/End</div>
+<div id="bar">
+  <span class="title" id="slideTitle"></span>
+  <div class="nav">
+    <button id="prev">‹</button>
+    <span id="counter">1 / 19</span>
+    <button id="next">›</button>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
+<script>
+(async function(){
+  mermaid.initialize({
+    startOnLoad:false,
+    theme:"dark",
+    securityLevel:"loose",
+    themeVariables:{
+      darkMode:true, background:"#0f172a",
+      fontFamily:'-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif',
+      fontSize:"16px",
+      primaryColor:"#1e293b", primaryTextColor:"#e2e8f0", primaryBorderColor:"#38bdf8",
+      lineColor:"#64748b", textColor:"#e2e8f0",
+      clusterBkg:"#0b1120", clusterBorder:"#334155",
+      actorBkg:"#1e293b", actorBorder:"#38bdf8", actorTextColor:"#e2e8f0",
+      signalColor:"#cbd5e1", signalTextColor:"#cbd5e1",
+      labelBoxBkgColor:"#0f172a", labelBoxBorderColor:"#38bdf8", labelTextColor:"#e2e8f0",
+      noteBkgColor:"#312e81", noteBorderColor:"#a78bfa", noteTextColor:"#e2e8f0",
+      mainBkg:"#1e293b", nodeBorder:"#334155",
+      attributeBackgroundColorOdd:"#0f172a", attributeBackgroundColorEven:"#111c33"
+    },
+    flowchart:{useMaxWidth:false, htmlLabels:true, curve:"basis", nodeSpacing:55, rankSpacing:65, padding:14, diagramPadding:18},
+    sequence:{useMaxWidth:false, mirrorActors:false, boxMargin:12, messageFontWeight:500, actorMargin:60, noteMargin:14, wrap:true, width:170},
+    er:{useMaxWidth:false, entityPadding:14, fontSize:14},
+    class:{useMaxWidth:false},
+    c4:{useMaxWidth:false, diagramMarginY:24}
+  });
+
+  const PALETTE = `
+    classDef sky fill:#0c4a6e,stroke:#38bdf8,stroke-width:1.5px,color:#e0f2fe;
+    classDef green fill:#14532d,stroke:#4ade80,stroke-width:1.5px,color:#dcfce7;
+    classDef amber fill:#78350f,stroke:#fbbf24,stroke-width:1.5px,color:#fef3c7;
+    classDef violet fill:#3b0764,stroke:#a78bfa,stroke-width:1.5px,color:#ede9fe;
+    classDef red fill:#7f1d1d,stroke:#f87171,stroke-width:1.5px,color:#fee2e2;
+    classDef slate fill:#1e293b,stroke:#64748b,stroke-width:1.5px,color:#e2e8f0;`;
+  document.querySelectorAll(".mermaid").forEach(el=>{
+    let src = el.innerHTML.replace(/<br\s*\/?>/gi, "<br/>");
+    const ta = document.createElement("textarea"); ta.innerHTML = src; src = ta.value.trim();
+    if(/^(flowchart|graph)\b/.test(src)) src += "\n" + PALETTE;
+    el.textContent = src;
+  });
+
+  const slides=[...document.querySelectorAll(".slide")];
+  let i=0;
+  const counter=document.getElementById("counter");
+  const titleEl=document.getElementById("slideTitle");
+  const prog=document.getElementById("prog");
+
+  function show(n){
+    i=Math.max(0,Math.min(slides.length-1,n));
+    slides.forEach((s,k)=>s.classList.toggle("active",k===i));
+    counter.textContent=`${i+1} / ${slides.length}`;
+    titleEl.textContent=slides[i].dataset.title||"";
+    prog.style.width=((i+1)/slides.length*100)+"%";
+    slides[i].scrollTop=0;
+  }
+  document.getElementById("next").onclick=()=>show(i+1);
+  document.getElementById("prev").onclick=()=>show(i-1);
+  document.addEventListener("keydown",e=>{
+    if(e.key==="ArrowRight"||e.key===" "||e.key==="PageDown"){show(i+1);e.preventDefault();}
+    else if(e.key==="ArrowLeft"||e.key==="PageUp"){show(i-1);}
+    else if(e.key==="Home"){show(0);}
+    else if(e.key==="End"){show(slides.length-1);}
+    else if(e.key.toLowerCase()==="f"){document.fullscreenElement?document.exitFullscreen():document.documentElement.requestFullscreen();}
+  });
+
+  slides.forEach(s=>{s.style.display="flex";s.style.visibility="hidden";});
+  await mermaid.run({querySelector:".mermaid", suppressErrors:true});
+  slides.forEach(s=>{s.style.display="";s.style.visibility="";});
+  show(0);
+})();
+</script>
+</body>
+</html>
