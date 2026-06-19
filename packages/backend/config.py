@@ -13,13 +13,14 @@ class Settings(BaseSettings):
     database_url: str = "postgresql+asyncpg://octoprep:octoprep@localhost:5432/octoprep"
     port: int = 8000
 
-    # Tikal LiteLLM gateway (Vision, PPTX, Content, Report agents)
+    # Tikal LiteLLM gateway (Vision, PPTX, Content, Report, Audio agents)
     litellm_api_key: str = ""
-    litellm_base_url: str = "https://litelm.tikalk.dev/v1"
+    litellm_base_url: str = "https://litellm.tikalk.dev/v1"
     litellm_vision_model: str = "gpt-4o"
-    litellm_text_model: str = "gpt-4o-mini"
+    litellm_text_model: str = "gpt-4.1-mini"
+    litellm_stt_model: str = "eleven-scribe-v1"
 
-    # ElevenLabs Scribe v1 (STT)
+    # ElevenLabs Scribe v1 (STT) — unused if STT goes through the LiteLLM gateway above
     elevenlabs_api_key: str = ""
 
     # Google Cloud Vision (deterministic face metrics — supplements GPT-4o Vision)

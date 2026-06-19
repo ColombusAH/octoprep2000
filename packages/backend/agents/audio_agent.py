@@ -15,8 +15,7 @@ import time
 import uuid
 from collections import deque
 
-import httpx
-
+from agents.llm import get_llm
 from agents.replay_fixtures import replay_audio_events
 from agents.schemas import AudioWarningPayload, TranscriptPayload
 from config import get_settings
@@ -29,7 +28,6 @@ FILLER_REGEX = re.compile(r"\b(" + "|".join(re.escape(w) for w in FILLERS) + r")
 WPM_HIGH = 160
 WPM_LOW = 90
 WPM_WINDOW_SECONDS = 30
-ELEVENLABS_STT_URL = "https://api.elevenlabs.io/v1/speech-to-text"
 
 
 class AudioAgent:
@@ -41,7 +39,6 @@ class AudioAgent:
         # rolling 30s window of (timestamp_s, word_count)
         self._wpm_window: deque[tuple[float, int]] = deque()
         self._last_warning_ts = 0
-        self._http = httpx.AsyncClient(timeout=10.0)
 
     async def push_chunk(self, pcm_bytes: bytes) -> None:
         if get_settings().demo_replay:
@@ -132,19 +129,15 @@ class AudioAgent:
     async def _transcribe(self, pcm_bytes: bytes) -> str:
         s = get_settings()
         wav_bytes = _wrap_pcm_as_wav(pcm_bytes, sample_rate=16000, channels=1, bits_per_sample=16)
-        files = {"file": ("chunk.wav", wav_bytes, "audio/wav")}
-        data = {"model_id": "scribe_v1"}
-        resp = await self._http.post(
-            ELEVENLABS_STT_URL,
-            files=files,
-            data=data,
-            headers={"xi-api-key": s.elevenlabs_api_key},
+        client = get_llm()
+        resp = await client.audio.transcriptions.create(
+            model=s.litellm_stt_model,
+            file=("chunk.wav", wav_bytes, "audio/wav"),
         )
-        resp.raise_for_status()
-        return resp.json().get("text", "")
+        return resp.text or ""
 
     async def aclose(self) -> None:
-        await self._http.aclose()
+        pass
 
 
 def _wrap_pcm_as_wav(
