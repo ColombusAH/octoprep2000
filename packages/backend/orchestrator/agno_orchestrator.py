@@ -56,15 +56,15 @@ class AgnoOrchestrator:
         self._tasks.setdefault(session_id, {})
         if self._flush_task is None:
             self._flush_task = asyncio.create_task(self._periodic_flush())
-        logger.info("Orchestrator: session %s started", session_id)
+        logger.info("Orchestrator: session {} started", session_id)
 
     async def end_session(self, session_id: uuid.UUID) -> None:
         for name, task in self._tasks.get(session_id, {}).items():
             task.cancel()
-            logger.debug("cancelled task %s for %s", name, session_id)
+            logger.debug("cancelled task {} for {}", name, session_id)
         await self._flush_video_events(session_id)
         await self._with_repo(lambda r: r.set_session_status(session_id, "ENDED"))
-        logger.info("Orchestrator: session %s ended", session_id)
+        logger.info("Orchestrator: session {} ended", session_id)
 
     async def mark_report_ready(self, session_id: uuid.UUID) -> None:
         await self._with_repo(lambda r: r.set_session_status(session_id, "REPORT_READY"))
@@ -186,7 +186,7 @@ class AgnoOrchestrator:
         try:
             await self._with_repo(lambda r: r.bulk_insert_video_events(events))
         except Exception as exc:  # noqa: BLE001
-            logger.exception("video_events flush failed: %s", exc)
+            logger.exception("video_events flush failed: {}", exc)
 
     async def _periodic_flush(self) -> None:
         while True:

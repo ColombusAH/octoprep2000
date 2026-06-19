@@ -34,4 +34,4 @@ async def audio_stream(
             assert rt.audio is not None
             await rt.audio.push_chunk(chunk)
     except WebSocketDisconnect:
-        logger.info("audio WS closed for %s", session_id)
+        logger.info("audio WS closed for {}", session_id)

@@ -64,7 +64,7 @@ class ContentAnalysisAgent:
             )
             data = json.loads(resp.choices[0].message.content or "{}")
         except Exception as exc:  # noqa: BLE001
-            logger.exception("Content LLM failed: %s", exc)
+            logger.exception("Content LLM failed: {}", exc)
             return None
 
         findings = []
@@ -72,7 +72,7 @@ class ContentAnalysisAgent:
             try:
                 findings.append(ContentFinding(**raw))
             except Exception as exc:  # noqa: BLE001
-                logger.warning("invalid content finding skipped: %s (%s)", raw, exc)
+                logger.warning("invalid content finding skipped: {} ({})", raw, exc)
 
         return ContentAnalysisPayload(
             session_id=session_id,

@@ -36,4 +36,4 @@ async def feedback_stream(
         pass
     finally:
         await broadcaster.unregister(session_id, ws)
-        logger.info("feedback WS closed for %s", session_id)
+        logger.info("feedback WS closed for {}", session_id)

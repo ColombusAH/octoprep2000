@@ -142,7 +142,7 @@ class VisionAgent:
                 },
             )
         except Exception as exc:  # noqa: BLE001
-            logger.warning("invalid face payload %s skipped: %s", event_type, exc)
+            logger.warning("invalid face payload {} skipped: {}", event_type, exc)
             return
         await self.orchestrator.on_video_event(payload)
 
@@ -158,12 +158,12 @@ class VisionAgent:
             self._timeout_streak = 0
         except (TimeoutError, asyncio.TimeoutError):
             self._timeout_streak += 1
-            logger.warning("Vision LLM timeout %d/3", self._timeout_streak)
+            logger.warning("Vision LLM timeout {}/3", self._timeout_streak)
             if self._timeout_streak >= 3:
                 await self.orchestrator.activate_fallback(self.session_id)
             return
         except Exception as exc:  # noqa: BLE001
-            logger.exception("Vision LLM call failed: %s", exc)
+            logger.exception("Vision LLM call failed: {}", exc)
             return
 
         ts = self._now_ms()
@@ -181,7 +181,7 @@ class VisionAgent:
                     raw_metadata={"source": "gpt4o_vision"},
                 )
             except Exception as exc:  # noqa: BLE001
-                logger.warning("invalid LLM payload skipped: %s (%s)", raw, exc)
+                logger.warning("invalid LLM payload skipped: {} ({})", raw, exc)
                 continue
             self._last_event_type = event_type
             await self.orchestrator.on_video_event(payload)

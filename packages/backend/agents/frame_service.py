@@ -29,7 +29,7 @@ class FrameService:
             img = Image.open(io.BytesIO(frame_bytes))
             h = imagehash.dhash(img)
         except Exception as exc:  # noqa: BLE001
-            logger.warning("frame decode failed: %s", exc)
+            logger.warning("frame decode failed: {}", exc)
             return False
 
         if self._prev_hash is None:

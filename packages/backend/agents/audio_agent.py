@@ -60,7 +60,7 @@ class AudioAgent:
         try:
             text = await self._transcribe(pcm_bytes)
         except Exception as exc:  # noqa: BLE001
-            logger.exception("STT failed: %s", exc)
+            logger.exception("STT failed: {}", exc)
             return
 
         if not text.strip():

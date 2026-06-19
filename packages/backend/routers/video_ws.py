@@ -37,4 +37,4 @@ async def video_stream(
             assert rt.frame_service is not None
             await rt.frame_service.ingest(frame)
     except WebSocketDisconnect:
-        logger.info("video WS closed for %s", session_id)
+        logger.info("video WS closed for {}", session_id)

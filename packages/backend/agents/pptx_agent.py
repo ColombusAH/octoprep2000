@@ -65,7 +65,7 @@ class PPTXAgent:
         try:
             slides_raw = await asyncio.to_thread(self._extract_text, pptx_path)
         except Exception as exc:  # noqa: BLE001
-            logger.exception("PPTX parse failed: %s", exc)
+            logger.exception("PPTX parse failed: {}", exc)
             slides_raw = []
 
         if get_settings().demo_replay:
@@ -74,7 +74,7 @@ class PPTXAgent:
             try:
                 findings = await self._evaluate(slides_raw)
             except Exception as exc:  # noqa: BLE001
-                logger.exception("PPTX LLM eval failed: %s", exc)
+                logger.exception("PPTX LLM eval failed: {}", exc)
                 findings = []
 
         await self.orchestrator.on_slide_analysis(
@@ -121,5 +121,5 @@ class PPTXAgent:
             try:
                 findings.append(SlideAnalysisPayload(**raw))
             except Exception as exc:  # noqa: BLE001
-                logger.warning("invalid slide finding skipped: %s (%s)", raw, exc)
+                logger.warning("invalid slide finding skipped: {} ({})", raw, exc)
         return findings

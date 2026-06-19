@@ -22,7 +22,7 @@ class FeedbackBroadcaster:
     async def register(self, session_id: uuid.UUID, ws: WebSocket) -> None:
         async with self._lock:
             self._subs.setdefault(session_id, set()).add(ws)
-        logger.info("WS subscribed: session=%s total=%d", session_id, len(self._subs[session_id]))
+        logger.info("WS subscribed: session={} total={}", session_id, len(self._subs[session_id]))
 
     async def unregister(self, session_id: uuid.UUID, ws: WebSocket) -> None:
         async with self._lock:
@@ -39,7 +39,7 @@ class FeedbackBroadcaster:
             try:
                 await ws.send_json(payload)
             except Exception as exc:  # noqa: BLE001
-                logger.warning("WS send failed (%s); marking dead", exc)
+                logger.warning("WS send failed ({}); marking dead", exc)
                 dead.append(ws)
         for ws in dead:
             await self.unregister(session_id, ws)

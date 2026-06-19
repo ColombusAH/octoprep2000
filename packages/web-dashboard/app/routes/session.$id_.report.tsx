@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import { createShareLink, getPublicConfig, getReport, type PublicConfig } from "~/lib/api";
 import { ScoreCard, type ReportData } from "~/components/ScoreCard";
 
-export const Route = createFileRoute("/session/$id/report")({
+export const Route = createFileRoute("/session/$id_/report")({
   component: ReportPage,
   validateSearch: (search): { share?: string } => ({
     share: typeof search.share === "string" ? search.share : undefined,

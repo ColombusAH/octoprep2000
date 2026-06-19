@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import asyncio
 import tempfile
 import uuid
 from pathlib import Path
@@ -43,5 +42,5 @@ async def upload_pptx(
         finally:
             tmp.unlink(missing_ok=True)
 
-    background.add_task(asyncio.create_task, run_agent())
+    background.add_task(run_agent)
     return {"status": "accepted", "session_id": str(session_id)}

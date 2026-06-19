@@ -51,7 +51,7 @@ settings = get_settings()
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    logger.info("starting OctoPrep2000 backend (demo_mode=%s)", settings.demo_mode or "off")
+    logger.info("starting OctoPrep2000 backend (demo_mode={})", settings.demo_mode or "off")
     # Schema is managed by Alembic: `cd packages/backend && uv run alembic upgrade head`.
     yield
     logger.info("shutdown")

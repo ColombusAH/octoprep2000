@@ -65,7 +65,7 @@ def _client():
     try:
         return vision.ImageAnnotatorClient()
     except Exception as exc:  # noqa: BLE001
-        logger.warning("GCV client init failed: %s — face detection disabled.", exc)
+        logger.warning("GCV client init failed: {} — face detection disabled.", exc)
         return None
 
 
@@ -81,7 +81,7 @@ async def detect(frame_bytes: bytes) -> FaceMetrics | None:
     try:
         return await asyncio.to_thread(_blocking_call, client, frame_bytes)
     except Exception as exc:  # noqa: BLE001
-        logger.warning("GCV face_detection call failed: %s", exc)
+        logger.warning("GCV face_detection call failed: {}", exc)
         return None
 
 
