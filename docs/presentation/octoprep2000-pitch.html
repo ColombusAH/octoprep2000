@@ -1,0 +1,716 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>OctoPrep2000 — Tikal Fuse Day 2026</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Tektur:wght@400;500;700;900&family=Space+Mono:ital,wght@0,400;0,700;1,400&family=Chakra+Petch:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<!-- Mermaid.js for editable architecture diagrams -->
+<script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
+<style>
+/* ===========================================
+   FIXED 16:9 STAGE — MANDATORY BASE (1920×1080)
+   =========================================== */
+html, body { width:100%; height:100%; margin:0; overflow:hidden; background:#060D1A; }
+.deck-viewport { position:fixed; inset:0; overflow:hidden; background:#060D1A; }
+.deck-stage { position:absolute; left:0; top:0; width:1920px; height:1080px; overflow:hidden; transform-origin:0 0; background:var(--void); }
+.slide {
+  position:absolute; inset:0; width:1920px; height:1080px; overflow:hidden;
+  display:block; visibility:hidden; opacity:0; pointer-events:none;
+  transition: opacity 0.5s ease;
+}
+.slide.active { visibility:visible; opacity:1; pointer-events:auto; z-index:1; }
+img, video, canvas, svg { max-width:100%; max-height:100%; }
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration:0.01ms !important; transition-duration:0.2s !important; } }
+
+/* ===========================================
+   BRAND PALETTE — navy + orange + white
+   teal reserved for chrome only
+   =========================================== */
+:root {
+  --void:    #060D1A;
+  --navy:    #0A1E35;
+  --navy-2:  #0D2742;
+  --teal:    #4DD4CC;   /* chrome only */
+  --orange:  #FF7A1A;   /* the single warm accent */
+  --orange-d:#E06A0F;
+  --white:   #FFFFFF;
+  --pearl:   #E8F4FF;
+  --dim:     rgba(232,244,255,0.6);
+  --px: 4px;
+  --font-display: 'Tektur', sans-serif;
+  --font-mono: 'Space Mono', monospace;
+  --font-body: 'Chakra Petch', sans-serif;
+}
+
+/* ===========================================
+   SHARED ATMOSPHERE LAYERS (every slide)
+   =========================================== */
+.slide-bg { position:absolute; inset:0; background:var(--void); z-index:0; }
+.grid-bg {
+  position:absolute; inset:0; pointer-events:none; z-index:1;
+  background-image:
+    linear-gradient(rgba(77,212,204,0.05) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(77,212,204,0.05) 1px, transparent 1px);
+  background-size: 40px 40px;
+}
+.vignette {
+  position:absolute; inset:0; pointer-events:none; z-index:2;
+  background: radial-gradient(ellipse 90% 88% at 50% 50%, transparent 38%, rgba(6,13,26,0.78) 100%);
+}
+/* CRT scanlines + noise are GLOBAL overlays (above slides, below chrome) */
+.global-scanlines {
+  position:fixed; inset:0; pointer-events:none; z-index:900;
+  background: repeating-linear-gradient(0deg, transparent, transparent 5px, rgba(0,0,0,0.05) 5px, rgba(0,0,0,0.05) 7px);
+}
+#global-noise { position:fixed; inset:0; pointer-events:none; z-index:901; opacity:0.018; mix-blend-mode:screen; }
+.global-tracking {
+  position:fixed; left:0; right:0; height:6px; z-index:902; opacity:0; mix-blend-mode:screen;
+  background: linear-gradient(90deg, rgba(77,212,204,0.6) 0%, rgba(255,122,26,0.4) 40%, rgba(255,255,255,0.5) 70%, transparent 100%);
+}
+@keyframes trackingRoll { 0%{top:-8px;opacity:0} 5%{opacity:0.9} 95%{opacity:0.6} 100%{top:1088px;opacity:0} }
+.global-static {
+  position:fixed; inset:0; pointer-events:none; z-index:903; opacity:0;
+  background: repeating-linear-gradient(0deg, rgba(255,255,255,0.06) 0px, rgba(0,0,0,0.12) 2px, rgba(77,212,204,0.08) 4px, rgba(0,0,0,0.15) 6px);
+}
+@keyframes staticBurst { 0%,100%{opacity:0;transform:translateY(0)} 10%{opacity:1;transform:translateY(-3px)} 20%{opacity:0.6;transform:translateY(2px)} 30%{opacity:1} 40%{opacity:0} }
+
+/* ===========================================
+   SHARED CHROME — corner brackets, REC, HUD
+   =========================================== */
+.bracket { position:absolute; width:28px; height:28px; border-color:var(--teal); border-style:solid; border-width:0; opacity:0.65; z-index:20; }
+.bracket-tl { top:40px; left:48px; border-top-width:4px; border-left-width:4px; }
+.bracket-tr { top:40px; right:48px; border-top-width:4px; border-right-width:4px; }
+.bracket-bl { bottom:40px; left:48px; border-bottom-width:4px; border-left-width:4px; }
+.bracket-br { bottom:40px; right:48px; border-bottom-width:4px; border-right-width:4px; }
+
+.rec-indicator {
+  position:absolute; top:52px; right:88px; z-index:25;
+  font-family:var(--font-mono); font-size:18px; color:var(--orange);
+  letter-spacing:0.14em; display:flex; align-items:center; gap:9px;
+}
+.rec-dot { width:13px; height:13px; border-radius:50%; background:var(--orange); box-shadow:0 0 8px var(--orange); animation:recBlink 1s step-end infinite; }
+@keyframes recBlink { 0%,100%{opacity:1} 50%{opacity:0} }
+
+.hud-tl { position:absolute; top:54px; left:88px; z-index:25; font-family:var(--font-mono); font-size:14px; color:var(--teal); opacity:0.55; letter-spacing:0.16em; text-transform:uppercase; }
+.vhs-ts { position:absolute; bottom:50px; left:88px; z-index:25; font-family:var(--font-mono); font-size:16px; color:var(--teal); opacity:0.5; letter-spacing:0.12em; }
+.slide-num { position:absolute; bottom:50px; right:88px; z-index:25; font-family:var(--font-mono); font-size:16px; color:var(--dim); letter-spacing:0.12em; }
+
+/* Section title eyebrow (mono label) */
+.eyebrow { font-family:var(--font-mono); font-size:18px; color:var(--orange); letter-spacing:0.2em; text-transform:uppercase; font-weight:700; }
+.eyebrow .teal { color:var(--teal); }
+
+/* Generic slide heading */
+.slide-title {
+  font-family:var(--font-display); font-weight:900; color:var(--white);
+  letter-spacing:-0.015em; line-height:0.95;
+  text-shadow: var(--px) var(--px) 0 rgba(77,212,204,0.25);
+}
+
+/* ===========================================
+   GLASSMORPHISM CARD (shared)
+   =========================================== */
+.glass {
+  background: rgba(13,39,66,0.55);
+  backdrop-filter: blur(12px) saturate(115%);
+  -webkit-backdrop-filter: blur(12px) saturate(115%);
+  border:1.5px solid rgba(77,212,204,0.28);
+  border-radius:14px;
+  box-shadow: 0 10px 40px rgba(0,0,0,0.35), inset 0 1px 0 rgba(255,255,255,0.06);
+}
+
+/* ===========================================
+   REVEAL ANIMATIONS (per-slide on activation)
+   =========================================== */
+@keyframes fadeUp { from{opacity:0;transform:translateY(26px);} to{opacity:1;transform:translateY(0);} }
+@keyframes fadeIn { from{opacity:0;} to{opacity:1;} }
+.slide.active .reveal { animation: fadeUp 0.7s cubic-bezier(.2,.7,.3,1) both; }
+.slide.active .reveal-2 { animation-delay:0.12s; }
+.slide.active .reveal-3 { animation-delay:0.24s; }
+.slide.active .reveal-4 { animation-delay:0.36s; }
+.slide.active .reveal-5 { animation-delay:0.48s; }
+.slide.active .reveal-6 { animation-delay:0.60s; }
+.slide.active .reveal-7 { animation-delay:0.72s; }
+.slide.active .reveal-8 { animation-delay:0.84s; }
+
+/* whole-title VHS glitch */
+@keyframes titleGlitch {
+  0%,88%,100% { transform:translate(0,0); filter:none; }
+  90%{transform:translate(-5px,0);filter:hue-rotate(8deg);} 92%{transform:translate(5px,0);}
+  94%{transform:translate(-2px,1px);} 96%{transform:translate(0,0);}
+}
+
+/* ===========================================
+   VHS BOOT INTRO (plays once on load, over hero)
+   =========================================== */
+.vhs-boot { position:fixed; inset:0; z-index:950; pointer-events:none; background:#000; }
+.color-bars { position:absolute; inset:0; display:flex; }
+.color-bars span { flex:1; height:100%; }
+@keyframes vhsBoot {
+  0%{opacity:1} 15%{opacity:1} 25%{opacity:0.6} 35%{opacity:1;filter:brightness(3)}
+  45%{opacity:0.3} 55%{opacity:0.8} 65%{opacity:0.1} 80%{opacity:0} 100%{opacity:0; visibility:hidden;}
+}
+.vhs-boot { animation: vhsBoot 2.0s ease-out 0.1s both; }
+@keyframes colorBarsIn { 0%{opacity:0} 5%{opacity:1} 20%{opacity:1} 30%{opacity:0} }
+.color-bars { animation: colorBarsIn 2s ease-out 0.1s both; }
+.vhs-play {
+  position:fixed; top:50px; left:60px; z-index:951;
+  font-family:var(--font-mono); font-size:32px; color:#fff; letter-spacing:0.08em;
+}
+@keyframes playFlicker {
+  0%,100%{opacity:0} 10%,15%{opacity:1} 20%,30%{opacity:0}
+  35%,50%{opacity:1} 55%,60%{opacity:0.5} 65%{opacity:0}
+}
+.vhs-play { animation: playFlicker 2s ease-out 0.1s both; }
+
+/* ===========================================
+   SLIDE 1 — HERO
+   =========================================== */
+.s1-stars { position:absolute; inset:0; pointer-events:none; z-index:3; }
+.s1-star { position:absolute; border-radius:50%; background:#fff; animation:twinkle 3s ease-in-out infinite; }
+@keyframes twinkle { 0%,100%{opacity:0.2} 50%{opacity:0.9} }
+.s1-center { position:absolute; top:50%; left:50%; transform:translate(-50%,-54%); text-align:center; width:1500px; z-index:12; }
+.s1-sub { font-family:var(--font-mono); font-size:18px; color:var(--teal); letter-spacing:0.2em; text-transform:uppercase; margin-bottom:34px; opacity:0.9; }
+.s1-sub span { color:var(--orange); }
+.s1-title { font-family:var(--font-display); font-size:172px; font-weight:900; line-height:0.88; letter-spacing:-0.02em; margin:0 0 8px; animation: titleGlitch 8s ease-in-out 1s infinite; }
+.s1-title .octo { color:var(--orange); text-shadow:var(--px) var(--px) 0 rgba(255,122,26,0.4), calc(var(--px)*2) calc(var(--px)*2) 0 rgba(255,122,26,0.18); }
+.s1-title .rest { color:var(--white); text-shadow:var(--px) var(--px) 0 rgba(77,212,204,0.35), calc(var(--px)*2) calc(var(--px)*2) 0 rgba(255,255,255,0.12); }
+.s1-rule { width:440px; height:2px; margin:30px auto; background:linear-gradient(90deg, transparent, var(--orange), var(--white), var(--teal), transparent); box-shadow:0 0 10px rgba(255,122,26,0.5); }
+.s1-tagline { font-family:var(--font-body); font-size:28px; font-weight:300; color:var(--pearl); letter-spacing:0.08em; }
+.s1-chips { position:absolute; bottom:120px; left:0; right:0; display:flex; justify-content:center; gap:26px; z-index:12; }
+.chip { font-family:var(--font-mono); font-size:14px; letter-spacing:0.12em; text-transform:uppercase; font-weight:700; padding:11px 26px; }
+.chip.orange { background:var(--orange); color:var(--void); box-shadow:var(--px) var(--px) 0 rgba(255,122,26,0.35); }
+.chip.white { background:var(--white); color:var(--void); box-shadow:var(--px) var(--px) 0 rgba(255,255,255,0.22); }
+.chip.ghost { background:transparent; color:var(--teal); border:1.5px solid rgba(77,212,204,0.5); }
+.s1-logos { position:absolute; bottom:52px; left:0; right:0; display:flex; justify-content:space-between; padding:0 110px; z-index:12; }
+.logo-pill { font-family:var(--font-mono); font-size:13px; color:rgba(232,244,255,0.5); letter-spacing:0.1em; border:1.5px dashed rgba(232,244,255,0.25); padding:11px 36px; border-radius:6px; background:rgba(232,244,255,0.04); }
+
+/* ===========================================
+   SLIDE 2 — THE TEAM
+   =========================================== */
+.s2-wrap { position:absolute; inset:0; z-index:12; display:flex; flex-direction:column; align-items:center; padding-top:110px; }
+.s2-head { text-align:center; margin-bottom:50px; }
+.s2-title { font-size:84px; margin-top:10px; }
+.s2-grid { display:grid; grid-template-columns:repeat(4, 360px); grid-template-rows:repeat(2, 240px); gap:26px; }
+.team-card { padding:24px 26px; display:flex; flex-direction:row; align-items:center; gap:20px; position:relative; }
+/* Photo placeholder — swap the inner content for <img src="..."> on demo day */
+.team-card .photo {
+  flex:0 0 86px; width:86px; height:86px; border-radius:12px;
+  border:1.5px dashed rgba(77,212,204,0.5);
+  background:rgba(77,212,204,0.06);
+  display:flex; align-items:center; justify-content:center;
+  font-family:var(--font-mono); font-size:11px; color:rgba(77,212,204,0.7);
+  letter-spacing:0.08em; text-align:center; overflow:hidden;
+}
+.team-card .photo img { width:100%; height:100%; object-fit:cover; border-radius:11px; }
+.team-card .info { display:flex; flex-direction:column; }
+.team-card .role { font-family:var(--font-display); font-size:25px; font-weight:700; color:var(--orange); letter-spacing:-0.01em; }
+.team-card .name { font-family:var(--font-mono); font-size:13px; color:var(--dim); margin:5px 0 10px; letter-spacing:0.06em; }
+.team-card .desc { font-family:var(--font-body); font-size:16px; font-weight:300; color:var(--pearl); line-height:1.3; }
+.team-card.lead { border-color: rgba(255,122,26,0.5); }
+.team-card.lead .photo { border-color: rgba(255,122,26,0.6); background:rgba(255,122,26,0.07); color:rgba(255,169,77,0.85); }
+.team-card.lead .role { color:var(--orange); }
+
+/* ===========================================
+   SLIDE 3 — THE PROBLEM
+   =========================================== */
+.s3-wrap { position:absolute; inset:0; z-index:12; display:flex; flex-direction:column; align-items:center; justify-content:center; }
+.s3-title { font-size:92px; text-align:center; margin-bottom:64px; }
+.s3-title .hl { color:var(--orange); }
+.s3-cards { display:flex; gap:36px; margin-bottom:64px; }
+.pain-card { width:420px; height:330px; padding:44px 38px; display:flex; flex-direction:column; }
+.pain-card .ic { font-size:64px; margin-bottom:26px; }
+.pain-card .txt { font-family:var(--font-body); font-size:30px; font-weight:400; color:var(--pearl); line-height:1.3; }
+.s3-stat { font-family:var(--font-display); font-size:46px; font-weight:700; color:var(--white); text-align:center; }
+.s3-stat .hl { color:var(--orange); }
+
+/* ===========================================
+   SLIDE 4 — THE SOLUTION
+   =========================================== */
+.s4-wrap { position:absolute; inset:0; z-index:12; display:flex; flex-direction:column; align-items:center; justify-content:center; }
+.s4-eyebrow { margin-bottom:24px; }
+.s4-sentence { font-family:var(--font-display); font-size:60px; font-weight:700; color:var(--white); text-align:center; max-width:1500px; line-height:1.1; margin-bottom:80px; }
+.s4-sentence .hl { color:var(--orange); }
+.s4-steps { display:flex; align-items:center; gap:0; }
+.step-card { width:400px; height:340px; padding:42px 36px; display:flex; flex-direction:column; }
+.step-card .num { font-family:var(--font-mono); font-size:15px; color:var(--teal); letter-spacing:0.2em; margin-bottom:16px; }
+.step-card .ic { font-size:60px; margin-bottom:22px; }
+.step-card .lbl { font-family:var(--font-display); font-size:34px; font-weight:700; color:var(--white); margin-bottom:14px; }
+.step-card .sub { font-family:var(--font-body); font-size:19px; font-weight:300; color:var(--dim); line-height:1.35; }
+.step-card.final { border-color:rgba(255,122,26,0.55); }
+.step-card.final .lbl { color:var(--orange); }
+.step-arrow { font-size:48px; color:var(--teal); margin:0 28px; opacity:0.7; }
+
+/* ===========================================
+   SLIDE 5 — ARCHITECTURE (two Mermaid diagrams)
+   =========================================== */
+.s5-wrap { position:absolute; inset:0; z-index:12; display:flex; flex-direction:column; align-items:center; padding-top:80px; }
+.s5-title { font-size:72px; margin-top:8px; margin-bottom:36px; }
+.s5-cols { display:flex; gap:40px; width:1740px; height:780px; }
+.s5-panel { flex:1; display:flex; flex-direction:column; padding:24px; }
+.s5-panel .panel-label { font-family:var(--font-mono); font-size:16px; color:var(--teal); letter-spacing:0.16em; text-transform:uppercase; margin-bottom:16px; text-align:center; }
+.s5-panel .mermaid { flex:1; display:flex; align-items:center; justify-content:center; background:transparent; }
+.s5-panel .mermaid svg { max-height:680px; width:auto; }
+
+/* ===========================================
+   SLIDE 6 — THE SCORECARD
+   =========================================== */
+.s6-wrap { position:absolute; inset:0; z-index:12; display:flex; align-items:center; padding:0 110px; gap:70px; }
+.s6-left { width:560px; display:flex; flex-direction:column; align-items:center; }
+.s6-title { font-size:64px; text-align:center; margin-bottom:40px; }
+.gauge { position:relative; width:340px; height:340px; }
+.gauge svg { transform:rotate(-90deg); }
+.gauge-num { position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; }
+.gauge-num .big { font-family:var(--font-display); font-size:104px; font-weight:900; color:var(--orange); line-height:1; }
+.gauge-num .of { font-family:var(--font-mono); font-size:22px; color:var(--dim); letter-spacing:0.1em; }
+.s6-lock { margin-top:34px; text-align:center; font-family:var(--font-body); font-size:22px; color:var(--orange); max-width:460px; line-height:1.4; }
+.s6-lock .ic { font-size:28px; }
+.s6-right { flex:1; display:grid; grid-template-columns:1fr 1fr; grid-template-rows:1fr 1fr; gap:24px; }
+.vector-card { padding:30px 30px; display:flex; flex-direction:column; }
+.vector-card .vhead { display:flex; align-items:center; justify-content:space-between; margin-bottom:16px; }
+.vector-card .vname { font-family:var(--font-display); font-size:27px; font-weight:700; color:var(--white); }
+.vector-card .vpct { font-family:var(--font-mono); font-size:22px; font-weight:700; color:var(--orange); }
+.vector-card .vdesc { font-family:var(--font-body); font-size:18px; font-weight:300; color:var(--dim); line-height:1.35; margin-bottom:auto; }
+.vbar { height:8px; border-radius:4px; background:rgba(77,212,204,0.15); margin-top:16px; overflow:hidden; }
+.vbar i { display:block; height:100%; border-radius:4px; background:linear-gradient(90deg,var(--orange),var(--orange-d)); }
+.s6-formula { position:absolute; bottom:36px; left:0; right:0; text-align:center; font-family:var(--font-mono); font-size:15px; color:var(--dim); letter-spacing:0.08em; z-index:12; line-height:2; }
+.playbook-badge { display:inline-block; font-family:var(--font-mono); font-size:15px; color:var(--orange); background:rgba(255,122,26,0.1); border:1px solid rgba(255,122,26,0.4); border-radius:20px; padding:7px 22px; letter-spacing:0.06em; }
+
+/* ===========================================
+   SLIDE 7 — LIVE DEMO
+   =========================================== */
+.s7-wrap { position:absolute; inset:0; z-index:12; display:flex; flex-direction:column; align-items:center; justify-content:center; }
+.s7-octo { font-size:170px; margin-bottom:20px; animation: floatOcto 4s ease-in-out infinite; filter: drop-shadow(0 0 40px rgba(255,122,26,0.4)); }
+@keyframes floatOcto { 0%,100%{transform:translateY(0) rotate(-2deg)} 50%{transform:translateY(-24px) rotate(2deg)} }
+.s7-big { font-family:var(--font-display); font-size:128px; font-weight:900; color:var(--white); letter-spacing:-0.02em; text-shadow:var(--px) var(--px) 0 rgba(77,212,204,0.3); animation: titleGlitch 6s ease-in-out infinite; }
+.s7-sub { font-family:var(--font-mono); font-size:28px; color:var(--orange); letter-spacing:0.18em; margin-top:24px; }
+.s7-wave { position:absolute; inset:0; z-index:3; opacity:0.16; pointer-events:none; }
+
+/* ===========================================
+   SLIDE 8 — CTA / THANK YOU
+   =========================================== */
+.s8-wrap { position:absolute; inset:0; z-index:12; display:flex; flex-direction:column; align-items:center; justify-content:center; }
+.s8-logos { display:flex; gap:60px; margin-bottom:60px; }
+.s8-heading { font-family:var(--font-display); font-size:88px; font-weight:900; color:var(--white); text-align:center; letter-spacing:-0.02em; line-height:1.05; margin-bottom:56px; max-width:1400px; }
+.s8-heading .hl { color:var(--orange); }
+.s8-cta {
+  font-family:var(--font-display); font-size:38px; font-weight:700; color:var(--void);
+  background:var(--orange); padding:26px 60px; border-radius:12px; letter-spacing:-0.01em;
+  box-shadow: var(--px) var(--px) 0 rgba(255,122,26,0.4), 0 10px 40px rgba(255,122,26,0.3);
+  cursor:pointer; transition: transform 0.2s ease;
+  text-decoration:none; display:inline-block;
+}
+.s8-cta:hover { transform: translate(-2px,-2px); }
+.s8-footer { position:absolute; bottom:120px; left:0; right:0; text-align:center; font-family:var(--font-mono); font-size:17px; color:var(--dim); letter-spacing:0.1em; z-index:12; }
+.s8-octo-corner { position:absolute; bottom:30px; right:50px; font-size:80px; opacity:0.25; z-index:11; }
+
+/* ===========================================
+   NAV DOTS
+   =========================================== */
+.nav-dots { position:fixed; left:50%; bottom:20px; transform:translateX(-50%); z-index:1000; display:flex; gap:12px; }
+.nav-dot { width:11px; height:11px; border-radius:50%; background:rgba(232,244,255,0.25); border:1px solid rgba(232,244,255,0.4); cursor:pointer; transition: all 0.25s ease; padding:0; }
+.nav-dot.active { background:var(--orange); border-color:var(--orange); box-shadow:0 0 8px var(--orange); transform:scale(1.2); }
+
+</style>
+</head>
+<body>
+<div class="deck-viewport">
+  <div class="deck-stage" id="stage">
+
+    <!-- ===================== SLIDE 1: HERO ===================== -->
+    <section class="slide active" data-slide="1">
+      <div class="slide-bg"></div>
+      <div class="grid-bg"></div>
+      <div class="s1-stars" id="s1-stars"></div>
+      <div class="vignette"></div>
+      <div class="bracket bracket-tl"></div><div class="bracket bracket-tr"></div>
+      <div class="bracket bracket-bl"></div><div class="bracket bracket-br"></div>
+      <div class="hud-tl">TIKAL FUSE DAY · JUNE 24, 2026</div>
+      <div class="rec-indicator"><div class="rec-dot"></div>REC</div>
+      <div class="s1-center">
+        <div class="s1-sub reveal">AI PRESENTATION COACH <span>// TIKAL</span></div>
+        <div class="s1-title reveal reveal-2"><span class="octo">Octo</span><span class="rest">Prep2000</span></div>
+        <div class="s1-rule reveal reveal-3"></div>
+        <div class="s1-tagline reveal reveal-4">Your AI presentation coach. Always on. Never judging.</div>
+      </div>
+      <div class="s1-chips">
+        <div class="chip orange reveal reveal-5">4 VECTORS</div>
+        <div class="chip white reveal reveal-6">SCORE / 100</div>
+        <div class="chip ghost reveal reveal-7">REAL-TIME AI</div>
+      </div>
+      <div class="s1-logos reveal reveal-8">
+        <div class="logo-pill">[TIKAL-LOGO]</div>
+        <div class="logo-pill">[OCTOPREP-LOGO]</div>
+      </div>
+    </section>
+
+    <!-- ===================== SLIDE 2: THE TEAM ===================== -->
+    <section class="slide" data-slide="2">
+      <div class="slide-bg"></div>
+      <div class="grid-bg"></div>
+      <div class="vignette"></div>
+      <div class="bracket bracket-tl"></div><div class="bracket bracket-tr"></div>
+      <div class="bracket bracket-bl"></div><div class="bracket bracket-br"></div>
+      <div class="hud-tl">CREW · 8 MEMBERS</div>
+      <div class="rec-indicator"><div class="rec-dot"></div>REC</div>
+      <div class="s2-wrap">
+        <div class="s2-head reveal">
+          <div class="eyebrow">WHO BUILT THIS</div>
+          <div class="slide-title s2-title">The Team</div>
+        </div>
+        <div class="s2-grid">
+          <div class="glass team-card lead reveal reveal-2"><div class="photo"><!-- <img src="[PHOTO]"> -->PHOTO</div><div class="info"><div class="role">Team Lead</div><div class="name">[NAME]</div><div class="desc">Architecture · Integration</div></div></div>
+          <div class="glass team-card reveal reveal-2"><div class="photo"><!-- <img src="[PHOTO]"> -->PHOTO</div><div class="info"><div class="role">Dev 1</div><div class="name">[NAME]</div><div class="desc">Video Pipeline · Vision Agent</div></div></div>
+          <div class="glass team-card reveal reveal-3"><div class="photo"><!-- <img src="[PHOTO]"> -->PHOTO</div><div class="info"><div class="role">Dev 2</div><div class="name">[NAME]</div><div class="desc">Audio Agent · STT · Filler Detection</div></div></div>
+          <div class="glass team-card reveal reveal-3"><div class="photo"><!-- <img src="[PHOTO]"> -->PHOTO</div><div class="info"><div class="role">Dev 3</div><div class="name">[NAME]</div><div class="desc">Content Analysis Agent</div></div></div>
+          <div class="glass team-card reveal reveal-4"><div class="photo"><!-- <img src="[PHOTO]"> -->PHOTO</div><div class="info"><div class="role">Dev 4</div><div class="name">[NAME]</div><div class="desc">PPTX Agent · Tikal Playbook</div></div></div>
+          <div class="glass team-card reveal reveal-4"><div class="photo"><!-- <img src="[PHOTO]"> -->PHOTO</div><div class="info"><div class="role">Dev 5</div><div class="name">[NAME]</div><div class="desc">Agno Orchestrator · Report Agent</div></div></div>
+          <div class="glass team-card reveal reveal-5"><div class="photo"><!-- <img src="[PHOTO]"> -->PHOTO</div><div class="info"><div class="role">Dev 6</div><div class="name">[NAME]</div><div class="desc">Frontend Dashboard</div></div></div>
+          <div class="glass team-card reveal reveal-5"><div class="photo"><!-- <img src="[PHOTO]"> -->PHOTO</div><div class="info"><div class="role">Dev 7</div><div class="name">[NAME]</div><div class="desc">Frontend Dashboard · Content</div></div></div>
+        </div>
+      </div>
+      <div class="vhs-ts">SP · 00:00:20</div>
+      <div class="slide-num">02 / 08</div>
+    </section>
+
+    <!-- ===================== SLIDE 3: THE PROBLEM ===================== -->
+    <section class="slide" data-slide="3">
+      <div class="slide-bg"></div>
+      <div class="grid-bg"></div>
+      <div class="vignette"></div>
+      <div class="bracket bracket-tl"></div><div class="bracket bracket-tr"></div>
+      <div class="bracket bracket-bl"></div><div class="bracket bracket-br"></div>
+      <div class="hud-tl">THE PROBLEM</div>
+      <div class="rec-indicator"><div class="rec-dot"></div>REC</div>
+      <div class="s3-wrap">
+        <div class="slide-title s3-title reveal">Presenters rehearse <span class="hl">blind.</span></div>
+        <div class="s3-cards">
+          <div class="glass pain-card reveal reveal-2"><div class="ic">🕐</div><div class="txt">No structured feedback loop during rehearsal</div></div>
+          <div class="glass pain-card reveal reveal-3"><div class="ic">💸</div><div class="txt">Professional coaches are expensive and slow</div></div>
+          <div class="glass pain-card reveal reveal-4"><div class="ic">📹</div><div class="txt">Self-recordings are tedious and unguided</div></div>
+        </div>
+        <div class="s3-stat reveal reveal-5">Hours of prep. <span class="hl">Zero structured feedback.</span></div>
+      </div>
+      <div class="vhs-ts">SP · 00:00:40</div>
+      <div class="slide-num">03 / 08</div>
+    </section>
+
+    <!-- ===================== SLIDE 4: THE SOLUTION ===================== -->
+    <section class="slide" data-slide="4">
+      <div class="slide-bg"></div>
+      <div class="grid-bg"></div>
+      <div class="vignette"></div>
+      <div class="bracket bracket-tl"></div><div class="bracket bracket-tr"></div>
+      <div class="bracket bracket-bl"></div><div class="bracket bracket-br"></div>
+      <div class="hud-tl">THE SOLUTION</div>
+      <div class="rec-indicator"><div class="rec-dot"></div>REC</div>
+      <div class="s4-wrap">
+        <div class="eyebrow s4-eyebrow reveal">MEET OCTOPREP2000</div>
+        <div class="s4-sentence reveal reveal-2">Upload your deck. Practice live. Get a scored report — <span class="hl">in under 60 seconds.</span></div>
+        <div class="s4-steps">
+          <div class="glass step-card reveal reveal-3"><div class="num">STEP 01</div><div class="ic">📁</div><div class="lbl">Upload PPTX</div><div class="sub">Tikal 12-factor slide analysis</div></div>
+          <div class="step-arrow reveal reveal-4">→</div>
+          <div class="glass step-card reveal reveal-5"><div class="num">STEP 02</div><div class="ic">🎙️</div><div class="lbl">Record Live</div><div class="sub">Real-time coaching via mic + webcam</div></div>
+          <div class="step-arrow reveal reveal-6">→</div>
+          <div class="glass step-card final reveal reveal-7"><div class="num">STEP 03</div><div class="ic">📊</div><div class="lbl">Get Your Score</div><div class="sub">4-vector scorecard out of 100</div></div>
+        </div>
+      </div>
+      <div class="vhs-ts">SP · 00:01:05</div>
+      <div class="slide-num">04 / 08</div>
+    </section>
+
+    <!-- ===================== SLIDE 5: ARCHITECTURE ===================== -->
+    <section class="slide" data-slide="5">
+      <div class="slide-bg"></div>
+      <div class="grid-bg"></div>
+      <div class="vignette"></div>
+      <div class="bracket bracket-tl"></div><div class="bracket bracket-tr"></div>
+      <div class="bracket bracket-bl"></div><div class="bracket bracket-br"></div>
+      <div class="hud-tl">ARCHITECTURE</div>
+      <div class="rec-indicator"><div class="rec-dot"></div>REC</div>
+      <div class="s5-wrap">
+        <div class="eyebrow reveal">UNDER THE HOOD</div>
+        <div class="slide-title s5-title reveal reveal-2">How It's Built</div>
+        <div class="s5-cols">
+          <div class="glass s5-panel reveal reveal-3">
+            <div class="panel-label">System Context · C4 L1</div>
+            <!-- EDIT THIS DIAGRAM: change only the text inside this div -->
+            <div class="mermaid">
+graph TB
+    Presenter["fa:fa-user Presenter (Browser)"]
+    subgraph OctoPrep["OctoPrep2000"]
+        Core["AI Coaching Engine<br/>FastAPI · Agno · PostgreSQL"]
+    end
+    VisionAPI["Google Cloud Vision<br/>Face Detection"]
+    STT["ElevenLabs Scribe v1<br/>Speech-to-Text"]
+    Calendly["Mentor Booking<br/>Unlocks at score 80+"]
+    Presenter -- "HTTPS + WSS" --> OctoPrep
+    OctoPrep -- "Frame analysis" --> VisionAPI
+    OctoPrep -- "Audio streaming" --> STT
+    OctoPrep -- "Deep-link" --> Calendly
+            </div>
+          </div>
+          <div class="glass s5-panel reveal reveal-4">
+            <div class="panel-label">Internal Agent Pipeline · C4 L3</div>
+            <!-- EDIT THIS DIAGRAM: change only the text inside this div -->
+            <div class="mermaid">
+graph TB
+    Browser["Browser<br/>Webcam + Mic"]
+    WS["WebSocket Routes<br/>video · audio · feedback"]
+    Orch["AgnoOrchestrator<br/>Central Brain"]
+    subgraph Agents["AI Agents"]
+        Vision["VisionAgent"]
+        Audio["AudioAgent"]
+        PPTX["PPTXAgent"]
+        Content["ContentAgent"]
+        Report["ReportAgent"]
+    end
+    DB["PostgreSQL"]
+    Browser --> WS --> Orch
+    Orch --> Vision --> Orch
+    Orch --> Audio --> Orch
+    PPTX --> Orch
+    Orch --> Content --> Orch
+    Orch --> Report --> Orch
+    Orch --> DB
+    Orch --> WS
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="vhs-ts">SP · 00:01:30</div>
+      <div class="slide-num">05 / 08</div>
+    </section>
+
+    <!-- ===================== SLIDE 6: THE SCORECARD ===================== -->
+    <section class="slide" data-slide="6">
+      <div class="slide-bg"></div>
+      <div class="grid-bg"></div>
+      <div class="vignette"></div>
+      <div class="bracket bracket-tl"></div><div class="bracket bracket-tr"></div>
+      <div class="bracket bracket-bl"></div><div class="bracket bracket-br"></div>
+      <div class="hud-tl">THE SCORECARD</div>
+      <div class="rec-indicator"><div class="rec-dot"></div>REC</div>
+      <div class="s6-wrap">
+        <div class="s6-left">
+          <div class="slide-title s6-title reveal">Your Score.<br>Your Coach.</div>
+          <div class="gauge reveal reveal-2">
+            <svg width="340" height="340" viewBox="0 0 340 340">
+              <circle cx="170" cy="170" r="150" fill="none" stroke="rgba(77,212,204,0.15)" stroke-width="20"/>
+              <circle cx="170" cy="170" r="150" fill="none" stroke="#FF7A1A" stroke-width="20" stroke-linecap="round"
+                      stroke-dasharray="942" stroke-dashoffset="245"/>
+            </svg>
+            <div class="gauge-num"><div class="big">74</div><div class="of">/ 100</div></div>
+          </div>
+          <div class="s6-lock reveal reveal-3"><span class="ic">🔒</span> Only 6 points away from unlocking a 1-on-1 with a Tikal Expert</div>
+        </div>
+        <div class="s6-right">
+          <div class="glass vector-card reveal reveal-3"><div class="vhead"><div class="vname">🗣️ Voice & Delivery</div><div class="vpct">30%</div></div><div class="vdesc">Filler words · Pacing · WPM</div><div class="vbar"><i style="width:68%"></i></div></div>
+          <div class="glass vector-card reveal reveal-4"><div class="vhead"><div class="vname">🎥 Body Language</div><div class="vpct">30%</div></div><div class="vdesc">Eye contact · Posture · Framing</div><div class="vbar"><i style="width:71%"></i></div></div>
+          <div class="glass vector-card reveal reveal-5"><div class="vhead"><div class="vname">🖼️ Slide Quality</div><div class="vpct">20%</div></div><div class="vdesc">Tikal 12-factor Playbook</div><div class="vbar"><i style="width:82%"></i></div></div>
+          <div class="glass vector-card reveal reveal-6"><div class="vhead"><div class="vname">🧠 Tech Accuracy</div><div class="vpct">20%</div></div><div class="vdesc">Factual correctness · Coverage gaps</div><div class="vbar"><i style="width:75%"></i></div></div>
+        </div>
+      </div>
+      <div class="s6-formula reveal reveal-7">
+        <span class="playbook-badge">📖 Slides scored against Tikal's 12-Factor Presentation Playbook</span><br>
+        overall = voice×0.30 + body×0.30 + slides×0.20 + content×0.20
+      </div>
+      <div class="vhs-ts">SP · 00:02:10</div>
+      <div class="slide-num">06 / 08</div>
+    </section>
+
+    <!-- ===================== SLIDE 7: LIVE DEMO ===================== -->
+    <section class="slide" data-slide="7">
+      <div class="slide-bg"></div>
+      <div class="grid-bg"></div>
+      <svg class="s7-wave" viewBox="0 0 1920 1080" preserveAspectRatio="none">
+        <path d="M0,540 C480,400 960,680 1440,520 C1680,440 1820,520 1920,480" stroke="#4DD4CC" stroke-width="2" fill="none"/>
+        <path d="M0,600 C480,460 960,740 1440,580 C1680,500 1820,580 1920,540" stroke="#FF7A1A" stroke-width="1.5" fill="none"/>
+      </svg>
+      <div class="vignette"></div>
+      <div class="bracket bracket-tl"></div><div class="bracket bracket-tr"></div>
+      <div class="bracket bracket-bl"></div><div class="bracket bracket-br"></div>
+      <div class="hud-tl">LIVE DEMO</div>
+      <div class="rec-indicator"><div class="rec-dot"></div>REC</div>
+      <div class="s7-wrap">
+        <div class="s7-octo reveal">🐙</div>
+        <div class="s7-big reveal reveal-2">Let's see it live.</div>
+        <div class="s7-sub reveal reveal-3">upload → record → score</div>
+      </div>
+      <div class="vhs-ts">SP · 00:02:35</div>
+      <div class="slide-num">07 / 08</div>
+    </section>
+
+    <!-- ===================== SLIDE 8: CTA / THANK YOU ===================== -->
+    <section class="slide" data-slide="8">
+      <div class="slide-bg"></div>
+      <div class="grid-bg"></div>
+      <div class="vignette"></div>
+      <div class="bracket bracket-tl"></div><div class="bracket bracket-tr"></div>
+      <div class="bracket bracket-bl"></div><div class="bracket bracket-br"></div>
+      <div class="hud-tl">THANK YOU</div>
+      <div class="rec-indicator"><div class="rec-dot"></div>REC</div>
+      <div class="s8-wrap">
+        <div class="s8-logos reveal">
+          <div class="logo-pill">[TIKAL-LOGO]</div>
+          <div class="logo-pill">[OCTOPREP-LOGO]</div>
+        </div>
+        <div class="s8-heading reveal reveal-2">Ready to level up <span class="hl">your next talk?</span></div>
+        <a class="s8-cta reveal reveal-3" href="[CALENDLY-URL]">Book a 1-on-1 with a Tikal Expert →</a>
+      </div>
+      <div class="s8-footer reveal reveal-4">OctoPrep2000 · Built in 6 hours · Tikal Fuse Day 2026</div>
+      <div class="s8-octo-corner">🐙</div>
+      <div class="vhs-ts">SP · 00:04:35</div>
+      <div class="slide-num">08 / 08</div>
+    </section>
+
+  </div>
+</div>
+
+<!-- Global VHS overlays -->
+<div class="global-scanlines"></div>
+<canvas id="global-noise" width="1920" height="1080"></canvas>
+<div class="global-tracking" id="global-tracking"></div>
+<div class="global-static" id="global-static"></div>
+
+<!-- VHS boot intro — plays once on load, then hides -->
+<div class="vhs-boot" id="vhs-boot">
+  <div class="color-bars">
+    <span style="background:#FFFFFF"></span>
+    <span style="background:#FFFF00"></span>
+    <span style="background:#00FFFF"></span>
+    <span style="background:#00FF00"></span>
+    <span style="background:#FF00FF"></span>
+    <span style="background:#FF0000"></span>
+    <span style="background:#0000FF"></span>
+    <span style="background:#000000"></span>
+  </div>
+</div>
+<div class="vhs-play" id="vhs-play">▶ PLAY</div>
+
+<!-- Navigation dots -->
+<div class="nav-dots" id="nav-dots"></div>
+
+<script>
+/* ============ MERMAID INIT ============ */
+mermaid.initialize({
+  startOnLoad: true,
+  theme: 'base',
+  themeVariables: {
+    primaryColor: '#0D2742',
+    primaryTextColor: '#E8F4FF',
+    primaryBorderColor: '#4DD4CC',
+    lineColor: '#4DD4CC',
+    secondaryColor: '#0A1E35',
+    tertiaryColor: '#0A1E35',
+    fontFamily: 'Space Mono, monospace',
+    fontSize: '15px'
+  },
+  flowchart: { curve: 'basis', padding: 12 }
+});
+/* After render, paint the Orchestrator nodes orange (central brain) */
+window.addEventListener('load', function(){
+  setTimeout(function(){
+    document.querySelectorAll('.mermaid .node').forEach(function(n){
+      var t = n.textContent || '';
+      if (t.indexOf('AgnoOrchestrator') !== -1 || t.indexOf('AI Coaching Engine') !== -1) {
+        n.querySelectorAll('rect,polygon,path').forEach(function(s){
+          s.style.fill = '#FF7A1A'; s.style.stroke = '#FFA94D';
+        });
+        n.querySelectorAll('.nodeLabel, text, tspan, foreignObject div').forEach(function(l){ l.style.color = '#06121F'; l.style.fill='#06121F'; });
+      }
+    });
+  }, 600);
+});
+
+/* ============ STAGE SCALING ============ */
+function scaleStage() {
+  var s = document.getElementById('stage');
+  var r = Math.min(window.innerWidth / 1920, window.innerHeight / 1080);
+  var x = (window.innerWidth - 1920 * r) / 2;
+  var y = (window.innerHeight - 1080 * r) / 2;
+  s.style.transform = 'translate(' + x + 'px,' + y + 'px) scale(' + r + ')';
+}
+scaleStage(); window.addEventListener('resize', scaleStage);
+
+/* ============ SLIDE NAVIGATION ============ */
+var slides = document.querySelectorAll('.slide');
+var total = slides.length;
+var current = 0;
+
+var dotsWrap = document.getElementById('nav-dots');
+for (var i = 0; i < total; i++) {
+  var dot = document.createElement('button');
+  dot.className = 'nav-dot' + (i === 0 ? ' active' : '');
+  dot.setAttribute('aria-label', 'Go to slide ' + (i+1));
+  (function(idx){ dot.addEventListener('click', function(){ goTo(idx); }); })(i);
+  dotsWrap.appendChild(dot);
+}
+var dots = document.querySelectorAll('.nav-dot');
+
+function goTo(idx) {
+  if (idx < 0 || idx >= total) return;
+  slides[current].classList.remove('active');
+  dots[current].classList.remove('active');
+  current = idx;
+  slides[current].classList.add('active');
+  dots[current].classList.add('active');
+}
+function next() { goTo(Math.min(current + 1, total - 1)); }
+function prev() { goTo(Math.max(current - 1, 0)); }
+
+document.addEventListener('keydown', function(e){
+  if (e.key === 'ArrowRight' || e.key === ' ' || e.key === 'PageDown') { e.preventDefault(); next(); }
+  else if (e.key === 'ArrowLeft' || e.key === 'PageUp') { e.preventDefault(); prev(); }
+  else if (e.key === 'Home') { goTo(0); }
+  else if (e.key === 'End') { goTo(total - 1); }
+});
+
+/* ============ HERO STARFIELD ============ */
+var starsEl = document.getElementById('s1-stars');
+for (var j = 0; j < 110; j++) {
+  var st = document.createElement('div');
+  st.className = 's1-star';
+  var size = Math.random() * 2.5 + 0.5;
+  st.style.cssText = 'width:'+size+'px;height:'+size+'px;left:'+(Math.random()*100)+'%;top:'+(Math.random()*100)+'%;opacity:'+(Math.random()*0.4+0.1)+';animation-delay:'+(Math.random()*5)+'s;animation-duration:'+(Math.random()*3+2)+'s;';
+  starsEl.appendChild(st);
+}
+
+/* ============ GLOBAL CANVAS NOISE ============ */
+var nc = document.getElementById('global-noise');
+var nctx = nc.getContext('2d');
+function drawNoise() {
+  var img = nctx.createImageData(1920, 1080);
+  var d = img.data;
+  for (var k = 0; k < d.length; k += 4) {
+    var v = Math.random() * 255;
+    d[k]=d[k+1]=d[k+2]=v; d[k+3]=255;
+  }
+  nctx.putImageData(img, 0, 0);
+}
+drawNoise(); setInterval(drawNoise, 90);
+
+/* ============ GLOBAL TRACKING BAR ============ */
+var track = document.getElementById('global-tracking');
+function fireTrack() {
+  track.style.animation = 'none'; track.offsetHeight;
+  var dur = (Math.random() * 1.4 + 0.8).toFixed(2);
+  track.style.animation = 'trackingRoll ' + dur + 's linear 1';
+  setTimeout(function(){ track.style.animation = 'none'; }, dur * 1000 + 100);
+}
+setTimeout(fireTrack, 4000);
+setInterval(function(){ setTimeout(fireTrack, Math.random() * 3000); }, 8000);
+
+/* ============ GLOBAL STATIC BURST ============ */
+var stat = document.getElementById('global-static');
+function fireStat() {
+  stat.style.animation = 'none'; stat.offsetHeight;
+  stat.style.animation = 'staticBurst 0.4s ease-in-out 1';
+  setTimeout(function(){ stat.style.animation = 'none'; }, 450);
+}
+setTimeout(fireStat, 10000);
+setInterval(function(){ setTimeout(fireStat, Math.random() * 5000); }, 13000);
+</script>
+</body>
+</html>
