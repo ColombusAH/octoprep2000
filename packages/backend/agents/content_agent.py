@@ -7,7 +7,7 @@ Uses get_session_maker() to own its own AsyncSession (decoupled from request sco
 from __future__ import annotations
 
 import json
-import logging
+from loguru import logger
 import uuid
 
 from agents.llm import get_llm
@@ -17,7 +17,6 @@ from config import get_settings
 from db.repository import PostgreSQLRepository
 from db.session import get_session_maker
 
-logger = logging.getLogger(__name__)
 
 CONTENT_PROMPT = """You evaluate a presenter's transcript for technical accuracy and coverage
 against the stated topic. Return JSON:

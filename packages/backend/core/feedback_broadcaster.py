@@ -6,13 +6,12 @@ Per architecture decision (C4 §10): no Redis. Single FastAPI process, asyncio-o
 from __future__ import annotations
 
 import asyncio
-import logging
+from loguru import logger
 import uuid
 from typing import Any
 
 from fastapi import WebSocket
 
-logger = logging.getLogger(__name__)
 
 
 class FeedbackBroadcaster:

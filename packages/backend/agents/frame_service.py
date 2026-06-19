@@ -7,7 +7,7 @@ Non-agent. No LLM calls. No DB access. Pure utility.
 from __future__ import annotations
 
 import io
-import logging
+from loguru import logger
 from collections.abc import Awaitable, Callable
 
 import imagehash
@@ -15,7 +15,6 @@ from PIL import Image
 
 from config import get_settings
 
-logger = logging.getLogger(__name__)
 
 
 class FrameService:

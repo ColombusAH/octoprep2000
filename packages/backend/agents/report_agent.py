@@ -12,7 +12,7 @@ Owns its own AsyncSession via get_session_maker() (independent of request scope)
 
 from __future__ import annotations
 
-import logging
+from loguru import logger
 import uuid
 from collections import defaultdict
 
@@ -25,7 +25,6 @@ from agents.schemas import (
 from db.repository import PostgreSQLRepository
 from db.session import get_session_maker
 
-logger = logging.getLogger(__name__)
 
 
 class ReportAgent:

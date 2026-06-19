@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-import logging
+from loguru import logger
 import uuid
 
 from fastapi import APIRouter, Depends, WebSocket, WebSocketDisconnect
@@ -11,7 +11,6 @@ from db.repository import PostgreSQLRepository, get_repo
 from middleware.session_auth import validate_ws_token
 from runtime import registry
 
-logger = logging.getLogger(__name__)
 router = APIRouter()
 
 

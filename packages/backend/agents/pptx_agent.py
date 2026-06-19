@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import asyncio
 import json
-import logging
+from loguru import logger
 import uuid
 
 from pptx import Presentation
@@ -19,7 +19,6 @@ from agents.schemas import SlideAnalysisBundle, SlideAnalysisPayload
 from config import get_settings
 from orchestrator.agno_orchestrator import AgnoOrchestrator
 
-logger = logging.getLogger(__name__)
 
 PLAYBOOK_PROMPT = """You evaluate a slide deck against the Tikal Presentation Skills Playbook.
 

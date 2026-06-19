@@ -15,7 +15,7 @@ because no DB handle is captured in instance state.
 from __future__ import annotations
 
 import asyncio
-import logging
+from loguru import logger
 import uuid
 from collections.abc import Awaitable, Callable
 from typing import Any
@@ -32,7 +32,6 @@ from core.feedback_broadcaster import broadcaster
 from db.repository import PostgreSQLRepository
 from db.session import get_session_maker
 
-logger = logging.getLogger(__name__)
 
 VIDEO_BUFFER_MAX = 20
 VIDEO_FLUSH_INTERVAL_S = 1.0

@@ -16,7 +16,7 @@ from __future__ import annotations
 
 import asyncio
 import json
-import logging
+from loguru import logger
 import time
 import uuid
 from collections import deque
@@ -28,7 +28,6 @@ from agents.schemas import VideoEventPayload
 from config import get_settings
 from orchestrator.agno_orchestrator import AgnoOrchestrator
 
-logger = logging.getLogger(__name__)
 
 BATCH_SIZE = 3
 SYSTEM_PROMPT = """You evaluate a presenter's body language from camera frames.

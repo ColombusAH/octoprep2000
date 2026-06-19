@@ -7,10 +7,12 @@ All agents = asyncio tasks. In-process pub/sub. No Redis.
 from __future__ import annotations
 
 import logging
+import sys
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from loguru import logger
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from slowapi.middleware import SlowAPIMiddleware
@@ -19,11 +21,30 @@ from config import get_settings
 from core.rate_limit import limiter
 from routers import audio_ws, feedback_ws, health, sessions, upload, video_ws
 
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s %(levelname)-7s %(name)s — %(message)s",
+
+class _InterceptHandler(logging.Handler):
+    """Route stdlib logging (uvicorn, sqlalchemy, etc.) through loguru."""
+
+    def emit(self, record: logging.LogRecord) -> None:
+        try:
+            level = logger.level(record.levelname).name
+        except ValueError:
+            level = record.levelno
+        frame, depth = logging.currentframe(), 2
+        while frame.f_code.co_filename == logging.__file__:
+            frame = frame.f_back  # type: ignore[assignment]
+            depth += 1
+        logger.opt(depth=depth, exception=record.exc_info).log(level, record.getMessage())
+
+
+logger.remove()
+logger.add(
+    sys.stderr,
+    level="INFO",
+    format="<green>{time:HH:mm:ss}</green> <level>{level:<8}</level> <cyan>{name}</cyan> — {message}",
+    colorize=True,
 )
-logger = logging.getLogger("octoprep")
+logging.basicConfig(handlers=[_InterceptHandler()], level=0, force=True)
 
 settings = get_settings()
 

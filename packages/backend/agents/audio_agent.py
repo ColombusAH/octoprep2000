@@ -8,7 +8,7 @@ Emits TranscriptPayload + optional AudioWarningPayload to Orchestrator.
 
 from __future__ import annotations
 
-import logging
+from loguru import logger
 import re
 import struct
 import time
@@ -22,7 +22,6 @@ from agents.schemas import AudioWarningPayload, TranscriptPayload
 from config import get_settings
 from orchestrator.agno_orchestrator import AgnoOrchestrator
 
-logger = logging.getLogger(__name__)
 
 FILLERS = {"um", "uh", "ah", "hmm", "like", "you know", "kinda", "sorta"}
 FILLER_REGEX = re.compile(r"\b(" + "|".join(re.escape(w) for w in FILLERS) + r")\b", re.I)

@@ -15,13 +15,12 @@ Auth: GOOGLE_APPLICATION_CREDENTIALS env var → path to service-account JSON.
 from __future__ import annotations
 
 import asyncio
-import logging
+from loguru import logger
 from dataclasses import dataclass
 from functools import lru_cache
 
 from config import get_settings
 
-logger = logging.getLogger(__name__)
 
 # Mirrors google.cloud.vision Likelihood enum ordering (UNKNOWN=0 … VERY_LIKELY=5)
 LIKELIHOOD_NAME = (
