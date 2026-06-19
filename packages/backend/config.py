@@ -23,9 +23,9 @@ class Settings(BaseSettings):
     # ElevenLabs Scribe v1 (STT) — unused if STT goes through the LiteLLM gateway above
     elevenlabs_api_key: str = ""
 
-    # Google Cloud Vision (deterministic face metrics — supplements GPT-4o Vision)
-    # Path to service-account JSON. If empty, face detection is skipped silently.
-    google_application_credentials: str = ""
+    # Google Cloud Vision via the Tikal LiteLLM gateway (deterministic face metrics — supplements GPT-4o Vision)
+    # Shared gateway route — no per-dev GCP service account needed. Empty disables face detection.
+    litellm_vision_annotate_url: str = "https://litellm.tikalk.dev/vision/annotate"
     face_detection_pan_threshold_deg: float = 25.0  # head turn left/right → eye contact lost
     face_detection_tilt_threshold_deg: float = 20.0  # head up/down → eye contact lost
     face_detection_roll_threshold_deg: float = 25.0  # sideways head tilt

@@ -1,36 +1,27 @@
 """Google Cloud Vision face_detection wrapper — deterministic face-metrics layer.
 
+Calls GCV's face_detection feature through the Tikal LiteLLM gateway's
+/vision/annotate route (mirrors GCV's images:annotate REST contract) — a shared
+team endpoint, so no per-dev GCP service account is required.
+
 Supplements (does NOT replace) the GPT-4o Vision agent. GCV preempts the LLM for:
   • EYE_CONTACT_LOST  — pan/tilt head angle thresholds (configurable, deg)
   • FACE_NOT_DETECTED — empty face_annotations list
   • FACE_TILTED       — roll angle threshold (sideways head tilt)
 And returns joy_likelihood for the ReportAgent to use as STRENGTH signal.
 
-GCV SDK is sync; we call it via asyncio.to_thread to keep the FastAPI event loop free.
-
-Reference: https://docs.cloud.google.com/vision/docs/detecting-faces
-Auth: GOOGLE_APPLICATION_CREDENTIALS env var → path to service-account JSON.
+Reference: https://cloud.google.com/vision/docs/reference/rest/v1/images/annotate
 """
 
 from __future__ import annotations
 
-import asyncio
-from loguru import logger
+import base64
 from dataclasses import dataclass
-from functools import lru_cache
+
+import httpx
+from loguru import logger
 
 from config import get_settings
-
-
-# Mirrors google.cloud.vision Likelihood enum ordering (UNKNOWN=0 … VERY_LIKELY=5)
-LIKELIHOOD_NAME = (
-    "UNKNOWN",
-    "VERY_UNLIKELY",
-    "UNLIKELY",
-    "POSSIBLE",
-    "LIKELY",
-    "VERY_LIKELY",
-)
 
 
 @dataclass(frozen=True)
@@ -50,69 +41,62 @@ class FaceMetrics:
     detection_confidence: float = 0.0
 
 
-@lru_cache(maxsize=1)
-def _client():
-    """Lazy ImageAnnotatorClient. Returns None if SDK missing or credentials unset."""
-    s = get_settings()
-    if not s.google_application_credentials:
-        logger.info("GCV face detection disabled (GOOGLE_APPLICATION_CREDENTIALS unset).")
-        return None
-    try:
-        from google.cloud import vision  # type: ignore
-    except ImportError:
-        logger.warning("google-cloud-vision not installed; face detection disabled.")
-        return None
-    try:
-        return vision.ImageAnnotatorClient()
-    except Exception as exc:  # noqa: BLE001
-        logger.warning("GCV client init failed: {} — face detection disabled.", exc)
-        return None
-
-
 def is_enabled() -> bool:
-    return _client() is not None
+    return bool(get_settings().litellm_vision_annotate_url)
 
 
 async def detect(frame_bytes: bytes) -> FaceMetrics | None:
-    """Run GCV face_detection on one JPEG frame. None on failure / disabled."""
-    client = _client()
-    if client is None:
+    """Run GCV face_detection on one JPEG frame via the LiteLLM gateway. None on failure / disabled."""
+    if not is_enabled():
         return None
     try:
-        return await asyncio.to_thread(_blocking_call, client, frame_bytes)
+        return await _call_gateway(frame_bytes)
     except Exception as exc:  # noqa: BLE001
         logger.warning("GCV face_detection call failed: {}", exc)
         return None
 
 
-def _blocking_call(client, frame_bytes: bytes) -> FaceMetrics:
-    """Synchronous GCV call — must run in to_thread."""
-    from google.cloud import vision  # type: ignore
+async def _call_gateway(frame_bytes: bytes) -> FaceMetrics:
+    s = get_settings()
+    payload = {
+        "requests": [
+            {
+                "image": {"content": base64.b64encode(frame_bytes).decode("ascii")},
+                "features": [{"type": "FACE_DETECTION", "maxResults": 10}],
+            }
+        ]
+    }
+    async with httpx.AsyncClient(timeout=s.vision_timeout_ms / 1000) as client:
+        resp = await client.post(s.litellm_vision_annotate_url, json=payload)
+    resp.raise_for_status()
+    data = resp.json()
 
-    image = vision.Image(content=frame_bytes)
-    response = client.face_detection(image=image)
-    if response.error.message:
-        raise RuntimeError(response.error.message)
+    if "error" in data:
+        raise RuntimeError(data["error"].get("message", "GCV gateway error"))
 
-    faces = response.face_annotations
+    response = data["responses"][0]
+    if response.get("error"):
+        raise RuntimeError(response["error"].get("message", "GCV error"))
+
+    faces = response.get("faceAnnotations", [])
     if not faces:
         return FaceMetrics(face_count=0)
 
     # Use the highest-confidence face (largest detection score = presenter).
-    face = max(faces, key=lambda f: float(f.detection_confidence or 0.0))
+    face = max(faces, key=lambda f: float(f.get("detectionConfidence") or 0.0))
 
     return FaceMetrics(
         face_count=len(faces),
-        joy=LIKELIHOOD_NAME[face.joy_likelihood],
-        sorrow=LIKELIHOOD_NAME[face.sorrow_likelihood],
-        anger=LIKELIHOOD_NAME[face.anger_likelihood],
-        surprise=LIKELIHOOD_NAME[face.surprise_likelihood],
-        blurred=LIKELIHOOD_NAME[face.blurred_likelihood],
-        under_exposed=LIKELIHOOD_NAME[face.under_exposed_likelihood],
-        roll_deg=float(face.roll_angle),
-        pan_deg=float(face.pan_angle),
-        tilt_deg=float(face.tilt_angle),
-        detection_confidence=float(face.detection_confidence or 0.0),
+        joy=face.get("joyLikelihood", "UNKNOWN"),
+        sorrow=face.get("sorrowLikelihood", "UNKNOWN"),
+        anger=face.get("angerLikelihood", "UNKNOWN"),
+        surprise=face.get("surpriseLikelihood", "UNKNOWN"),
+        blurred=face.get("blurredLikelihood", "UNKNOWN"),
+        under_exposed=face.get("underExposedLikelihood", "UNKNOWN"),
+        roll_deg=float(face.get("rollAngle") or 0.0),
+        pan_deg=float(face.get("panAngle") or 0.0),
+        tilt_deg=float(face.get("tiltAngle") or 0.0),
+        detection_confidence=float(face.get("detectionConfidence") or 0.0),
     )
 
 
