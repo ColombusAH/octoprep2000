@@ -39,6 +39,9 @@ class Settings(BaseSettings):
     # Demo insurance
     demo_mode: str = ""  # "replay" → use canned fixtures
 
+    # Logging — DEBUG for verbose agent/LLM output, INFO (default) for normal operation
+    log_level: str = "INFO"
+
     # CTA
     mentor_booking_url: str = "https://calendly.com/tikal-experts/30min"
 

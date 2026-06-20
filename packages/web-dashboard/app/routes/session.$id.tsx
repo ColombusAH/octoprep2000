@@ -53,13 +53,64 @@ function SessionPage() {
     return () => fb.close();
   }, [id, liveFeedback, nav]);
 
+  const reportDeviceLost = (label: string) => {
+    setEvents((es) => [
+      ...es,
+      {
+        id: crypto.randomUUID(),
+        type: "DEVICE_DISCONNECTED",
+        severity: "HIGH",
+        message: `${label} disconnected mid-session (e.g. Continuity Camera/mic handoff dropped) — it stopped capturing. Check System Settings > Sound and restart the recording.`,
+      },
+    ]);
+  };
+
   const start = async () => {
     if (running) return;
     setRunning(true);
     const video = connectVideo(id);
     const audio = connectAudio(id);
-    handlesRef.current.video = await startVideoCapture(videoRef.current!, (buf) => video.send(buf));
-    handlesRef.current.audio = await startAudioCapture((buf) => audio.send(buf));
+
+    const [videoResult, audioResult] = await Promise.allSettled([
+      startVideoCapture(videoRef.current!, (buf) => video.send(buf), () => reportDeviceLost("Camera")),
+      startAudioCapture((buf) => audio.send(buf), 2, () => reportDeviceLost("Microphone")),
+    ]);
+
+    if (videoResult.status === "fulfilled") {
+      handlesRef.current.video = videoResult.value;
+    } else {
+      console.error("Camera capture failed:", videoResult.reason);
+      setEvents((es) => [
+        ...es,
+        {
+          id: crypto.randomUUID(),
+          type: "CAPTURE_ERROR",
+          severity: "HIGH",
+          message: "Camera unavailable — body language won't be scored. Check camera permission.",
+        },
+      ]);
+    }
+
+    if (audioResult.status === "fulfilled") {
+      handlesRef.current.audio = audioResult.value;
+    } else {
+      console.error("Mic capture failed:", audioResult.reason);
+      setEvents((es) => [
+        ...es,
+        {
+          id: crypto.randomUUID(),
+          type: "CAPTURE_ERROR",
+          severity: "HIGH",
+          message: "Microphone unavailable — voice won't be scored. Check mic permission.",
+        },
+      ]);
+    }
+
+    if (videoResult.status === "rejected" && audioResult.status === "rejected") {
+      video.close();
+      audio.close();
+      setRunning(false);
+    }
   };
 
   const stop = async () => {

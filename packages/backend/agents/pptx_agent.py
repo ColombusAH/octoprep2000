@@ -7,15 +7,16 @@ sessions.slides_raw_text BEFORE LLM call so container restart survives.
 from __future__ import annotations
 
 import asyncio
-import json
 from loguru import logger
 import uuid
 
+from agno.agent import Agent
 from pptx import Presentation
+from pptx.enum.shapes import MSO_SHAPE_TYPE
 
-from agents.llm import get_llm
+from agents.llm import get_text_model
 from agents.replay_fixtures import replay_slide_findings
-from agents.schemas import SlideAnalysisBundle, SlideAnalysisPayload
+from agents.schemas import SlideAnalysisBundle, SlideAnalysisPayload, SlideFindings
 from config import get_settings
 from orchestrator.agno_orchestrator import AgnoOrchestrator
 
@@ -50,6 +51,14 @@ Your job is to evaluate every slide in the deck and return specific, actionable 
 - Do not give generic advice like "add more images" without referencing the specific slide.
 - Do not invent slide content — only evaluate what is explicitly shown to you.
 - Do not emit more than 3 findings per slide — pick the most impactful ones.
+- You receive extracted text plus structural metadata only — never the rendered slide.
+  Do NOT comment on color, contrast, or background (Factor #6) — that data isn't provided.
+- Only raise a font-size finding (Factor #4) when a slide's metadata line lists an explicit
+  size below 30pt. If metadata says no explicit sizes were detected, say nothing about font size.
+- Only say a slide "has visuals" or "uses an image" when its metadata line reports images > 0.
+  Never infer an image's existence from the text content alone.
+- Object-count findings (Factor #5) must match the "objects" count given in metadata, not a
+  guess from the text.
 
 ## Output format
 Return JSON only:
@@ -107,35 +116,44 @@ class PPTXAgent:
         out: list[dict] = []
         for idx, slide in enumerate(deck.slides, start=1):
             texts: list[str] = []
+            font_sizes_pt: list[float] = []
+            image_count = 0
             for shape in slide.shapes:
+                if shape.shape_type == MSO_SHAPE_TYPE.PICTURE:
+                    image_count += 1
                 if shape.has_text_frame:
                     for para in shape.text_frame.paragraphs:
                         line = "".join(run.text for run in para.runs).strip()
                         if line:
                             texts.append(line)
-            out.append({"slide_index": idx, "text": "\n".join(texts)})
+                        for run in para.runs:
+                            if run.font.size is not None:
+                                font_sizes_pt.append(run.font.size.pt)
+            out.append(
+                {
+                    "slide_index": idx,
+                    "text": "\n".join(texts),
+                    "shape_count": len(slide.shapes),
+                    "image_count": image_count,
+                    "font_sizes_pt": font_sizes_pt,
+                }
+            )
         return out
 
+    @staticmethod
+    def _format_slide(row: dict) -> str:
+        sizes = row.get("font_sizes_pt") or []
+        size_note = f"{min(sizes):.0f}-{max(sizes):.0f}pt" if sizes else "none detected — do not judge font size"
+        meta = f"objects: {row['shape_count']}, images: {row['image_count']}, explicit font sizes: {size_note}"
+        return f"=== Slide {row['slide_index']} ({meta}) ===\n{row['text']}"
+
     async def _evaluate(self, slides_raw: list[dict]) -> list[SlideAnalysisPayload]:
-        s = get_settings()
-        client = get_llm()
-        deck_dump = "\n\n".join(
-            f"=== Slide {row['slide_index']} ===\n{row['text']}" for row in slides_raw
+        deck_dump = "\n\n".join(self._format_slide(row) for row in slides_raw)
+        agent = Agent(
+            model=get_text_model(),
+            instructions=PLAYBOOK_PROMPT,
+            output_schema=SlideFindings,
         )
-        resp = await client.chat.completions.create(
-            model=s.litellm_text_model,
-            messages=[
-                {"role": "system", "content": PLAYBOOK_PROMPT},
-                {"role": "user", "content": deck_dump},
-            ],
-            response_format={"type": "json_object"},
-            max_tokens=2000,
-        )
-        data = json.loads(resp.choices[0].message.content or '{"findings": []}')
-        findings: list[SlideAnalysisPayload] = []
-        for raw in data.get("findings", []):
-            try:
-                findings.append(SlideAnalysisPayload(**raw))
-            except Exception as exc:  # noqa: BLE001
-                logger.warning("invalid slide finding skipped: {} ({})", raw, exc)
-        return findings
+        result = await agent.arun(deck_dump)
+        logger.info("PPTX LLM result: {} findings", len(result.content.findings))
+        return result.content.findings

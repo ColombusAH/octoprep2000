@@ -36,11 +36,12 @@ class ReportAgent:
             repo = PostgreSQLRepository(db)
             transcripts = await repo.read_transcript(session_id)
             video_events = await repo.read_video_events(session_id)
+            audio_warnings = await repo.read_audio_warnings(session_id)
             slide_analyses = await repo.read_slide_analyses(session_id)
 
         content = await self.content_agent.analyse(session_id)
 
-        voice_insights, voice_score = self._score_voice(transcripts)
+        voice_insights, voice_score = self._score_voice(transcripts, audio_warnings)
         body_insights, body_score = self._score_body(video_events) if not fallback_mode else ([], None)
         slide_insights, slide_score = self._score_slides(slide_analyses)
         content_insights, content_score = self._content_breakdown(content)
@@ -66,7 +67,7 @@ class ReportAgent:
         )
 
     # ── per-vector scoring + deduplication ───────────────────────────
-    def _score_voice(self, entries) -> tuple[list[Insight], float]:
+    def _score_voice(self, entries, warnings) -> tuple[list[Insight], float]:
         if not entries:
             return [Insight(category="voice", type="IMPROVEMENT", message="No speech captured")], 0.0
         filler_ts: dict[str, list[int]] = defaultdict(list)
@@ -88,9 +89,30 @@ class ReportAgent:
                 )
             )
 
-        penalty = min(40, total_fillers * 2)
+        fast_ts = sorted(w.timestamp_ms for w in warnings if w.event_type == "PACING_TOO_FAST")
+        slow_ts = sorted(w.timestamp_ms for w in warnings if w.event_type == "PACING_TOO_SLOW")
+        if fast_ts:
+            insights.append(
+                Insight(
+                    category="voice",
+                    type="IMPROVEMENT",
+                    message=f"Spoke too fast at {len(fast_ts)} point(s) — slow down and pause.",
+                    timestamps=fast_ts,
+                )
+            )
+        if slow_ts:
+            insights.append(
+                Insight(
+                    category="voice",
+                    type="IMPROVEMENT",
+                    message=f"Spoke too slowly at {len(slow_ts)} point(s) — pick up the pace.",
+                    timestamps=slow_ts,
+                )
+            )
+
+        penalty = min(40, total_fillers * 2) + min(20, (len(fast_ts) + len(slow_ts)) * 5)
         score = max(0.0, 100.0 - penalty)
-        if score > 70:
+        if score > 70 and not fast_ts and not slow_ts:
             insights.append(
                 Insight(category="voice", type="STRENGTH", message="Steady pacing & low filler density.")
             )

@@ -108,6 +108,15 @@ class AgnoOrchestrator:
         )
 
     async def on_audio_warning(self, payload: AudioWarningPayload) -> None:
+        await self._with_repo(
+            lambda r: r.insert_audio_warning(
+                session_id=payload.session_id,
+                timestamp_ms=payload.timestamp_ms,
+                event_type=payload.event_type,
+                severity=payload.severity,
+                message=payload.message,
+            )
+        )
         await broadcaster.publish(
             payload.session_id,
             {

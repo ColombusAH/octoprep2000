@@ -27,11 +27,15 @@ async def audio_stream(
 
     await ws.accept()
     rt = await registry.get_or_create(session_id)
+    logger.info("audio WS connected for {}", session_id)
 
+    chunk_count = 0
     try:
         while True:
             chunk = await ws.receive_bytes()
+            chunk_count += 1
+            logger.info("audio chunk #{} ({} bytes) for {}", chunk_count, len(chunk), session_id)
             assert rt.audio is not None
             await rt.audio.push_chunk(chunk)
     except WebSocketDisconnect:
-        logger.info("audio WS closed for {}", session_id)
+        logger.info("audio WS closed for {} after {} chunks", session_id, chunk_count)

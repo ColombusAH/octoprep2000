@@ -228,7 +228,9 @@ class VisionAgent:
             response_format={"type": "json_object"},
             max_tokens=400,
         )
-        return json.loads(resp.choices[0].message.content or "{}")
+        parsed = json.loads(resp.choices[0].message.content or "{}")
+        logger.info("Vision LLM result: {} event(s) {}", len(parsed.get("events", [])), parsed.get("events"))
+        return parsed
 
     def _now_ms(self) -> int:
         return int(time.monotonic() * 1000) - self._session_started_ms

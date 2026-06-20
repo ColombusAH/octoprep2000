@@ -10,8 +10,19 @@ import base64
 from functools import lru_cache
 
 from openai import AsyncOpenAI
+from agno.models.openai import OpenAILike
 
 from config import get_settings
+
+
+@lru_cache(maxsize=1)
+def get_text_model() -> OpenAILike:
+    s = get_settings()
+    return OpenAILike(
+        id=s.litellm_text_model,
+        api_key=s.litellm_api_key or "missing",
+        base_url=s.litellm_base_url,
+    )
 
 
 @lru_cache(maxsize=1)

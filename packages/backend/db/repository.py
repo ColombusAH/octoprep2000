@@ -8,7 +8,7 @@ from fastapi import Depends
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from db.models import Report, Session, SlideAnalysis, TranscriptEntry, VideoEvent
+from db.models import AudioWarning, Report, Session, SlideAnalysis, TranscriptEntry, VideoEvent
 from db.session import get_db
 
 
@@ -68,6 +68,33 @@ class PostgreSQLRepository:
             select(TranscriptEntry)
             .where(TranscriptEntry.session_id == session_id)
             .order_by(TranscriptEntry.start_ms)
+        )
+        return list(result.scalars().all())
+
+    # ── Audio Warnings (pacing/filler) ────────────────────────────────
+    async def insert_audio_warning(
+        self,
+        session_id: uuid.UUID,
+        timestamp_ms: int,
+        event_type: str,
+        severity: str,
+        message: str,
+    ) -> None:
+        warning = AudioWarning(
+            session_id=session_id,
+            timestamp_ms=timestamp_ms,
+            event_type=event_type,
+            severity=severity,
+            message=message,
+        )
+        self.db.add(warning)
+        await self.db.commit()
+
+    async def read_audio_warnings(self, session_id: uuid.UUID) -> list[AudioWarning]:
+        result = await self.db.execute(
+            select(AudioWarning)
+            .where(AudioWarning.session_id == session_id)
+            .order_by(AudioWarning.timestamp_ms)
         )
         return list(result.scalars().all())
 

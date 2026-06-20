@@ -71,6 +71,10 @@ class SlideAnalysisPayload(BaseModel):
     description: str
 
 
+class SlideFindings(BaseModel):
+    findings: list[SlideAnalysisPayload]
+
+
 class SlideAnalysisBundle(BaseModel):
     session_id: uuid.UUID
     findings: list[SlideAnalysisPayload]
@@ -82,6 +86,11 @@ class ContentFinding(BaseModel):
     type: Literal["FACTUAL_ERROR", "COVERAGE_GAP", "STRENGTH"]
     message: str
     context_quote: str = ""
+
+
+class ContentResult(BaseModel):
+    content_score: int = Field(ge=0, le=100)
+    findings: list[ContentFinding]
 
 
 class ContentAnalysisPayload(BaseModel):

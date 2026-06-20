@@ -31,10 +31,15 @@ async def video_stream(
         await ws.close(code=1000)
         return
 
+    logger.info("video WS connected for {}", session_id)
+    frame_count = 0
     try:
         while True:
             frame = await ws.receive_bytes()
+            frame_count += 1
+            if frame_count % 10 == 1:
+                logger.info("video frame #{} ({} bytes) for {}", frame_count, len(frame), session_id)
             assert rt.frame_service is not None
             await rt.frame_service.ingest(frame)
     except WebSocketDisconnect:
-        logger.info("video WS closed for {}", session_id)
+        logger.info("video WS closed for {} after {} frames", session_id, frame_count)

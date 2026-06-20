@@ -37,16 +37,16 @@ class _InterceptHandler(logging.Handler):
         logger.opt(depth=depth, exception=record.exc_info).log(level, record.getMessage())
 
 
+settings = get_settings()
+
 logger.remove()
 logger.add(
     sys.stderr,
-    level="INFO",
+    level=settings.log_level,
     format="<green>{time:HH:mm:ss}</green> <level>{level:<8}</level> <cyan>{name}</cyan> — {message}",
     colorize=True,
 )
 logging.basicConfig(handlers=[_InterceptHandler()], level=0, force=True)
-
-settings = get_settings()
 
 
 @asynccontextmanager

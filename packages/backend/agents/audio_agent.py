@@ -61,7 +61,10 @@ class AudioAgent:
             return
 
         if not text.strip():
+            logger.info("STT returned empty text for chunk {} ({} bytes PCM)", self._chunk_count, len(pcm_bytes))
             return
+
+        logger.info("STT transcribed chunk {}: {!r}", self._chunk_count, text)
 
         fillers = [m.group(0).lower() for m in FILLER_REGEX.finditer(text)]
         await self.orchestrator.on_transcript(

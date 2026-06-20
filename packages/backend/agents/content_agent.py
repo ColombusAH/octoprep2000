@@ -6,13 +6,14 @@ Uses get_session_maker() to own its own AsyncSession (decoupled from request sco
 
 from __future__ import annotations
 
-import json
 from loguru import logger
 import uuid
 
-from agents.llm import get_llm
+from agno.agent import Agent
+
+from agents.llm import get_text_model
 from agents.replay_fixtures import replay_content_analysis
-from agents.schemas import ContentAnalysisPayload, ContentFinding
+from agents.schemas import ContentAnalysisPayload, ContentResult
 from config import get_settings
 from db.repository import PostgreSQLRepository
 from db.session import get_session_maker
@@ -49,34 +50,23 @@ class ContentAnalysisAgent:
                 findings=[],
             )
 
-        s = get_settings()
-        client = get_llm()
         prompt = f"Topic: {session.topic}\n\nTranscript:\n{transcript[:12000]}"
+        agent = Agent(
+            model=get_text_model(),
+            instructions=CONTENT_PROMPT,
+            output_schema=ContentResult,
+        )
         try:
-            resp = await client.chat.completions.create(
-                model=s.litellm_text_model,
-                messages=[
-                    {"role": "system", "content": CONTENT_PROMPT},
-                    {"role": "user", "content": prompt},
-                ],
-                response_format={"type": "json_object"},
-                max_tokens=1500,
-            )
-            data = json.loads(resp.choices[0].message.content or "{}")
+            result = await agent.arun(prompt)
         except Exception as exc:  # noqa: BLE001
             logger.exception("Content LLM failed: {}", exc)
             return None
 
-        findings = []
-        for raw in data.get("findings", []):
-            try:
-                findings.append(ContentFinding(**raw))
-            except Exception as exc:  # noqa: BLE001
-                logger.warning("invalid content finding skipped: {} ({})", raw, exc)
-
+        cr = result.content
+        logger.info("Content LLM result: score={} findings={}", cr.content_score, len(cr.findings))
         return ContentAnalysisPayload(
             session_id=session_id,
             topic=session.topic,
-            content_score=float(max(0, min(100, data.get("content_score", 0)))),
-            findings=findings,
+            content_score=float(max(0, min(100, cr.content_score))),
+            findings=cr.findings,
         )

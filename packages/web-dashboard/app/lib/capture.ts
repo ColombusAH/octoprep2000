@@ -13,10 +13,13 @@ export type CaptureHandles = {
 export async function startVideoCapture(
   videoEl: HTMLVideoElement,
   sendFrame: (bytes: ArrayBuffer) => void,
+  onDeviceLost?: () => void,
 ): Promise<CaptureHandles> {
   const stream = await navigator.mediaDevices.getUserMedia({ video: true });
   videoEl.srcObject = stream;
   await videoEl.play();
+
+  if (onDeviceLost) stream.getVideoTracks()[0].onended = onDeviceLost;
 
   const off = new OffscreenCanvas(320, 240);
   const ctx = off.getContext("2d")!;
@@ -37,8 +40,10 @@ export async function startVideoCapture(
 export async function startAudioCapture(
   sendChunk: (bytes: ArrayBuffer) => void,
   chunkSeconds = 2,
+  onDeviceLost?: () => void,
 ): Promise<CaptureHandles> {
   const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+  if (onDeviceLost) stream.getAudioTracks()[0].onended = onDeviceLost;
   const AudioContextCtor =
     (window as unknown as { AudioContext?: typeof AudioContext; webkitAudioContext?: typeof AudioContext })
       .AudioContext ??

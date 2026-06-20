@@ -50,10 +50,19 @@ async def detect(frame_bytes: bytes) -> FaceMetrics | None:
     if not is_enabled():
         return None
     try:
-        return await _call_gateway(frame_bytes)
+        metrics = await _call_gateway(frame_bytes)
     except Exception as exc:  # noqa: BLE001
         logger.warning("GCV face_detection call failed: {}", exc)
         return None
+    logger.info(
+        "GCV face_detection result: faces={} joy={} pan={} tilt={} roll={}",
+        metrics.face_count,
+        metrics.joy,
+        metrics.pan_deg,
+        metrics.tilt_deg,
+        metrics.roll_deg,
+    )
+    return metrics
 
 
 async def _call_gateway(frame_bytes: bytes) -> FaceMetrics:

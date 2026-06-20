@@ -24,6 +24,13 @@ class _FakeTranscript:
 
 
 @dataclass
+class _FakeAudioWarning:
+    timestamp_ms: int
+    event_type: str
+    severity: str = "MEDIUM"
+
+
+@dataclass
 class _FakeVideoEvent:
     timestamp_ms: int
     event_type: str
@@ -45,13 +52,32 @@ def test_voice_dedupes_fillers_into_single_insight():
         _FakeTranscript(2000, 4000, "uh actually", ["uh"]),
         _FakeTranscript(4000, 6000, "um and like", ["um", "like"]),
     ]
-    insights, score = agent._score_voice(entries)
+    insights, score = agent._score_voice(entries, [])
     improvements = [i for i in insights if i.type == "IMPROVEMENT"]
     assert len(improvements) == 1
     assert "'um' (2x)" in improvements[0].message
     assert "'like' (1x)" in improvements[0].message
     assert sorted(improvements[0].timestamps) == [0, 2000, 4000, 4000]
     assert score < 100
+
+
+def test_voice_includes_pacing_warnings():
+    agent = ReportAgent()
+    entries = [_FakeTranscript(0, 2000, "all good here", [])]
+    warnings = [
+        _FakeAudioWarning(1000, "PACING_TOO_FAST"),
+        _FakeAudioWarning(3000, "PACING_TOO_FAST"),
+        _FakeAudioWarning(5000, "PACING_TOO_SLOW"),
+    ]
+    insights, score = agent._score_voice(entries, warnings)
+    improvements = [i for i in insights if i.type == "IMPROVEMENT"]
+    fast = next(i for i in improvements if "too fast" in i.message.lower())
+    slow = next(i for i in improvements if "too slowly" in i.message.lower())
+    assert sorted(fast.timestamps) == [1000, 3000]
+    assert slow.timestamps == [5000]
+    assert score < 100
+    # No "steady pacing" strength claim when pacing issues were detected
+    assert not any(i.type == "STRENGTH" for i in insights)
 
 
 def test_body_groups_video_events_by_type():
