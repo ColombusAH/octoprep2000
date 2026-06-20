@@ -89,21 +89,27 @@
 
   <!-- 1 TITLE -->
   <section class="slide active" data-title="Title">
-    <div class="body">
-      <div class="kicker">Technical Architecture Walkthrough</div>
-      <h1>OctoPrep2000<br/>Architecture &amp; Flows</h1>
-      <p class="sub">AI presentation coach. Upload deck → record live in browser → multi-agent analysis of voice, body, slides &amp; content → scored, timestamp-anchored report. Single FastAPI process, all agents as <code>asyncio</code> tasks.</p>
-      <div class="stat">
-        <div><span class="n">5</span><span class="l">Agno agents + 1 frame utility</span></div>
-        <div><span class="n">4</span><span class="l">scorecard vectors</span></div>
-        <div><span class="n">3</span><span class="l">containers</span></div>
-        <div><span class="n">5</span><span class="l">Postgres tables</span></div>
+    <div class="body" style="flex-direction:row;align-items:center;gap:60px">
+      <div style="flex:1;min-width:0">
+        <div class="kicker">Technical Architecture Walkthrough</div>
+        <h1>OctoPrep2000<br/>Architecture &amp; Flows</h1>
+        <div class="stat">
+          <div><span class="n">5</span><span class="l">agents (2 on Agno) + 1 frame utility</span></div>
+          <div><span class="n">4</span><span class="l">scorecard vectors</span></div>
+          <div><span class="n">3</span><span class="l">containers</span></div>
+          <div><span class="n">5</span><span class="l">Postgres tables</span></div>
+        </div>
+        <span class="pill">Tikal Fuse Day · June 24 2026 · Single-process · Local-first · Railway (P3 bonus)</span>
       </div>
-      <span class="pill">Tikal Fuse Day · June 24 2026 · Single-process · Local-first · Railway (P3 bonus)</span>
+      <div style="flex-shrink:0;display:flex;align-items:center;justify-content:center">
+        <img src="../../packages/web-dashboard/assets/logo-1.png"
+             alt="OctoPrep logo"
+             style="width:420px;height:420px;object-fit:contain;filter:drop-shadow(0 0 40px rgba(56,189,248,.35))" />
+      </div>
     </div>
   </section>
 
-  <!-- 2 PROBLEM -->
+  <!-- 2 PROBLEM & SOLUTION -->
   <section class="slide" data-title="Problem & Solution">
     <div class="kicker">Why</div><h2>Problem &amp; Solution</h2>
     <div class="body">
@@ -111,10 +117,10 @@
         <div class="card">
           <h3><span class="dot" style="background:var(--red)"></span>Problem</h3>
           <ul>
-            <li>Engineers prep talks with no feedback loop before going on stage</li>
-            <li>Speaking coaches expensive + asynchronous</li>
-            <li>Self-recorded video = tedious, unstructured, no metrics</li>
-            <li>Vague impressions, no quantified path to improve</li>
+            <li>Not enough lecture advisors at Tikal to go around</li>
+            <li>Presenters often skip advising sessions — easy to avoid</li>
+            <li>So many show up to present unprepared</li>
+            <li>No easy way to practice and get feedback alone</li>
           </ul>
         </div>
         <div class="card">
@@ -130,61 +136,269 @@
     </div>
   </section>
 
-  <!-- 3 TECH STACK -->
+  <!-- 3 WHO WE'RE BUILDING FOR -->
+  <section class="slide" data-title="Who We're Building For">
+    <div class="kicker">Who We're Building For</div><h2>Two Real Users</h2>
+    <div class="body">
+      <div class="grid">
+        <div class="card">
+          <h3><span class="dot" style="background:var(--sky)"></span>🎤 The Conference Speaker</h3>
+          <ul>
+            <li>Tikal people gearing up for a real external conference</li>
+          </ul>
+        </div>
+        <div class="card">
+          <h3><span class="dot" style="background:var(--green)"></span>🏢 The Internal Presenter</h3>
+          <ul>
+            <li>Tikal people prepping an internal talk — guild meetups, knowledge-sharing sessions, technical or soft skills</li>
+          </ul>
+        </div>
+      </div>
+      <p class="sub">Score ≥80 on either path? 🎓 Unlock a real 1-on-1 with a Tikal Mentor — the payoff, not a separate user.</p>
+    </div>
+  </section>
+
+  <!-- 4 WHY WE DIDN'T START FROM ZERO -->
+  <section class="slide" data-title="Why We Didn't Start From Zero">
+    <div class="kicker">Hackathon Philosophy</div><h2>Why We Didn't Start From Zero</h2>
+    <div class="body">
+      <div class="diagram">
+        <img src="../../packages/web-dashboard/assets/the-team-balcony.png"
+             alt="The team on the balcony"
+             style="max-width:100%;max-height:100%;border-radius:12px;object-fit:contain" />
+      </div>
+    </div>
+  </section>
+
+  <!-- 5 PRODUCT JOURNEY -->
+  <section class="slide" data-title="Product Journey">
+    <div class="body">
+      <div class="kicker">Product Vision</div>
+      <h1>Product Journey</h1>
+    </div>
+  </section>
+
+  <!-- 6 THE DASHBOARD -->
+  <section class="slide" data-title="The Dashboard">
+    <div class="kicker">Product Vision · Dashboard</div><h2>Starting a Session</h2>
+    <div class="body"><div class="diagram"><pre class="mermaid">
+flowchart LR
+    U(["👤 Presenter opens the dashboard"]) --> F["📝 Fills in the form<br/>topic · audience · upload deck"]
+    F --> GS(["🚀 Click 'Get Started'"])
+    GS --> P["🎥 Browser asks mic + camera permission<br/>sees a live self-preview"]
+    P --> SR(["⏺️ Click 'Start Recording'"])
+    SR --> REC["🔴 Recording begins"]
+    REC -.->|"stretch goal"| TOGGLE["🔔 Optional toggle: live feedback ON/OFF<br/>body language · pacing · eye contact"]
+    class U sky
+    class F,P amber
+    class GS,SR green
+    class REC red
+    class TOGGLE violet
+    </pre></div></div>
+  </section>
+
+  <!-- 7 4-VECTOR SCORECARD -->
+  <section class="slide" data-title="4-Vector Scorecard">
+    <div class="kicker">Output · the report</div><h2>4-Vector Scorecard</h2>
+    <div class="two">
+      <div style="display:flex;flex-direction:column;justify-content:center">
+        <ul>
+          <li>🗣️ <b>Voice &amp; Delivery (30%)</b> — fillers, pacing</li>
+          <li>🎥 <b>Body Language (30%)</b> — eye contact, posture, framing</li>
+          <li>🖼️ <b>Slide Quality (20%)</b> — 12-factor Playbook</li>
+          <li>🧠 <b>Technical Accuracy (20%)</b> — transcript vs topic</li>
+          <li>ReportAgent <b>dedups</b> recurring events, collects timestamps[], <b>weighted average</b></li>
+          <li>Score ≥ <b>80</b> → 🔓 unlocks Tikal mentor booking</li>
+        </ul>
+      </div>
+      <pre class="json">{
+  <span class="k">"overall_score"</span>: <span class="s">74</span>,
+  <span class="k">"voice_score"</span>: <span class="s">68</span>,
+  <span class="k">"body_score"</span>: <span class="s">71</span>,
+  <span class="k">"slide_score"</span>: <span class="s">82</span>,
+  <span class="k">"content_score"</span>: <span class="s">75</span>,
+  <span class="k">"mentor_unlocked"</span>: <span class="s">false</span>,
+  <span class="k">"insights"</span>: [{
+    <span class="k">"category"</span>: <span class="s">"voice"</span>,
+    <span class="k">"type"</span>: <span class="s">"IMPROVEMENT"</span>,
+    <span class="k">"message"</span>: <span class="s">"Said 'um' 24×"</span>,
+    <span class="k">"timestamps"</span>: [<span class="s">72000</span>,<span class="s">225000</span>]
+  }]
+}</pre>
+    </div>
+  </section>
+
+  <!-- 8 VOICE & DELIVERY -->
+  <section class="slide" data-title="Voice & Delivery">
+    <div class="kicker">Report Deep-Dive · Voice &amp; Delivery (30%)</div><h2>🗣️ Voice &amp; Delivery</h2>
+    <div class="body">
+      <div class="grid">
+        <div class="card">
+          <h3><span class="dot" style="background:var(--green)"></span>✅ Built Today</h3>
+          <ul>
+            <li>🎙️ Speech to text</li>
+            <li>🚫 Filler words</li>
+            <li>🏃 Talking speed</li>
+          </ul>
+        </div>
+        <div class="card" style="border-style:dashed">
+          <h3><span class="dot" style="background:var(--violet)"></span>🔮 Future Ideas</h3>
+          <ul>
+            <li>⏱️ Time per slide</li>
+            <li>🧩 Smart pause detection</li>
+            <li>🔊 Voice energy</li>
+            <li>💬 Speaking confidence</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 9 BODY LANGUAGE -->
+  <section class="slide" data-title="Body Language">
+    <div class="kicker">Report Deep-Dive · Body Language (30%)</div><h2>🎥 Body Language</h2>
+    <div class="body">
+      <div class="grid">
+        <div class="card">
+          <h3><span class="dot" style="background:var(--green)"></span>✅ Built Today</h3>
+          <ul>
+            <li>👁️ Eye contact</li>
+            <li>😊 Smile detection</li>
+            <li>🙆 Posture &amp; gestures</li>
+            <li>🖼️ Camera framing</li>
+          </ul>
+        </div>
+        <div class="card" style="border-style:dashed">
+          <h3><span class="dot" style="background:var(--violet)"></span>🔮 Future Ideas</h3>
+          <ul>
+            <li>🙌 Purposeful gestures</li>
+            <li>📈 Change over time</li>
+            <li>🎭 Expression variety</li>
+            <li>🔗 <b>Most important:</b> gestures matching content</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 10 SLIDE QUALITY -->
+  <section class="slide" data-title="Slide Quality">
+    <div class="kicker">Report Deep-Dive · Slide Quality (20%)</div><h2>🖼️ Slide Quality</h2>
+    <div class="body">
+      <div class="grid">
+        <div class="card">
+          <h3><span class="dot" style="background:var(--green)"></span>✅ Built Today · Tikal 12-Factor Playbook</h3>
+          <ul>
+            <li>📏 10-20-30 rule (F4)</li>
+            <li>🔢 Object count ≤6 (F5)</li>
+            <li>🖼️ Visual &amp; minimal text (F3)</li>
+            <li>📖 Story arc (F8, F12)</li>
+            <li>💻 Code on screen (F9)</li>
+            <li>🔤 Font consistency (F7)</li>
+            <li>🏷️ Authenticity &amp; credit (F2)</li>
+            <li>📝 Speaker notes (F10)</li>
+          </ul>
+        </div>
+        <div class="card" style="border-style:dashed">
+          <h3><span class="dot" style="background:var(--violet)"></span>🔮 Future Ideas</h3>
+          <ul>
+            <li>🎨 Color &amp; contrast (F6)</li>
+            <li>⬛ Blank-slide pacing (F11)</li>
+            <li>💡 Suggests a fix, not just a flaw</li>
+          </ul>
+        </div>
+      </div>
+      <p class="sub">8 of 12 Tikal factors checked automatically today.</p>
+      <div style="margin-top:22px;background:var(--panel);border:2px solid var(--violet);border-radius:14px;padding:20px 26px">
+        <h3 style="font-size:22px;margin:0 0 8px">🎓 From Critic to Advisor</h3>
+        <p class="sub" style="margin:0;max-width:none">Today it only flags what's wrong. The goal: it should also say what it would do instead — not just "too many elements," but a real suggested fix.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- 11 TECHNICAL CONTENT -->
+  <section class="slide" data-title="Technical Content">
+    <div class="kicker">Report Deep-Dive · Technical Content (20%) · Vision</div><h2>🧠 Technical Content</h2>
+    <div class="body"><div class="diagram"><pre class="mermaid">
+flowchart LR
+    subgraph SRC["🔎 What it reads"]
+        direction TB
+        DOC["📚 Official docs<br/>for the tech you named"]
+        WEB["🌐 Web search<br/>similar talks &amp; articles"]
+    end
+    DOC --> CA(["🧠 Content Agent"])
+    WEB --> CA
+    CA --> T["⚠️ Technical correctness"]
+    CA --> A["🎯 Depth fits the audience"]
+    CA --> G["📋 Gaps vs. the docs"]
+    T --> OUT(["🗂️ Per-slide + overall summary"])
+    A --> OUT
+    G --> OUT
+    class DOC,WEB sky
+    class CA violet
+    class T,A,G amber
+    class OUT green
+    style SRC fill:#0b1120,stroke:#38bdf8,color:#7dd3fc
+    </pre></div></div>
+  </section>
+
+  <!-- 12 TECH STACK -->
   <section class="slide" data-title="Tech Stack">
     <div class="kicker">Stack</div><h2>Technology Stack</h2>
     <div class="body">
       <table>
         <tr><th>Layer</th><th>Technology</th><th>Purpose</th></tr>
         <tr><td>Frontend</td><td>TanStack Start · React · TypeScript</td><td>SSR/SPA app, webcam + mic capture, scorecard</td></tr>
+        <tr><td>UI Components</td><td>Tailwind CSS (installed, barely used) + component lib TBD</td><td>e.g. Radix UI, shadcn/ui — dev's call</td></tr>
         <tr><td>Backend</td><td>FastAPI · Python 3.11+ · async</td><td>REST + WebSocket, single process</td></tr>
-        <tr><td>Orchestration</td><td>Agno (fallback: raw <code>asyncio</code>)</td><td>Spawns/cancels agent tasks per session</td></tr>
-        <tr><td>Vision AI</td><td>GPT-4o Vision via Tikal LiteLLM</td><td>Posture · eye contact · framing · gestures</td></tr>
-        <tr><td>LLM agents</td><td>Tikal LiteLLM gateway</td><td>PPTX · Content · Report evaluation</td></tr>
+        <tr><td>Orchestration</td><td>Raw <code>asyncio</code> (Agno PoC not adopted here)</td><td>Spawns/cancels agent tasks per session</td></tr>
+        <tr><td>Vision AI</td><td>GPT-4o Vision + Google Cloud Vision, via Tikal LiteLLM</td><td>GPT-4o: posture · gestures · framing — GCV: eye contact · face detect</td></tr>
+        <tr><td>LLM agents</td><td>Tikal LiteLLM gateway</td><td>PPTX · Content analysis</td></tr>
         <tr><td>STT</td><td>ElevenLabs Scribe v1</td><td>Live transcription · filler · WPM</td></tr>
         <tr><td>Frame filter</td><td><code>imagehash</code> dhash</td><td>60fps → ≤5fps, drop duplicate frames</td></tr>
         <tr><td>PPTX</td><td>python-pptx</td><td>Slide text extraction</td></tr>
-        <tr><td>Data</td><td>PostgreSQL 15 · SQLAlchemy async · asyncpg · Alembic</td><td>5 tables, migrations</td></tr>
+        <tr><td>Data</td><td>PostgreSQL 15 · SQLAlchemy async · asyncpg · Alembic</td><td>6 tables, migrations</td></tr>
         <tr><td>Monorepo</td><td>pnpm workspaces + uv</td><td>JS + Python packages</td></tr>
       </table>
     </div>
   </section>
 
-  <!-- 4 C4 CONTEXT -->
+  <!-- 13 C4 — SYSTEM CONTEXT -->
   <section class="slide" data-title="C4 — System Context">
     <div class="kicker">C4 · Level 1</div><h2>System Context</h2>
     <div class="body"><div class="diagram"><pre class="mermaid">
 graph LR
-    presenter(["👤 Presenter<br/>uploads deck · records<br/>session · gets scorecard"])
+    presenter(["👤 Presenter<br/>uploads deck · rehearses live"])
     subgraph sys["🐙 OctoPrep2000"]
-        core["AI presentation coaching<br/>live warnings + scored report"]
+        core["Analyses voice, body,<br/>slides &amp; content in real time"]
     end
-    vision(["🤖 GPT-4o Vision<br/>via Tikal LiteLLM<br/>posture · eye contact · framing"])
+    vision(["🤖 GPT-4o Vision + Google Cloud Vision<br/>via Tikal LiteLLM<br/>posture · gestures (GPT-4o)<br/>eye contact · face detect (GCV)"])
     stt(["🎙️ ElevenLabs Scribe v1<br/>speech-to-text"])
-    cal(["📅 Calendly<br/>mentor booking · unlock ≥80"])
-    rail(["🚂 Railway<br/>hosting + Postgres · P3"])
-    presenter -->|"HTTPS + WSS"| core
-    core -->|"frame batches · REST"| vision
-    core -->|"audio chunks · WSS"| stt
+    cal(["📅 Calendly<br/>deep-link only, read-only<br/>unlocked at score ≥80"])
+    presenter -->|"uploads deck · streams audio/video"| core
+    core -->|"scored, timestamp-anchored report"| presenter
+    core -->|"video frames"| vision
+    vision -->|"posture/gesture findings"| core
+    core -->|"audio chunks"| stt
+    stt -->|"transcript + filler/WPM"| core
     core -.->|"deep-link redirect"| cal
-    core -.->|"deployed on"| rail
     class presenter sky
     class core green
-    class vision,stt,cal,rail violet
+    class vision,stt,cal violet
     style sys fill:#0b1120,stroke:#4ade80,color:#86efac
     </pre></div></div>
   </section>
 
-  <!-- 5 CONTAINER -->
+  <!-- 14 C4 — CONTAINERS -->
   <section class="slide" data-title="C4 — Containers">
     <div class="kicker">C4 · Level 2</div><h2>Container Diagram</h2>
     <div class="body"><div class="diagram"><pre class="mermaid">
 graph TB
     user(["👤 Presenter · Browser"])
-    subgraph rail["☁️ Railway / Local"]
-        fe["🖥️ Web Dashboard<br/>TanStack Start · React · TS<br/>SSR · webcam + mic capture"]
-        be["⚡ FastAPI Backend<br/>Python 3.11 · Agno<br/>single process · all agents<br/>REST + WebSocket"]
-        pg[("🐘 PostgreSQL 15<br/>5 tables")]
+    subgraph rail["🐙 OctoPrep2000"]
+        fe["🖥️ Web Dashboard<br/>SSR · webcam + mic capture"]
+        be["⚡ Backend<br/>single process · all agents<br/>REST + WebSocket"]
+        pg[("🐘 Database<br/>6 tables")]
     end
     vision(["🤖 Vision LLM API"])
     stt(["🎙️ STT Provider"])
@@ -192,7 +406,7 @@ graph TB
     fe -->|"REST · /sessions · /upload"| be
     fe -->|"WSS · video + audio in"| be
     fe -->|"WSS · realtime-feedback out"| be
-    be -->|"SQLAlchemy async"| pg
+    be -->|"reads/writes"| pg
     be -->|"REST · frame batches"| vision
     be -->|"WSS · audio chunks"| stt
     class user,fe,be sky
@@ -202,7 +416,7 @@ graph TB
     </pre></div></div>
   </section>
 
-  <!-- 6 BACKEND COMPONENTS -->
+  <!-- 15 BACKEND COMPONENTS -->
   <section class="slide" data-title="Backend Components">
     <div class="kicker">C4 · Level 3</div><h2>Backend — Routes → Orchestrator → Agents</h2>
     <div class="body"><div class="diagram"><pre class="mermaid">
@@ -216,7 +430,7 @@ graph LR
         SM[SessionManager]; BC[Broadcaster]
     end
     subgraph Orch["🧠 Orchestrator"]
-        AG[AgnoOrchestrator<br/>sole DB writer]
+        AG[Orchestrator<br/>sole DB writer]
     end
     subgraph Agents["🤖 Agents · async tasks"]
         direction TB
@@ -255,7 +469,7 @@ graph LR
     </pre></div></div>
   </section>
 
-  <!-- 7 AGENTS TABLE -->
+  <!-- 16 AGENT SPECS -->
   <section class="slide" data-title="Agent Specs">
     <div class="kicker">Agents · contract</div><h2>5 Agents + 1 Utility</h2>
     <div class="body">
@@ -272,197 +486,25 @@ graph LR
     </div>
   </section>
 
-  <!-- 8 LIVE SESSION SEQUENCE -->
-  <section class="slide" data-title="Live Session Flow">
-    <div class="kicker">Runtime · main path</div><h2>Live Session — Sequence</h2>
-    <div class="body"><div class="diagram"><pre class="mermaid">
-sequenceDiagram
-    actor P as Presenter
-    participant FE as Dashboard
-    participant API as SessionRouter
-    participant ORC as Orchestrator
-    participant VA as VisionAgent
-    participant AA as AudioAgent
-    participant BC as Broadcaster
-    participant EXT as Vision/STT
-    participant DB as PostgreSQL
-    P->>FE: Click "Start Session"
-    FE->>API: POST /sessions
-    API->>DB: INSERT Session(session_id, access_token, ACTIVE)
-    API-->>FE: { session_id, access_token }
-    FE->>ORC: open 3 WS (video · audio · feedback) + token
-    Note over FE,ORC: token validated on handshake · invalid → close(4003)
-    ORC->>ORC: spawn video_task + audio_task
-    loop frames ~200ms
-        FE->>VA: JPEG frame (via FrameService delta filter)
-        VA->>EXT: analyse batch (3 frames)
-        EXT-->>VA: eye_contact · posture · framing
-        VA->>ORC: emit(VideoEventPayload)
-        ORC->>DB: INSERT VideoEvent (batched 1s/N=20)
-        ORC->>BC: publish warning
-        BC-->>P: 🔴 Toast "Look at the camera!"
-    end
-    loop audio ~2s
-        FE->>AA: PCM chunk
-        AA->>EXT: transcribe
-        EXT-->>AA: text + timestamps
-        AA->>ORC: emit(Transcript + AudioWarning)
-        ORC->>DB: INSERT TranscriptEntry
-    end
-    P->>FE: Click "End Session"
-    FE->>API: POST /sessions/:id/end
-    API->>ORC: cancel tasks → trigger ReportAgent
-    ORC->>DB: UPDATE status=REPORT_READY
-    BC-->>FE: REPORT_READY → /session/:id/report
-    </pre></div></div>
-  </section>
-
-  <!-- 9 PPTX UPLOAD SEQUENCE -->
-  <section class="slide" data-title="PPTX Upload Flow">
-    <div class="kicker">Runtime · ingestion</div><h2>PPTX Upload — Sequence</h2>
-    <div class="body"><div class="diagram"><pre class="mermaid">
-sequenceDiagram
-    actor P as Presenter
-    participant FE as Dashboard
-    participant UR as UploadRouter
-    participant PA as PPTXAgent
-    participant ORC as Orchestrator
-    participant DB as PostgreSQL
-    P->>FE: Drag &amp; drop .pptx
-    FE->>UR: POST /sessions/:id/upload (multipart)
-    UR->>UR: save /tmp/{session_id}.pptx
-    UR->>PA: analyse_async(path, session_id)
-    UR-->>FE: 202 Accepted
-    FE-->>P: "Analysing your deck…"
-    PA->>PA: python-pptx extract slide text
-    Note over PA: persist slides_raw_text to DB<br/>survives restart
-    PA->>PA: LLM eval vs 12-factor Playbook
-    PA->>ORC: emit(SlideAnalysisPayload[])
-    Note over ORC: Pydantic validation wall ✓
-    loop per validated finding
-        ORC->>DB: INSERT SlideAnalysis
-    end
-    ORC->>DB: UPDATE Session(pptx_ready=true)
-    FE->>FE: poll GET /sessions/:id
-    FE-->>P: "Deck analysed ✓ — ready to start"
-    </pre></div></div>
-  </section>
-
-  <!-- 10 FALLBACK SEQUENCE -->
-  <section class="slide" data-title="Audio Fallback">
-    <div class="kicker">Resilience · degrade gracefully</div><h2>Audio-Only Fallback</h2>
-    <div class="body"><div class="diagram"><pre class="mermaid">
-sequenceDiagram
-    participant FS as FrameService
-    participant VA as VisionAgent
-    participant ORC as Orchestrator
-    participant FE as Dashboard
-    participant P as Presenter
-    loop 3 consecutive frames, no response
-        FS->>VA: analyse_frame(frame)
-        Note over VA: no response within VISION_TIMEOUT_MS (5000)
-        VA--xORC: timeout
-    end
-    ORC->>ORC: activate_fallback_mode()
-    ORC->>ORC: cancel video_task
-    ORC->>ORC: reweight Voice 40% + Slides 30% + Content 30%
-    ORC->>FE: publish FALLBACK_ACTIVATED
-    FE-->>P: ⚠️ "Video unavailable — continuing with audio coaching"
-    Note over P: session continues with audio + slides only
-    </pre></div></div>
-  </section>
-
-  <!-- 11 FRAME OPTIMIZATION -->
-  <section class="slide" data-title="Frame Filter">
-    <div class="kicker">Algorithm · cost control</div><h2>Frame Delta Filtering</h2>
-    <div class="two">
-      <div class="diagram"><pre class="mermaid">
-flowchart TB
-    A([📷 getUserMedia<br/>60fps capture]) --> B["downscale 320×240<br/>JPEG q0.7 · every 200ms"]
-    B --> C{{"dhash<br/>Hamming distance"}}
-    C -->|"≤ 8 · duplicate"| D["🗑️ drop frame"]
-    C -->|"&gt; 8 · changed"| E["queue for batch"]
-    E --> F["batch 3 frames<br/>@ ~600ms"]
-    F --> G[("🤖 GPT-4o Vision<br/>1 call / batch")]
-    class A sky
-    class B,E,F amber
-    class C violet
-    class D red
-    class G green
-      </pre></div>
-      <div style="display:flex;flex-direction:column;justify-content:center">
-        <ul>
-          <li>60fps would be ruinous on latency + token cost — <b>banned</b></li>
-          <li><code>imagehash</code> dhash → Hamming distance vs last frame</li>
-          <li>Distance ≤ <b>8</b> → frame is redundant → drop silently</li>
-          <li>Survivors <b>batched 3 per call</b> to amortise tokens (~1000 calls / 10-min session)</li>
-          <li>Result: <b>≤5fps</b> reaches the Vision Agent</li>
-        </ul>
-      </div>
+  <!-- 17 WHO OWNS WHAT TODAY -->
+  <section class="slide" data-title="Who Owns What Today">
+    <div class="kicker">Team · Today</div><h2>Who Owns What Today</h2>
+    <div class="body">
+      <table>
+        <tr><th>Member</th><th>Role</th><th>Primary Service</th></tr>
+        <tr><td>🧭 Team Lead</td><td>Product, Integration, Architecture</td><td>Cross-cutting</td></tr>
+        <tr><td>🎥 Naor</td><td>Full Video Pipeline</td><td>Algorithmic Frame Service + Vision Agent</td></tr>
+        <tr><td>🎙️ Or Yam</td><td>Audio Agent</td><td>Live audio streaming, speech-to-text, filler word detection, speaking pace (words per minute)</td></tr>
+        <tr><td>🧠 Din</td><td>Content Analysis Agent</td><td>Post-session transcript accuracy + coverage gaps</td></tr>
+        <tr><td>🖼️ Stav</td><td>PPTX Agent</td><td>Slide analysis vs Tikal 12-factor Playbook</td></tr>
+        <tr><td>⚙️ Avner</td><td>Orchestrator + Report Agent</td><td>Orchestrator + Report Generator</td></tr>
+        <tr><td>🖥️ Ortal</td><td>Frontend Dashboard</td><td>TanStack Start dashboard; Chrome Extension stretch</td></tr>
+        <tr><td>✍️ Lihi</td><td>Content &amp; Frontend (Backup)</td><td>Hackathon pitch deck + LinkedIn/social content; frontend backup</td></tr>
+      </table>
     </div>
   </section>
 
-  <!-- 12 AUTH / CAPABILITY TOKEN -->
-  <section class="slide" data-title="Session Isolation">
-    <div class="kicker">Security · no user accounts</div><h2>Capability Token Pattern</h2>
-    <div class="body"><div class="diagram"><pre class="mermaid">
-flowchart TB
-    Create(["POST /sessions"]) -->|returns| Pair["session_id (public)<br/>+ access_token (secret)"]
-    Pair --> LS["💾 localStorage<br/>token_{session_id}"]
-    subgraph Protected["🔴 require access_token"]
-        direction LR
-        E1["GET /sessions/:id"]; E2["POST /upload"]; E3["POST /end"]
-        E4["WS video · audio · feedback"]
-    end
-    subgraph Share["🟢 read-only share_token"]
-        direction LR
-        E5["GET /report?share=…"]
-    end
-    LS -->|"Bearer / ?token="| Protected
-    E6["POST /report/share"] -.->|generates| E5
-    class Create sky
-    class Pair,LS green
-    class E1,E2,E3,E4 red
-    class E5,E6 green
-    style Protected fill:#450a0a,stroke:#f87171,color:#fecaca
-    style Share fill:#052e16,stroke:#4ade80,color:#bbf7d0
-    </pre></div>
-    <p class="sub">Two UUIDs, zero login. <b>session_id</b> public (safe in URLs/logs), <b>access_token</b> secret in localStorage. Both required for every protected op. WS can't send headers → <code>?token=</code> query param, validated on handshake, <code>close(4003)</code> if invalid. Opt-in <b>share_token</b> grants read-only report access.</p>
-    </div>
-  </section>
-
-  <!-- 13 SCORING -->
-  <section class="slide" data-title="4-Vector Scorecard">
-    <div class="kicker">Output · the report</div><h2>4-Vector Scorecard</h2>
-    <div class="two">
-      <div style="display:flex;flex-direction:column;justify-content:center">
-        <ul>
-          <li>🗣️ <b>Voice &amp; Delivery</b> — fillers, WPM pacing</li>
-          <li>🎥 <b>Body Language</b> — eye contact, posture, framing</li>
-          <li>🖼️ <b>Slide Quality</b> — 12-factor Playbook</li>
-          <li>🧠 <b>Technical Accuracy</b> — transcript vs topic</li>
-          <li>ReportAgent <b>dedups</b> recurring events, collects timestamps[], <b>weighted average</b></li>
-          <li>Score ≥ <b>80</b> → 🔓 unlocks Tikal mentor booking</li>
-        </ul>
-      </div>
-      <pre class="json">{
-  <span class="k">"overall_score"</span>: <span class="s">74</span>,
-  <span class="k">"voice_score"</span>: <span class="s">68</span>,
-  <span class="k">"body_score"</span>: <span class="s">71</span>,
-  <span class="k">"slide_score"</span>: <span class="s">82</span>,
-  <span class="k">"content_score"</span>: <span class="s">75</span>,
-  <span class="k">"mentor_unlocked"</span>: <span class="s">false</span>,
-  <span class="k">"insights"</span>: [{
-    <span class="k">"category"</span>: <span class="s">"voice"</span>,
-    <span class="k">"type"</span>: <span class="s">"IMPROVEMENT"</span>,
-    <span class="k">"message"</span>: <span class="s">"Said 'um' 24×"</span>,
-    <span class="k">"timestamps"</span>: [<span class="s">72000</span>,<span class="s">225000</span>]
-  }]
-}</pre>
-    </div>
-  </section>
-
-  <!-- 14 ER DIAGRAM -->
+  <!-- 18 DB SCHEMA (ER) -->
   <section class="slide" data-title="DB Schema (ER)">
     <div class="kicker">Data · PostgreSQL</div><h2>Relational Schema — 5 Tables</h2>
     <div class="body"><div class="diagram"><pre class="mermaid">
@@ -512,88 +554,7 @@ erDiagram
     </pre></div></div>
   </section>
 
-  <!-- 15 WS CONTRACT -->
-  <section class="slide" data-title="WebSocket Contract">
-    <div class="kicker">Realtime · 3 channels</div><h2>WebSocket Contract</h2>
-    <div class="body">
-      <table>
-        <tr><th>Route</th><th>Dir</th><th>Format</th><th>Auth</th></tr>
-        <tr><td><code>/video-stream</code></td><td>browser → backend</td><td>Binary JPEG frame</td><td>access_token</td></tr>
-        <tr><td><code>/audio-stream</code></td><td>browser → backend</td><td>Binary PCM 16-bit 16kHz · 2s</td><td>access_token</td></tr>
-        <tr><td><code>/realtime-feedback</code></td><td>backend → browser</td><td>JSON events</td><td>access_token</td></tr>
-      </table>
-      <div class="grid" style="margin-top:18px">
-        <div class="card">
-          <h3><span class="dot" style="background:var(--sky)"></span>Event types out</h3>
-          <ul>
-            <li><code>EYE_CONTACT_LOST</code> · severity + timestamp_ms</li>
-            <li><code>REPORT_READY</code> · redirect signal</li>
-            <li><code>FALLBACK_ACTIVATED</code> · video down banner</li>
-          </ul>
-        </div>
-        <div class="card">
-          <h3><span class="dot" style="background:var(--green)"></span>Resilience</h3>
-          <ul>
-            <li>Token validated on handshake → <code>close(4003)</code></li>
-            <li>Browser reconnect: exp backoff 1·2·4·8s cap</li>
-            <li>session_id + token in localStorage → rebind same session</li>
-          </ul>
-        </div>
-      </div>
-    </div>
-  </section>
-
-  <!-- 16 DEPLOYMENT -->
-  <section class="slide" data-title="Deployment">
-    <div class="kicker">Infra · Railway (P3)</div><h2>Deployment Architecture</h2>
-    <div class="body"><div class="diagram"><pre class="mermaid">
-graph TB
-    Deploy(["⬆️ git push main"]) -->|auto-deploy| Railway
-    subgraph Railway["☁️ Railway Project · octoprep2000"]
-        FE["🖥️ web-dashboard<br/>TanStack Start · Node"]
-        BE["⚡ backend<br/>FastAPI · all agents<br/>uvicorn :$PORT · /health"]
-        PG[("🐘 PostgreSQL 15<br/>plugin · DATABASE_URL")]
-    end
-    FE -->|HTTPS / WSS| BE
-    BE -->|asyncpg| PG
-    BE -.->|LITELLM_API_KEY| V(["🤖 LiteLLM gateway"])
-    BE -.->|ELEVENLABS_API_KEY| S(["🎙️ Scribe v1"])
-    class Deploy slate
-    class FE,BE sky
-    class PG violet
-    class V,S amber
-    style Railway fill:#0f172a,stroke:#334155,color:#94a3b8
-    </pre></div>
-    <p class="sub"><b>Local-first for the demo</b> — no deploy required. Railway is a P3 bonus: one project, one branch (<code>main</code>), Postgres plugin injects <code>DATABASE_URL</code>. Keep-warm pings <code>/health</code> every 30s. <code>DEMO_MODE=replay</code> swaps live Vision/STT for canned fixtures if APIs flake.</p>
-    </div>
-  </section>
-
-  <!-- 17 DECISIONS -->
-  <section class="slide" data-title="Key Decisions">
-    <div class="kicker">Rationale</div><h2>Why These Choices</h2>
-    <div class="body">
-      <div class="grid">
-        <div class="card">
-          <h3><span class="dot" style="background:var(--sky)"></span>Single FastAPI process</h3>
-          <ul><li>All agents = <code>asyncio</code> tasks, zero inter-service networking</li><li>Right for a 6-hour build · risk: blocking call stalls loop → <code>run_in_executor</code></li></ul>
-        </div>
-        <div class="card">
-          <h3><span class="dot" style="background:var(--violet)"></span>In-process pub/sub</h3>
-          <ul><li><code>asyncio.Queue</code> + <code>dict[session_id → set[WS]]</code></li><li>No Redis · clean interface, swappable post-hackathon</li></ul>
-        </div>
-        <div class="card">
-          <h3><span class="dot" style="background:var(--green)"></span>Orchestrator = sole DB writer</h3>
-          <ul><li>Agents pure AI, emit typed payloads · Pydantic validation wall</li><li>VideoEvents batched 1s/N=20 to avoid write bottleneck</li></ul>
-        </div>
-        <div class="card">
-          <h3><span class="dot" style="background:var(--amber)"></span>Capability tokens</h3>
-          <ul><li>Full session isolation, no login flow</li><li>Agno is brand-tax — fallback: raw <code>asyncio.create_task</code></li></ul>
-        </div>
-      </div>
-    </div>
-  </section>
-
-  <!-- 18 PHASES -->
+  <!-- 19 BUILD PHASES -->
   <section class="slide" data-title="Build Phases">
     <div class="kicker">Plan · ship incrementally</div><h2>Three Phases</h2>
     <div class="body"><div class="diagram"><pre class="mermaid">
@@ -610,18 +571,44 @@ graph LR
     </div>
   </section>
 
-  <!-- 19 END -->
-  <section class="slide" data-title="Summary">
+  <!-- 20 AI PATTERNS -->
+  <section class="slide" data-title="AI Patterns — What We Use">
+    <div class="kicker">Before You Dive In</div><h2>AI Patterns — What We Use (and Don't, Yet)</h2>
     <div class="body">
-      <div class="kicker">Recap</div>
-      <h1>Upload → Record → Analyse → Report</h1>
-      <p class="sub">Single FastAPI process · 5 Agno agents emit typed payloads → Orchestrator validates &amp; writes · frame delta filter + batched Vision calls · capability-token isolation · 4-vector weighted scorecard with timestamps · audio-only graceful fallback.</p>
+      <table>
+        <tr><th>Status</th><th>Pattern</th><th>In our repo</th></tr>
+        <tr><td>✅</td><td>Multi-agent workflow</td><td>5 fixed-role agents · sequential, not reactive</td></tr>
+        <tr><td>✅</td><td>Guardrails</td><td>Pydantic schemas at every agent boundary + session auth token (<code>schemas.py</code>, <code>session_auth.py</code>)</td></tr>
+        <tr><td>✅</td><td>Optimization</td><td>1fps Vision cap · 3-frame GPT-4o batches · frame dedup (<code>vision_agent.py</code>)</td></tr>
+        <tr><td>❓</td><td>Tool calls</td><td>No agent has real tools — worth it for the Content Agent?</td></tr>
+        <tr><td>❓</td><td>RAG / vector DB</td><td>Playbook is a hardcoded string (<code>pptx_agent.py</code>) — relevant if it grows</td></tr>
+        <tr><td>❓</td><td>Memory</td><td>Every LLM call is stateless (<code>runtime.py</code>) — worth it for cross-slide PPTX scoring?</td></tr>
+        <tr><td>❓</td><td>Human-in-the-loop</td><td>Mentor unlock is fully automatic (<code>mentor_unlocked</code>) — should it be?</td></tr>
+        <tr><td>❓</td><td>One gateway, two calling styles</td><td><code>vision_agent.py</code> calls the LLM client directly · <code>content_agent.py</code>/<code>pptx_agent.py</code> go through agno's <code>Agent</code> — unify?</td></tr>
+        <tr><td>❓</td><td>Leftover orchestrator code</td><td><code>register_task</code> has no callers · <code>sessions.py</code> &amp; <code>upload.py</code> each spin up a throwaway <code>Orchestrator()</code></td></tr>
+        <tr><td>❓</td><td>Cost ceiling</td><td>Unknown — any cap on session length or LLM spend?</td></tr>
+      </table>
+      <p class="sub" style="margin-top:18px">Go open the files. Bring back what you find.</p>
+    </div>
+  </section>
+
+  <!-- 21 WHAT'S NEXT? -->
+  <section class="slide" data-title="What's Next?">
+    <div class="kicker">Your Turn</div><h2>What's Next?</h2>
+    <div class="body">
       <div class="stat">
-        <div><span class="n">Sole writer</span><span class="l">Orchestrator owns all DB writes</span></div>
-        <div><span class="n">≤5fps</span><span class="l">dhash drops duplicate frames</span></div>
-        <div><span class="n">2 tokens</span><span class="l">session isolation, no login</span></div>
+        <div><span class="n">🧬</span><span class="l">Clone the repo &amp; spin it up</span></div>
+        <div><span class="n">🔍</span><span class="l">Own your part — then the big picture</span></div>
+        <div><span class="n">💡</span><span class="l">Bring ideas — sky's the limit</span></div>
       </div>
-      <span class="pill">Details → docs/TECH-ARCHITECTURE-C4.md · docs/PRD.md</span>
+      <div class="codeblock" style="margin-top:30px">
+        <span class="cmt"># clone &amp; run</span><br/>
+        git clone git@github.com:ColombusAH/octoprep2000.git<br/>
+        <span class="cmd">make install &amp;&amp; make db-up &amp;&amp; make dev</span>
+      </div>
+      <div style="margin-top:26px;background:var(--panel);border:2px solid var(--green);border-radius:14px;padding:20px 26px">
+        <p class="sub" style="margin:0;max-width:none;font-size:19px">🌱 Day one. Rough as it gets — but we've got this.</p>
+      </div>
     </div>
   </section>
 
