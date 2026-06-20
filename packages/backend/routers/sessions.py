@@ -55,9 +55,9 @@ async def end_session(
     report_agent = build_report_agent()
     payload = await report_agent.generate(session_id, fallback_mode=fallback)
 
-    from orchestrator.agno_orchestrator import AgnoOrchestrator
+    from orchestrator.orchestrator import Orchestrator
 
-    orch = AgnoOrchestrator()
+    orch = Orchestrator()
     await orch.on_report(payload)
 
     return {"status": "REPORT_READY", "session_id": str(session_id)}

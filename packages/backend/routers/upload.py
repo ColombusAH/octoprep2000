@@ -10,7 +10,7 @@ from fastapi import APIRouter, BackgroundTasks, Depends, File, HTTPException, Up
 
 from agents.pptx_agent import PPTXAgent
 from middleware.session_auth import require_session_owner
-from orchestrator.agno_orchestrator import AgnoOrchestrator
+from orchestrator.orchestrator import Orchestrator
 
 router = APIRouter(prefix="/sessions", tags=["upload"])
 
@@ -35,7 +35,7 @@ async def upload_pptx(
     tmp.write_bytes(data)
 
     async def run_agent():
-        orch = AgnoOrchestrator()
+        orch = Orchestrator()
         agent = PPTXAgent(orch)
         try:
             await agent.analyse(session_id, str(tmp))

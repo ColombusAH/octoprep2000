@@ -8,19 +8,19 @@ Emits TranscriptPayload + optional AudioWarningPayload to Orchestrator.
 
 from __future__ import annotations
 
-from loguru import logger
 import re
 import struct
 import time
 import uuid
 from collections import deque
 
+from loguru import logger
+
 from agents.llm import get_llm
 from agents.replay_fixtures import replay_audio_events
 from agents.schemas import AudioWarningPayload, TranscriptPayload
 from config import get_settings
-from orchestrator.agno_orchestrator import AgnoOrchestrator
-
+from orchestrator.orchestrator import Orchestrator
 
 FILLERS = {"um", "uh", "ah", "hmm", "like", "you know", "kinda", "sorta"}
 FILLER_REGEX = re.compile(r"\b(" + "|".join(re.escape(w) for w in FILLERS) + r")\b", re.I)
@@ -31,7 +31,7 @@ WPM_WINDOW_SECONDS = 30
 
 
 class AudioAgent:
-    def __init__(self, session_id: uuid.UUID, orchestrator: AgnoOrchestrator) -> None:
+    def __init__(self, session_id: uuid.UUID, orchestrator: Orchestrator) -> None:
         self.session_id = session_id
         self.orchestrator = orchestrator
         self._session_started_ms = int(time.monotonic() * 1000)

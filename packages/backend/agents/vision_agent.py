@@ -16,18 +16,18 @@ from __future__ import annotations
 
 import asyncio
 import json
-from loguru import logger
 import time
 import uuid
 from collections import deque
+
+from loguru import logger
 
 from agents import face_detection
 from agents.llm import encode_image_b64, get_llm
 from agents.replay_fixtures import replay_vision_events
 from agents.schemas import VideoEventPayload
 from config import get_settings
-from orchestrator.agno_orchestrator import AgnoOrchestrator
-
+from orchestrator.orchestrator import Orchestrator
 
 BATCH_SIZE = 3
 SYSTEM_PROMPT = """You are a body language coach reviewing a live presenter from camera frames.
@@ -66,7 +66,7 @@ Only emit an event when confident. Empty events list is valid.
 
 
 class VisionAgent:
-    def __init__(self, session_id: uuid.UUID, orchestrator: AgnoOrchestrator) -> None:
+    def __init__(self, session_id: uuid.UUID, orchestrator: Orchestrator) -> None:
         self.session_id = session_id
         self.orchestrator = orchestrator
         self._frame_buf: deque[bytes] = deque(maxlen=BATCH_SIZE)
@@ -183,7 +183,7 @@ class VisionAgent:
         try:
             result = await asyncio.wait_for(self._call_llm(frames), timeout=self._timeout_ms / 1000)
             self._timeout_streak = 0
-        except (TimeoutError, asyncio.TimeoutError):
+        except TimeoutError:
             self._timeout_streak += 1
             logger.warning("Vision LLM timeout {}/3", self._timeout_streak)
             if self._timeout_streak >= 3:

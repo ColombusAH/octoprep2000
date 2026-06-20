@@ -17,11 +17,11 @@ from agents.content_agent import ContentAnalysisAgent
 from agents.frame_service import FrameService
 from agents.report_agent import ReportAgent
 from agents.vision_agent import VisionAgent
-from orchestrator.agno_orchestrator import AgnoOrchestrator
+from orchestrator.orchestrator import Orchestrator
 
 
 class SessionRuntime:
-    def __init__(self, orchestrator: AgnoOrchestrator) -> None:
+    def __init__(self, orchestrator: Orchestrator) -> None:
         self.orchestrator = orchestrator
         self.vision: VisionAgent | None = None
         self.audio: AudioAgent | None = None
@@ -40,7 +40,7 @@ class RuntimeRegistry:
             rt = self._runtimes.get(session_id)
             if rt is not None:
                 return rt
-            orch = AgnoOrchestrator()
+            orch = Orchestrator()
             await orch.start_session(session_id)
             rt = SessionRuntime(orch)
             rt.vision = VisionAgent(session_id, orch)

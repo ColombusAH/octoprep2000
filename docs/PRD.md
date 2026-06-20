@@ -157,7 +157,7 @@ OctoPrep2000 closes this gap by acting as an always-available AI co-pilot that w
 
 ### Epic 6: Architecture & Ops
 
-- **US-018**: As the Team Lead, I want all agents to communicate via a shared Agno orchestrator state so that no single service blocks another's stream.
+- **US-018**: As the Team Lead, I want all agents to communicate via a shared orchestrator state so that no single service blocks another's stream.
 - **US-019**: As the Video Infra Dev, I want the frame extraction service to drop redundant frames algorithmically before forwarding to the Vision agent so that LLM token costs remain within budget.
 - **US-020**: As the Team Lead, I want the system to gracefully degrade to audio-only mode if the vision pipeline exceeds latency or cost thresholds so that the demo never fully breaks.
 
@@ -233,7 +233,7 @@ OctoPrep2000 closes this gap by acting as an always-available AI co-pilot that w
 
 ---
 
-### FR-006 `[Phase 1]`: Agno Orchestrator
+### FR-006 `[Phase 1]`: Orchestrator
 
 **Description**: The Agno-powered central orchestrator manages shared session state, coordinates concurrent streams, and dispatches events to the correct downstream consumers without blocking.
 
@@ -437,7 +437,7 @@ OctoPrep2000 closes this gap by acting as an always-available AI co-pilot that w
 | Dev 2 | Audio Agent | Live audio streaming, STT, filler word detection, WPM |
 | Dev 3 | Content Analysis Agent | Post-session LLM evaluation of transcript for factual accuracy and coverage gaps |
 | Dev 4 | PPTX Agent | Post-upload slide analysis against Tikal 12-factor Playbook |
-| Dev 5 | Orchestrator + Report Agent | Agno orchestrator (central brain) + Report Generator (tightly coupled) |
+| Dev 5 | Orchestrator + Report Agent | Orchestrator (central brain) + Report Generator (tightly coupled) |
 | Dev 6 | Frontend Dashboard | TanStack Start dashboard; Chrome Extension (MV3) stretch only if ahead of schedule |
 | Dev 7 | Pitch Presentation & Content | Hackathon pitch deck (Fuse skill framework) + LinkedIn content and social posts for the team |
 

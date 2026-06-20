@@ -137,8 +137,8 @@ graph TB
             Broadcaster["FeedbackBroadcaster\ndict[session_id → set[WebSocket]]\nPublishes warning events\nto all connected dashboard clients"]
         end
 
-        subgraph Orchestrator["Agno Orchestrator"]
-            Agno["AgnoOrchestrator\nCentral state manager\nSpawns & cancels agent tasks\nper session lifecycle\nHolds shared session context"]
+        subgraph Orchestrator["Orchestrator"]
+            Agno["Orchestrator\nCentral state manager\nSpawns & cancels agent tasks\nper session lifecycle\nHolds shared session context"]
         end
 
         subgraph Agents["Agents & Services  (async tasks)"]
@@ -219,7 +219,7 @@ graph TB
 | `FeedbackWS` | FastAPI WebSocket | Clients subscribe by `session_id`; `Broadcaster` pushes events here |
 | `SessionManager` | Service | Generates UUID, creates DB record, manages status state machine |
 | `FeedbackBroadcaster` | Service | `dict[session_id → set[WebSocket]]`; `publish()` sends to all subscribers |
-| `AgnoOrchestrator` | Agno coordinator | Spawns async tasks per session, holds shared state, routes events to Broadcaster. **Sole writer to PostgreSQL** — receives typed payloads from all agents, validates via Pydantic, persists via Repository |
+| `Orchestrator` | Coordinator | Spawns async tasks per session, holds shared state, routes events to Broadcaster. **Sole writer to PostgreSQL** — receives typed payloads from all agents, validates via Pydantic, persists via Repository |
 | `FrameService` | Utility (non-agent) — **Dev 1** | Delta algorithm; drops frames below threshold; outputs ≤5fps stream |
 | `VisionAgent` | Agno agent — **Dev 1** | Calls GPT-4o Vision (via LiteLLM) per frame batch (≥3 frames per call to amortise tokens); emits `VideoEventPayload` to Orchestrator. **No DB access.** |
 | `AudioAgent` | Agno agent — **Dev 2** | Calls STT per chunk; detects filler words + WPM; emits `TranscriptPayload` + `AudioWarningPayload` to Orchestrator. **No DB access.** |
@@ -277,7 +277,7 @@ sequenceDiagram
     participant VideoWS as VideoStreamWS
     participant AudioWS as AudioStreamWS
     participant FeedbackWS
-    participant Orchestrator as AgnoOrchestrator
+    participant Orchestrator
     participant FrameSvc as FrameService
     participant VisionAgent
     participant AudioAgent
@@ -374,7 +374,7 @@ sequenceDiagram
 sequenceDiagram
     participant FrameSvc as FrameService
     participant VisionAgent
-    participant Orchestrator as AgnoOrchestrator
+    participant Orchestrator
     participant Dashboard
     participant Presenter
 
@@ -883,7 +883,7 @@ octoprep2000/                     ← pnpm workspace root
 │   │   │   ├── session_manager.py
 │   │   │   └── feedback_broadcaster.py
 │   │   ├── orchestrator/
-│   │   │   └── agno_orchestrator.py
+│   │   │   └── orchestrator.py
 │   │   ├── agents/
 │   │   │   ├── schemas.py            ← ALL typed Pydantic payloads (only contract agents expose)
 │   │   │   ├── frame_service.py      ← non-agent utility, no DB access

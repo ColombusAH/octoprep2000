@@ -15,10 +15,11 @@ because no DB handle is captured in instance state.
 from __future__ import annotations
 
 import asyncio
-from loguru import logger
 import uuid
 from collections.abc import Awaitable, Callable
 from typing import Any
+
+from loguru import logger
 
 from agents.schemas import (
     AudioWarningPayload,
@@ -32,12 +33,11 @@ from core.feedback_broadcaster import broadcaster
 from db.repository import PostgreSQLRepository
 from db.session import get_session_maker
 
-
 VIDEO_BUFFER_MAX = 20
 VIDEO_FLUSH_INTERVAL_S = 1.0
 
 
-class AgnoOrchestrator:
+class Orchestrator:
     def __init__(self) -> None:
         self._video_buffer: dict[uuid.UUID, list[dict[str, Any]]] = {}
         self._tasks: dict[uuid.UUID, dict[str, asyncio.Task]] = {}

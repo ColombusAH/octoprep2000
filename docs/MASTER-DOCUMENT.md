@@ -60,7 +60,7 @@ OctoPrep2000 displays immediate, split-second visual warnings as **in-dashboard 
 | **PRD & Architecture Design** — finalize microservices scope and component stack from Tech Radar | June 10 | Team Lead |
 | **Scaffolding Session** — group session to set up workspace, absolute paths, and monorepo config | June 14 | Team Lead + All Devs |
 | **Technology Spike Results** — Vision API, STT provider, frame-delta library each validated with a working PoC | June 20 | Dev 1, Dev 2, Dev 3 |
-| **Agno Orchestrator Spike** — confirm async task model handles 3 concurrent WS streams without blocking | June 20 | Dev 5 |
+| **Orchestrator Spike** — confirm async task model handles 3 concurrent WS streams without blocking | June 20 | Dev 5 |
 | **Railway Pipeline Live** — production deploy working from CI; keep-warm configured | June 23 | Team Lead |
 | **Presentation Standardization Guide** — internal doc for final pitch web-app quality standards (via Fuse skill framework) | June 23 | Dev 7 |
 | **Hackathon Day Kickoff** — all services boot locally, all devs unblocked and ready to build | June 24 09:00 | Team Lead |
@@ -78,7 +78,7 @@ The team is structured to support a highly distributed, parallelized end-to-end 
 | **Dev 2** — Audio Agent Developer (STT/Audio) | Real-time audio streaming, Speech-to-Text, filler word detection, WPM analysis, timestamped transcripts to DB |
 | **Dev 3** — Content Analysis Agent Developer | Post-session agent: reads full transcript + session topic, evaluates technical accuracy and coverage gaps via LLM |
 | **Dev 4** — PPTX Agent Developer | Post-upload slide analysis against Tikal's 12-factor Presentation Skills Playbook |
-| **Dev 5** — Orchestration & Report Developer (Agno BE) | Agno Orchestrator (central brain, session state, all DB writes) + Report Generator Agent (deduplication, scoring) — tightly coupled, one owner |
+| **Dev 5** — Orchestration & Report Developer (Agno BE) | Orchestrator (central brain, session state, all DB writes) + Report Generator Agent (deduplication, scoring) — tightly coupled, one owner |
 | **Dev 6** — Frontend Developer (TanStack Start) | Core web dashboard UI. Chrome Extension UI is a **stretch goal only** — tackled in Hackathon PM if Sprint 1 is finished early |
 | **Dev 7** — Pitch Presentation & Content | Hackathon pitch deck (Fuse skill framework) + LinkedIn posts and social content for the team during and after the event |
 
@@ -88,7 +88,7 @@ The team is structured to support a highly distributed, parallelized end-to-end 
 
 The architecture is inherently event-driven and synchronized over persistent WebSockets, driven by a FastAPI backend and coordinated via Agno.
 
-### 1. 🤖 The Orchestrator (Agno Central Brain)
+### 1. 🤖 The Orchestrator (Central Brain)
 Acts as the central State Manager and Event Dispatcher. It coordinates asynchronous concurrent real-time streams (Audio, Video Deltas, and optional Slide Changes), cross-references them in a shared state context, and pushes live UI events or final analysis data without blocking parallel processing.
 
 ### 2. 📹 Algorithmic Frame Service

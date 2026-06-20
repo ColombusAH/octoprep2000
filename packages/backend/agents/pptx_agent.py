@@ -7,10 +7,10 @@ sessions.slides_raw_text BEFORE LLM call so container restart survives.
 from __future__ import annotations
 
 import asyncio
-from loguru import logger
 import uuid
 
 from agno.agent import Agent
+from loguru import logger
 from pptx import Presentation
 from pptx.enum.shapes import MSO_SHAPE_TYPE
 
@@ -18,8 +18,7 @@ from agents.llm import get_text_model
 from agents.replay_fixtures import replay_slide_findings
 from agents.schemas import SlideAnalysisBundle, SlideAnalysisPayload, SlideFindings
 from config import get_settings
-from orchestrator.agno_orchestrator import AgnoOrchestrator
-
+from orchestrator.orchestrator import Orchestrator
 
 PLAYBOOK_PROMPT = """You are a slide deck reviewer trained on the Tikal Presentation Skills Playbook.
 Your job is to evaluate every slide in the deck and return specific, actionable findings.
@@ -83,7 +82,7 @@ Cover at least 5 distinct factors across the deck. Both STRENGTH and IMPROVEMENT
 
 
 class PPTXAgent:
-    def __init__(self, orchestrator: AgnoOrchestrator) -> None:
+    def __init__(self, orchestrator: Orchestrator) -> None:
         self.orchestrator = orchestrator
 
     async def analyse(self, session_id: uuid.UUID, pptx_path: str) -> None:
