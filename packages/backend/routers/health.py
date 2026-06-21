@@ -21,4 +21,7 @@ async def public_config() -> dict:
         "mentor_booking_url": s.mentor_booking_url,
         "demo_mode": bool(s.demo_replay),
         "audio_chunk_seconds": s.audio_chunk_seconds,
+        "provider_mode": s.provider_mode,
+        "claude_fallback_configured": s.fallback_enabled,
+        "elevenlabs_fallback_configured": s.stt_fallback_enabled,
     }

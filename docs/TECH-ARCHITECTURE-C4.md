@@ -1061,6 +1061,27 @@ setInterval(async () => {
 }, 200);
 ```
 
+### 10b.9 Provider fallback — Claude + direct ElevenLabs (v1.5)
+
+The Tikal LiteLLM gateway is a single shared chokepoint (one team token budget) for Vision, Content, PPTX, and STT. `agents/llm.py` adds a personal-API-key fallback so a gateway outage or quota exhaustion doesn't kill the demo: every gateway call is wrapped in a generic retry helper that swaps to a second provider on failure.
+
+```python
+async def call_with_fallback(primary, fallback):
+    try:
+        return await primary()
+    except Exception as exc:
+        if fallback is None:
+            raise
+        logger.warning("Primary provider call failed ({}), retrying with fallback", exc)
+        return await fallback()
+```
+
+`PROVIDER_MODE` env var (`auto` default | `direct`) decides which side is `primary` via `pick_provider_order()`:
+- `auto` — gateway first, falls back to the personal-key provider only on error (today's failure-triggered behavior).
+- `direct` — personal-key provider first, falls back to the gateway only if *that* fails. Flip to this the moment the team knows the gateway is exhausted, instead of waiting for calls to fail.
+
+Vision/Content/PPTX fall back to **Claude** (`claude-sonnet-4-6`, via agno's `Claude` model class — same `output_schema` structured-output path as the OpenAI model, no custom parsing needed). STT falls back to a **direct ElevenLabs API call** instead, since Anthropic has no speech-to-text product. Configured via `ANTHROPIC_API_KEY`, `ANTHROPIC_MODEL`, `ELEVENLABS_API_KEY`, `PROVIDER_MODE` (root `.env`). `GET /config` exposes `provider_mode`, `claude_fallback_configured`, `elevenlabs_fallback_configured` so the team can verify the live state without restarting.
+
 ---
 
 ## 11. Open Architecture Decisions

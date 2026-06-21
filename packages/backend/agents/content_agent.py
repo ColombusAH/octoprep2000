@@ -6,18 +6,22 @@ Uses get_session_maker() to own its own AsyncSession (decoupled from request sco
 
 from __future__ import annotations
 
-from loguru import logger
 import uuid
 
 from agno.agent import Agent
+from loguru import logger
 
-from agents.llm import get_text_model
+from agents.llm import (
+    call_with_fallback,
+    get_text_model,
+    get_text_model_fallback,
+    pick_provider_order,
+)
 from agents.replay_fixtures import replay_content_analysis
 from agents.schemas import ContentAnalysisPayload, ContentResult
 from config import get_settings
 from db.repository import PostgreSQLRepository
 from db.session import get_session_maker
-
 
 CONTENT_PROMPT = """You evaluate a presenter's transcript for technical accuracy and coverage
 against the stated topic. Return JSON:
@@ -56,8 +60,19 @@ class ContentAnalysisAgent:
             instructions=CONTENT_PROMPT,
             output_schema=ContentResult,
         )
+
+        async def _gateway():
+            return await agent.arun(prompt)
+
+        fb = get_text_model_fallback()
+
+        async def _claude():
+            return await Agent(model=fb, instructions=CONTENT_PROMPT, output_schema=ContentResult).arun(prompt)
+
+        claude_fn = _claude if fb else None
+        primary, secondary = pick_provider_order(claude_fn, _gateway)
         try:
-            result = await agent.arun(prompt)
+            result = await call_with_fallback(primary, secondary)
         except Exception as exc:  # noqa: BLE001
             logger.exception("Content LLM failed: {}", exc)
             return None

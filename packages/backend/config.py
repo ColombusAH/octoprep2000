@@ -20,8 +20,20 @@ class Settings(BaseSettings):
     litellm_text_model: str = "gpt-4.1-mini"
     litellm_stt_model: str = "eleven-scribe-v1"
 
-    # ElevenLabs Scribe v1 (STT) — unused if STT goes through the LiteLLM gateway above
+    # Anthropic Claude — personal-API-key fallback when the Tikal LiteLLM gateway fails
+    # (e.g. shared token budget exhausted during the demo). Empty key disables fallback.
+    anthropic_api_key: str = ""
+    anthropic_model: str = "claude-sonnet-4-6"
+
+    # ElevenLabs Scribe v1 — direct (non-gateway) STT fallback when the LiteLLM gateway
+    # fails. Empty key disables fallback (AudioAgent then behaves exactly as today).
     elevenlabs_api_key: str = ""
+
+    # Provider mode: "auto" (default) tries the Tikal gateway first and falls back to
+    # the personal-key providers above on error. "direct" flips the order — personal-key
+    # providers go first (falling back to the gateway only if THOSE fail). Switch to
+    # "direct" the moment you know the gateway is exhausted, without waiting on failures.
+    provider_mode: str = "auto"
 
     # Google Cloud Vision via the Tikal LiteLLM gateway (deterministic face metrics — supplements GPT-4o Vision)
     # Shared gateway route — no per-dev GCP service account needed. Empty disables face detection.
@@ -48,6 +60,18 @@ class Settings(BaseSettings):
     @property
     def demo_replay(self) -> bool:
         return self.demo_mode.lower() == "replay"
+
+    @property
+    def fallback_enabled(self) -> bool:
+        return bool(self.anthropic_api_key)
+
+    @property
+    def stt_fallback_enabled(self) -> bool:
+        return bool(self.elevenlabs_api_key)
+
+    @property
+    def use_direct_providers(self) -> bool:
+        return self.provider_mode.lower() == "direct"
 
 
 @lru_cache(maxsize=1)

@@ -14,7 +14,12 @@ from loguru import logger
 from pptx import Presentation
 from pptx.enum.shapes import MSO_SHAPE_TYPE
 
-from agents.llm import get_text_model
+from agents.llm import (
+    call_with_fallback,
+    get_text_model,
+    get_text_model_fallback,
+    pick_provider_order,
+)
 from agents.replay_fixtures import replay_slide_findings
 from agents.schemas import SlideAnalysisBundle, SlideAnalysisPayload, SlideFindings
 from config import get_settings
@@ -153,6 +158,17 @@ class PPTXAgent:
             instructions=PLAYBOOK_PROMPT,
             output_schema=SlideFindings,
         )
-        result = await agent.arun(deck_dump)
+
+        async def _gateway():
+            return await agent.arun(deck_dump)
+
+        fb = get_text_model_fallback()
+
+        async def _claude():
+            return await Agent(model=fb, instructions=PLAYBOOK_PROMPT, output_schema=SlideFindings).arun(deck_dump)
+
+        claude_fn = _claude if fb else None
+        primary, secondary = pick_provider_order(claude_fn, _gateway)
+        result = await call_with_fallback(primary, secondary)
         logger.info("PPTX LLM result: {} findings", len(result.content.findings))
         return result.content.findings

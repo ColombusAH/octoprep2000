@@ -4,6 +4,10 @@
 Browser sends raw PCM 16-bit mono. We wrap with a RIFF/WAVE header before
 POST to Scribe — the API requires a real audio container, not raw samples.
 Emits TranscriptPayload + optional AudioWarningPayload to Orchestrator.
+
+When ELEVENLABS_API_KEY is set, a failed gateway transcription call falls back to
+a direct (non-gateway) call against ElevenLabs' own API. PROVIDER_MODE=direct
+flips the order so the direct call goes first. See agents.llm.pick_provider_order.
 """
 
 from __future__ import annotations
@@ -14,9 +18,10 @@ import time
 import uuid
 from collections import deque
 
+import httpx
 from loguru import logger
 
-from agents.llm import get_llm
+from agents.llm import call_with_fallback, get_llm, pick_provider_order
 from agents.replay_fixtures import replay_audio_events
 from agents.schemas import AudioWarningPayload, TranscriptPayload
 from config import get_settings
@@ -133,11 +138,32 @@ class AudioAgent:
         s = get_settings()
         wav_bytes = _wrap_pcm_as_wav(pcm_bytes, sample_rate=16000, channels=1, bits_per_sample=16)
         client = get_llm()
-        resp = await client.audio.transcriptions.create(
-            model=s.litellm_stt_model,
-            file=("chunk.wav", wav_bytes, "audio/wav"),
-        )
-        return resp.text or ""
+
+        async def _gateway() -> str:
+            resp = await client.audio.transcriptions.create(
+                model=s.litellm_stt_model,
+                file=("chunk.wav", wav_bytes, "audio/wav"),
+            )
+            return resp.text or ""
+
+        async def _direct() -> str:
+            return await self._transcribe_direct_elevenlabs(wav_bytes)
+
+        direct_fn = _direct if s.stt_fallback_enabled else None
+        primary, secondary = pick_provider_order(direct_fn, _gateway)
+        return await call_with_fallback(primary, secondary)
+
+    async def _transcribe_direct_elevenlabs(self, wav_bytes: bytes) -> str:
+        s = get_settings()
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            resp = await client.post(
+                "https://api.elevenlabs.io/v1/speech-to-text",
+                headers={"xi-api-key": s.elevenlabs_api_key},
+                data={"model_id": "scribe_v1"},
+                files={"file": ("chunk.wav", wav_bytes, "audio/wav")},
+            )
+        resp.raise_for_status()
+        return resp.json().get("text") or ""
 
     async def aclose(self) -> None:
         pass

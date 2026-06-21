@@ -23,7 +23,14 @@ from collections import deque
 from loguru import logger
 
 from agents import face_detection
-from agents.llm import encode_image_b64, get_llm
+from agents.llm import (
+    call_with_fallback,
+    encode_image_b64,
+    encode_image_b64_raw,
+    get_anthropic_llm,
+    get_llm,
+    pick_provider_order,
+)
 from agents.replay_fixtures import replay_vision_events
 from agents.schemas import VideoEventPayload
 from config import get_settings
@@ -180,8 +187,21 @@ class VisionAgent:
                 await self.orchestrator.on_video_event(ev)
             return
 
+        s = get_settings()
+
+        async def _gateway() -> dict:
+            return await self._call_gateway(frames)
+
+        async def _claude() -> dict:
+            return await self._call_claude(frames)
+
+        claude_fn = _claude if s.fallback_enabled else None
+        primary, secondary = pick_provider_order(claude_fn, _gateway)
         try:
-            result = await asyncio.wait_for(self._call_llm(frames), timeout=self._timeout_ms / 1000)
+            result = await asyncio.wait_for(
+                call_with_fallback(primary, secondary),
+                timeout=self._timeout_ms / 1000,
+            )
             self._timeout_streak = 0
         except TimeoutError:
             self._timeout_streak += 1
@@ -213,7 +233,7 @@ class VisionAgent:
             self._last_event_type = event_type
             await self.orchestrator.on_video_event(payload)
 
-    async def _call_llm(self, frames: list[bytes]) -> dict:
+    async def _call_gateway(self, frames: list[bytes]) -> dict:
         s = get_settings()
         client = get_llm()
         content: list[dict] = [{"type": "text", "text": "Evaluate these 3 frames as a sequence."}]
@@ -230,6 +250,34 @@ class VisionAgent:
         )
         parsed = json.loads(resp.choices[0].message.content or "{}")
         logger.info("Vision LLM result: {} event(s) {}", len(parsed.get("events", [])), parsed.get("events"))
+        return parsed
+
+    async def _call_claude(self, frames: list[bytes]) -> dict:
+        s = get_settings()
+        client = get_anthropic_llm()
+        content: list[dict] = [{"type": "text", "text": "Evaluate these 3 frames as a sequence."}]
+        for f in frames:
+            content.append(
+                {
+                    "type": "image",
+                    "source": {"type": "base64", "media_type": "image/jpeg", "data": encode_image_b64_raw(f)},
+                }
+            )
+        resp = await client.messages.create(
+            model=s.anthropic_model,
+            max_tokens=400,
+            system=SYSTEM_PROMPT,
+            messages=[{"role": "user", "content": content}],
+        )
+        text = "".join(b.text for b in resp.content if b.type == "text").strip()
+        if text.startswith("```"):
+            text = text.split("```")[1]
+            if text.startswith("json"):
+                text = text[4:]
+        parsed = json.loads(text.strip() or "{}")
+        logger.info(
+            "Vision Claude fallback result: {} event(s) {}", len(parsed.get("events", [])), parsed.get("events")
+        )
         return parsed
 
     def _now_ms(self) -> int:
