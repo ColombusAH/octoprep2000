@@ -1,6 +1,11 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { createSession, storeToken, uploadPptx } from "~/lib/api";
+import { Button } from "~/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "~/components/ui/card";
+import { Input } from "~/components/ui/input";
+import { Textarea } from "~/components/ui/textarea";
+import { Label } from "~/components/ui/label";
 
 export const Route = createFileRoute("/")({ component: LandingPage });
 
@@ -32,51 +37,82 @@ function LandingPage() {
   };
 
   return (
-    <main className="container landing">
-      <h1>🐙 OctoPrep2000</h1>
-      <p className="text-balance opacity-80">
-        AI presentation coach. Upload your deck, record your practice, get scored.
-      </p>
+    <main className="mx-auto flex min-h-screen max-w-xl flex-col justify-center px-6 py-16">
+      <div className="mb-10">
+        <p className="font-mono text-xs tracking-[0.2em] text-muted-foreground uppercase">
+          OctoPrep2000
+        </p>
+        <h1 className="mt-2 text-3xl font-semibold tracking-tight text-balance">
+          Rehearse. Get a score you can trust.
+        </h1>
+        <p className="mt-3 text-base text-muted-foreground">
+          Upload your deck, practice live on camera, and get specific, timestamped feedback —
+          not a generic grade.
+        </p>
+      </div>
 
-      <form onSubmit={handleStart}>
-        <label>
-          Topic <small>(required — what's your talk about?)</small>
-          <input
-            type="text"
-            required
-            minLength={8}
-            maxLength={200}
-            placeholder="React 19 new features"
-            value={topic}
-            onChange={(e) => setTopic(e.target.value)}
-          />
-        </label>
+      <Card>
+        <CardHeader>
+          <CardTitle>Start a session</CardTitle>
+          <CardDescription>Takes about a minute to set up.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <form onSubmit={handleStart} className="flex flex-col gap-5">
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="topic">
+                Topic <span className="text-muted-foreground">— what&apos;s your talk about?</span>
+              </Label>
+              <Input
+                id="topic"
+                type="text"
+                required
+                minLength={8}
+                maxLength={200}
+                placeholder="React 19 new features"
+                value={topic}
+                onChange={(e) => setTopic(e.target.value)}
+              />
+            </div>
 
-        <label>
-          Audience context <small>(optional)</small>
-          <textarea
-            rows={2}
-            maxLength={500}
-            placeholder="Senior frontend devs at Tikal"
-            value={topicContext}
-            onChange={(e) => setTopicContext(e.target.value)}
-          />
-        </label>
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="audience">
+                Audience context <span className="text-muted-foreground">— optional</span>
+              </Label>
+              <Textarea
+                id="audience"
+                rows={2}
+                maxLength={500}
+                placeholder="Senior frontend devs at Tikal"
+                value={topicContext}
+                onChange={(e) => setTopicContext(e.target.value)}
+              />
+            </div>
 
-        <label>
-          Slide deck <small>(.pptx, optional but recommended)</small>
-          <input
-            type="file"
-            accept=".pptx"
-            onChange={(e) => setFile(e.target.files?.[0] ?? null)}
-          />
-        </label>
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="deck">
+                Slide deck{" "}
+                <span className="text-muted-foreground">— .pptx, optional but recommended</span>
+              </Label>
+              <Input
+                id="deck"
+                type="file"
+                accept=".pptx"
+                onChange={(e) => setFile(e.target.files?.[0] ?? null)}
+              />
+            </div>
 
-        <button type="submit" disabled={loading}>
-          {loading ? "Starting…" : "Start Session →"}
-        </button>
-        {error && <p style={{ color: "var(--red)" }}>{error}</p>}
-      </form>
+            <Button type="submit" disabled={loading} size="lg" className="mt-1">
+              {loading ? "Starting…" : "Start Session →"}
+            </Button>
+
+            {error && (
+              <p className="text-sm text-destructive" role="alert">
+                {error}
+              </p>
+            )}
+          </form>
+        </CardContent>
+      </Card>
     </main>
   );
 }

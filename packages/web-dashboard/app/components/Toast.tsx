@@ -1,4 +1,6 @@
 import { useEffect, useState } from "react";
+import { AlertTriangle, AlertCircle, Info } from "lucide-react";
+import { cn } from "~/lib/utils";
 
 export type ToastEvent = {
   id: string;
@@ -8,18 +10,27 @@ export type ToastEvent = {
   timestamp_ms?: number;
 };
 
+const severityConfig = {
+  HIGH: { Icon: AlertTriangle, className: "text-destructive" },
+  MEDIUM: { Icon: AlertCircle, className: "text-[var(--amber)]" },
+  LOW: { Icon: Info, className: "text-muted-foreground" },
+} as const;
+
 export function Toast({ event, onDismiss }: { event: ToastEvent; onDismiss: () => void }) {
   useEffect(() => {
     const t = setTimeout(onDismiss, 5000);
     return () => clearTimeout(t);
   }, [event.id, onDismiss]);
 
-  const sevColor =
-    event.severity === "HIGH" ? "#e02b2b" : event.severity === "MEDIUM" ? "#e68a00" : "#3a3a3a";
+  const { Icon, className } = severityConfig[event.severity ?? "LOW"];
 
   return (
-    <div className="toast" style={{ borderLeftColor: sevColor }}>
-      <strong>{event.message ?? event.type}</strong>
+    <div
+      role="status"
+      className="flex min-w-60 items-center gap-2.5 rounded-lg border border-border bg-card px-4 py-3 text-sm text-card-foreground motion-safe:animate-in motion-safe:fade-in motion-safe:slide-in-from-right-8 motion-safe:duration-300 motion-safe:ease-out"
+    >
+      <Icon className={cn("size-4 shrink-0", className)} aria-hidden="true" />
+      <strong className="font-medium">{event.message ?? event.type}</strong>
     </div>
   );
 }
@@ -31,7 +42,7 @@ export function ToastStack({ events }: { events: ToastEvent[] }) {
   }, [events]);
 
   return (
-    <div className="toast-stack">
+    <div className="fixed bottom-6 right-6 z-50 flex flex-col gap-2">
       {visible.map((e) => (
         <Toast
           key={e.id}

@@ -4,6 +4,9 @@ import { endSession } from "~/lib/api";
 import { startAudioCapture, startVideoCapture, type CaptureHandles } from "~/lib/capture";
 import { connectAudio, connectFeedback, connectVideo } from "~/lib/ws";
 import { ToastStack, type ToastEvent } from "~/components/Toast";
+import { Button } from "~/components/ui/button";
+import { Switch } from "~/components/ui/switch";
+import { Label } from "~/components/ui/label";
 
 export const Route = createFileRoute("/session/$id")({ component: SessionPage });
 
@@ -122,35 +125,53 @@ function SessionPage() {
   };
 
   return (
-    <main className="container">
-      <h1>Practice Session</h1>
-      <div className="session">
+    <main className="mx-auto min-h-screen max-w-5xl px-6 py-10">
+      <h1 className="mb-6 text-2xl font-semibold tracking-tight">Practice Session</h1>
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1fr_300px]">
         <div>
-          {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
-          <video ref={videoRef} muted playsInline />
-          <div className="controls">
-            {!running ? (
-              <button onClick={start}>Start Recording</button>
-            ) : (
-              <button className="stop" onClick={stop}>
-                End Session
-              </button>
+          <div className="relative overflow-hidden rounded-xl bg-black">
+            {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
+            <video ref={videoRef} muted playsInline className="aspect-video w-full" />
+            {running && (
+              <div className="absolute top-3 left-3 flex items-center gap-1.5 rounded-full bg-black/60 px-2.5 py-1 text-xs font-medium text-white backdrop-blur-sm">
+                <span className="size-1.5 rounded-full bg-[var(--red)] motion-safe:animate-pulse" />
+                Recording
+              </div>
             )}
-            <label style={{ marginLeft: "auto", color: "var(--muted)" }}>
-              <input
-                type="checkbox"
+          </div>
+          <div className="mt-4 flex items-center gap-3">
+            {!running ? (
+              <Button onClick={start} size="lg">
+                Start Recording
+              </Button>
+            ) : (
+              <Button
+                onClick={stop}
+                size="lg"
+                className="bg-[var(--red-solid)] text-white hover:bg-[#a31818]"
+              >
+                End Session
+              </Button>
+            )}
+            <div className="ml-auto flex items-center gap-2">
+              <Switch
+                id="live-feedback"
                 checked={liveFeedback}
-                onChange={(e) => setLiveFeedback(e.target.checked)}
+                onCheckedChange={setLiveFeedback}
                 disabled={running}
-              />{" "}
-              Show live feedback during session
-            </label>
+              />
+              <Label htmlFor="live-feedback" className="text-muted-foreground">
+                Show live feedback during session
+              </Label>
+            </div>
           </div>
         </div>
         <aside>
-          <h3>Session ID</h3>
-          <code style={{ fontSize: 12, color: "var(--muted)" }}>{id}</code>
-          <p style={{ color: "var(--muted)", fontSize: 12, marginTop: 16 }}>
+          <h3 className="text-sm font-semibold tracking-wide uppercase text-muted-foreground">
+            Session ID
+          </h3>
+          <code className="mt-1 block font-mono text-xs text-muted-foreground">{id}</code>
+          <p className="mt-4 text-sm text-muted-foreground">
             Mic + camera permission required. When you click End Session, your scored report
             renders in ≤60s.
           </p>

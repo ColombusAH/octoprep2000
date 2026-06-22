@@ -1,8 +1,6 @@
-/**
- * Scorecard per PRD §10 + FR-009.
- * Hero score + lock/unlock at 80, 4 sub-category panels w/ Strengths + Improvements.
- * Mentor URL injected via prop (sourced from GET /config at runtime).
- */
+import { Mic, Camera, Image, Brain, Lock, LockOpen, CheckCircle2, ArrowUpCircle, VideoOff } from "lucide-react";
+import { Card } from "~/components/ui/card";
+import { ScoreRing, ScoreBar, scoreColor } from "~/components/ScoreRing";
 
 type Insight = {
   category: "voice" | "body" | "slide" | "content";
@@ -22,12 +20,6 @@ export type ReportData = {
   mentor_unlocked: boolean;
 };
 
-function scoreColor(score: number): string {
-  if (score >= 80) return "#1f9d55";
-  if (score >= 60) return "#f59e0b";
-  return "#dc2626";
-}
-
 function formatTs(ms: number): string {
   const total = Math.floor(ms / 1000);
   const m = Math.floor(total / 60);
@@ -35,55 +27,102 @@ function formatTs(ms: number): string {
   return `${m}:${s}`;
 }
 
+const CATEGORY_META = {
+  voice: { icon: Mic, title: "Voice & Delivery" },
+  body: { icon: Camera, title: "Body Language & Camera" },
+  slide: { icon: Image, title: "Slide Quality" },
+  content: { icon: Brain, title: "Technical Content" },
+} as const;
+
 function Panel({
-  icon,
-  title,
+  category,
   score,
   insights,
 }: {
-  icon: string;
-  title: string;
+  category: Insight["category"];
   score: number | null;
   insights: Insight[];
 }) {
+  const { icon: Icon, title } = CATEGORY_META[category];
   const strengths = insights.filter((i) => i.type === "STRENGTH");
   const improvements = insights.filter((i) => i.type === "IMPROVEMENT");
+  const notScored = score === null && insights.length === 0;
+
   return (
-    <section className="panel">
-      <header>
-        <span className="panel-icon">{icon}</span>
-        <h3>{title}</h3>
+    <Card className="p-5">
+      <div className="flex items-center gap-3">
+        <Icon className="size-5 text-muted-foreground" aria-hidden="true" />
+        <h3 className="flex-1 font-medium">{title}</h3>
         {score !== null && (
-          <span className="panel-score" style={{ color: scoreColor(score) }}>
+          <span className="font-mono text-sm font-semibold" style={{ color: scoreColor(score) }}>
             {Math.round(score)}/100
           </span>
         )}
-      </header>
-      <div className="panel-body">
-        <div className="col strengths">
-          <h4>🌟 Strengths</h4>
-          {strengths.length === 0 ? <p className="muted">—</p> : null}
-          {strengths.map((i, idx) => (
-            <p key={idx}>{i.message}</p>
-          ))}
-        </div>
-        <div className="col improvements">
-          <h4>⚠️ Improvements</h4>
-          {improvements.length === 0 ? <p className="muted">—</p> : null}
-          {improvements.map((i, idx) => (
-            <p key={idx}>
-              {i.message}
-              {i.timestamps && i.timestamps.length > 0 ? (
-                <> &nbsp;<span className="meta">→ {i.timestamps.map(formatTs).join(", ")}</span></>
-              ) : null}
-              {i.slides && i.slides.length > 0 ? (
-                <> &nbsp;<span className="meta">→ slides {i.slides.join(", ")}</span></>
-              ) : null}
-            </p>
-          ))}
-        </div>
       </div>
-    </section>
+      <div className="mt-3">
+        <ScoreBar score={score} />
+      </div>
+
+      {notScored ? (
+        <div className="mt-4 flex items-center gap-2 text-sm text-muted-foreground">
+          <VideoOff className="size-4 shrink-0" aria-hidden="true" />
+          <span>Not scored this session — camera was unavailable.</span>
+        </div>
+      ) : (
+        <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <div className="flex flex-col gap-2">
+            <h4 className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">
+              Strengths
+            </h4>
+            {strengths.length === 0 ? (
+              <p className="text-sm text-muted-foreground italic">—</p>
+            ) : (
+              strengths.map((i, idx) => (
+                <div key={idx} className="flex items-start gap-2 text-sm">
+                  <CheckCircle2
+                    className="mt-0.5 size-3.5 shrink-0"
+                    style={{ color: "var(--green)" }}
+                    aria-hidden="true"
+                  />
+                  <span>{i.message}</span>
+                </div>
+              ))
+            )}
+          </div>
+          <div className="flex flex-col gap-2">
+            <h4 className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">
+              Improvements
+            </h4>
+            {improvements.length === 0 ? (
+              <p className="text-sm text-muted-foreground italic">—</p>
+            ) : (
+              improvements.map((i, idx) => (
+                <div key={idx} className="flex items-start gap-2 text-sm">
+                  <ArrowUpCircle
+                    className="mt-0.5 size-3.5 shrink-0"
+                    style={{ color: "var(--amber)" }}
+                    aria-hidden="true"
+                  />
+                  <span>
+                    {i.message}
+                    {i.timestamps && i.timestamps.length > 0 ? (
+                      <span className="ml-1.5 font-mono text-xs text-muted-foreground">
+                        → {i.timestamps.map(formatTs).join(", ")}
+                      </span>
+                    ) : null}
+                    {i.slides && i.slides.length > 0 ? (
+                      <span className="ml-1.5 font-mono text-xs text-muted-foreground">
+                        → slides {i.slides.join(", ")}
+                      </span>
+                    ) : null}
+                  </span>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+      )}
+    </Card>
   );
 }
 
@@ -101,39 +140,52 @@ export function ScoreCard({
   const byCat = (cat: Insight["category"]) => report.insights.filter((i) => i.category === cat);
 
   return (
-    <div className="scorecard">
-      <header className="hero">
-        <div className="ring" style={{ borderColor: scoreColor(overall) }}>
-          <span className="overall" style={{ color: scoreColor(overall) }}>
-            {Math.round(overall)}
-          </span>
-          <span className="overall-suffix">/ 100</span>
-        </div>
+    <div className="flex flex-col gap-4">
+      <Card className="flex flex-col items-center gap-6 p-6 sm:flex-row sm:items-center">
+        <ScoreRing score={overall} />
         {unlocked ? (
-          <div className="unlock">
-            <h2>🎉 Mentor unlocked</h2>
-            <a className="cta" href={mentorBookingUrl} target="_blank" rel="noreferrer">
-              Book Your 1-on-1 with a Tikal Expert →
+          <div className="flex flex-col items-center gap-2 text-center sm:items-start sm:text-left">
+            <div className="flex items-center gap-2">
+              <LockOpen className="size-4" style={{ color: "var(--green)" }} aria-hidden="true" />
+              <h2 className="text-lg font-semibold">Mentor unlocked</h2>
+            </div>
+            <a
+              href={mentorBookingUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="mt-1 inline-flex items-center justify-center rounded-lg bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground transition-colors hover:bg-[var(--primary-hover)]"
+            >
+              Book your 1-on-1 with a Tikal Expert →
             </a>
           </div>
         ) : (
-          <div className="lock">
-            <h2>🔒 Mentor locked</h2>
-            <p>
-              You are <strong>{Math.ceil(delta)}</strong> points away from unlocking a 1-on-1
-              session with a Tikal Expert. Review the targeted improvements below and try again.
+          <div className="flex flex-col items-center gap-2 text-center sm:items-start sm:text-left">
+            <div className="flex items-center gap-2">
+              <Lock className="size-4 text-muted-foreground" aria-hidden="true" />
+              <h2 className="text-lg font-semibold">Mentor locked</h2>
+            </div>
+            <p className="max-w-md text-sm text-muted-foreground">
+              You are{" "}
+              <strong className="font-mono font-semibold" style={{ color: "var(--amber)" }}>
+                {Math.ceil(delta)}
+              </strong>{" "}
+              points away from unlocking a 1-on-1 session with a Tikal Expert. Review the targeted
+              improvements below and try again.
             </p>
           </div>
         )}
-      </header>
+      </Card>
 
-      <Panel icon="🗣️" title="Voice & Delivery" score={report.voice_score} insights={byCat("voice")} />
-      <Panel icon="🎥" title="Body Language & Camera" score={report.body_score} insights={byCat("body")} />
-      <Panel icon="🖼️" title="Slide Quality" score={report.slide_score} insights={byCat("slide")} />
-      <Panel icon="🧠" title="Technical Content" score={report.content_score} insights={byCat("content")} />
-      <p className="disclaimer">
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+        <Panel category="voice" score={report.voice_score} insights={byCat("voice")} />
+        <Panel category="body" score={report.body_score} insights={byCat("body")} />
+        <Panel category="slide" score={report.slide_score} insights={byCat("slide")} />
+        <Panel category="content" score={report.content_score} insights={byCat("content")} />
+      </div>
+
+      <p className="px-1 text-xs text-muted-foreground">
         Content accuracy powered by AI training data. May not reflect features released after the
-        model's training cutoff.
+        model&apos;s training cutoff.
       </p>
     </div>
   );

@@ -1,0 +1,122 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-06-22T00:00:00Z",
+  "title": "Design System: OctoPrep2000",
+  "extensions": {
+    "colorMeta": {
+      "slate-night": { "role": "neutral", "displayName": "Slate Night", "canonical": "#0f1419", "tonalRamp": ["#1d2630", "#334354", "#486179", "#5e7e9d", "#829bb4", "#a6b8ca", "#cbd5e0", "#eff2f5"] },
+      "raised-slate": { "role": "neutral", "displayName": "Raised Slate", "canonical": "#1a2028", "tonalRamp": ["#1e252e", "#354152", "#4c5e75", "#637a98", "#8698b0", "#a9b6c7", "#ccd4de", "#f0f2f5"] },
+      "slate-seam": { "role": "neutral", "displayName": "Slate Seam", "canonical": "#2a323c", "tonalRamp": ["#1f252d", "#38424f", "#4f5f72", "#687b94", "#8999ac", "#abb7c4", "#ced4dc", "#f0f2f4"] },
+      "cool-white": { "role": "neutral", "displayName": "Cool White", "canonical": "#e8eef4", "tonalRamp": ["#192634", "#2c435b", "#3e6183", "#517eaa", "#779bbe", "#9fb8d1", "#c6d5e4", "#eef2f7"] },
+      "slate-fog": { "role": "neutral", "displayName": "Slate Fog", "canonical": "#8a96a3", "tonalRamp": ["#22262b", "#3b434b", "#55606c", "#6f7d8d", "#8f9aa7", "#afb8c0", "#d0d5da", "#f1f2f4"] },
+      "glacier-sky": { "role": "primary", "displayName": "Glacier Sky", "canonical": "#6cc4ff", "tonalRamp": ["#002e4c", "#005187", "#0074c1", "#0096fb", "#37afff", "#71c6ff", "#abddff", "#e5f5ff"] },
+      "glacier-sky-hover": { "role": "primary", "displayName": "Glacier Sky (Hover)", "canonical": "#54b8fb" },
+      "glacier-sky-active": { "role": "primary", "displayName": "Glacier Sky (Active)", "canonical": "#3aa3eb" },
+      "signal-green": { "role": "status-success", "displayName": "Signal Green", "canonical": "#1f9d55", "tonalRamp": ["#0d4023", "#16713d", "#20a157", "#29d272", "#58de91", "#88e8b1", "#b9f1d1", "#eafbf1"] },
+      "signal-amber": { "role": "status-warning", "displayName": "Signal Amber", "canonical": "#f59e0b", "tonalRamp": ["#492f03", "#815305", "#b97708", "#f19b0a", "#f7b23f", "#f9c977", "#fcdfaf", "#fef5e7"] },
+      "signal-red": { "role": "status-danger", "displayName": "Signal Red", "canonical": "#ef5858", "tonalRamp": ["#460707", "#7b0c0c", "#b01111", "#e51616", "#ed4848", "#f37d7d", "#f8b3b3", "#fde8e8"] },
+      "signal-red-solid": { "role": "status-danger-solid", "displayName": "Signal Red Solid", "canonical": "#b91c1c" }
+    },
+    "typographyMeta": {
+      "display": { "displayName": "Display / Data", "purpose": "Hero overall score only. Geist Mono so the number reads as an instrument readout." },
+      "headline": { "displayName": "Headline", "purpose": "Page titles and score-panel section titles." },
+      "body": { "displayName": "Body", "purpose": "All prose: insight messages, form labels, helper text." },
+      "label": { "displayName": "Label", "purpose": "Column headers and small metadata tags, uppercase tracked." },
+      "data": { "displayName": "Data", "purpose": "Timestamps, slide references, session IDs — anything measured." }
+    },
+    "shadows": [
+      { "name": "interactive-lift", "value": "0 1px 2px rgba(0,0,0,0.3)", "purpose": "The only shadow in the system. Hover/focus feedback on buttons only, never present at rest." }
+    ],
+    "motion": [
+      { "name": "ease-standard", "value": "cubic-bezier(0.16, 1, 0.3, 1)", "purpose": "Default ease-out-quint for all transitions and entrances (toasts, hover states)." },
+      { "name": "ease-ring-draw", "value": "cubic-bezier(0.22, 1, 0.36, 1)", "purpose": "One-time stroke-draw entrance for the score ring, ~600ms, the system's single choreographed moment." }
+    ],
+    "breakpoints": [
+      { "name": "sm", "value": "640px" },
+      { "name": "md", "value": "768px" },
+      { "name": "lg", "value": "1024px" }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "Main CTA — Start Recording, Get Started, Start Session.",
+      "html": "<button class=\"ds-btn-primary\">Start Recording</button>",
+      "css": ".ds-btn-primary { background: #6cc4ff; color: #0f1419; font-family: Geist, -apple-system, sans-serif; font-weight: 600; font-size: 1rem; padding: 12px 16px; border: none; border-radius: 8px; cursor: pointer; transition: background 0.2s cubic-bezier(0.16,1,0.3,1), box-shadow 0.2s cubic-bezier(0.16,1,0.3,1); } .ds-btn-primary:hover { background: #54b8fb; box-shadow: 0 1px 2px rgba(0,0,0,0.3); } .ds-btn-primary:focus-visible { outline: 2px solid #6cc4ff; outline-offset: 2px; } .ds-btn-primary:active { background: #3aa3eb; }"
+    },
+    {
+      "name": "Secondary Button",
+      "kind": "button",
+      "refersTo": "button-secondary",
+      "description": "Non-primary actions — Copy share link, live-feedback toggle label.",
+      "html": "<button class=\"ds-btn-secondary\">Copy share link</button>",
+      "css": ".ds-btn-secondary { background: #1a2028; color: #e8eef4; font-family: Geist, -apple-system, sans-serif; font-weight: 600; font-size: 1rem; padding: 10px 16px; border: 1px solid #2a323c; border-radius: 8px; cursor: pointer; transition: background 0.2s cubic-bezier(0.16,1,0.3,1), border-color 0.2s cubic-bezier(0.16,1,0.3,1); } .ds-btn-secondary:hover { background: #232b35; border-color: #3a4450; box-shadow: 0 1px 2px rgba(0,0,0,0.3); } .ds-btn-secondary:focus-visible { outline: 2px solid #6cc4ff; outline-offset: 2px; }"
+    },
+    {
+      "name": "Card",
+      "kind": "card",
+      "refersTo": "card",
+      "description": "Score sub-category panel (Voice & Delivery, Body Language, etc).",
+      "html": "<div class=\"ds-card\"><h3 class=\"ds-card-title\">Voice &amp; Delivery</h3><p class=\"ds-card-body\">Clear, steady pace throughout the talk.</p></div>",
+      "css": ".ds-card { background: #1a2028; border-radius: 12px; padding: 20px; } .ds-card-title { font-family: Geist, -apple-system, sans-serif; font-weight: 600; font-size: 1.75rem; color: #e8eef4; margin: 0 0 12px 0; } .ds-card-body { font-family: Geist, -apple-system, sans-serif; font-size: 1rem; line-height: 1.5; color: #e8eef4; margin: 0; }"
+    },
+    {
+      "name": "Text Input",
+      "kind": "input",
+      "refersTo": "input",
+      "description": "Topic, audience context, and other form fields on the landing screen.",
+      "html": "<input class=\"ds-input\" type=\"text\" placeholder=\"React 19 new features\" />",
+      "css": ".ds-input { background: #1a2028; color: #e8eef4; border: 1px solid #2a323c; border-radius: 8px; padding: 10px 12px; font-family: Geist, -apple-system, sans-serif; font-size: 1rem; width: 100%; } .ds-input::placeholder { color: #8a96a3; } .ds-input:focus { outline: none; border-color: #6cc4ff; }"
+    },
+    {
+      "name": "Score Ring",
+      "kind": "custom",
+      "refersTo": "score-ring",
+      "description": "Signature component — the hero overall score readout on the report screen.",
+      "html": "<div class=\"ds-score-ring\"><span class=\"ds-score-ring-value\">87</span><span class=\"ds-score-ring-suffix\">/ 100</span></div>",
+      "css": ".ds-score-ring { width: 160px; height: 160px; border-radius: 9999px; border: 8px solid #1f9d55; display: flex; flex-direction: column; align-items: center; justify-content: center; } .ds-score-ring-value { font-family: 'Geist Mono', ui-monospace, monospace; font-weight: 700; font-size: 4rem; line-height: 1; letter-spacing: -0.02em; color: #1f9d55; } .ds-score-ring-suffix { font-family: Geist, -apple-system, sans-serif; font-size: 0.875rem; color: #8a96a3; }"
+    },
+    {
+      "name": "Toast",
+      "kind": "custom",
+      "refersTo": "toast",
+      "description": "Live-feedback warning during a rehearsal session.",
+      "html": "<div class=\"ds-toast\"><svg class=\"ds-toast-icon\" width=\"16\" height=\"16\" viewBox=\"0 0 16 16\" fill=\"none\"><path d=\"M8 1L15 14H1L8 1Z\" stroke=\"#f59e0b\" stroke-width=\"1.5\" stroke-linejoin=\"round\"/><path d=\"M8 6V9\" stroke=\"#f59e0b\" stroke-width=\"1.5\" stroke-linecap=\"round\"/><circle cx=\"8\" cy=\"11.5\" r=\"0.75\" fill=\"#f59e0b\"/></svg><span class=\"ds-toast-message\">Speaking a little fast on slide 3.</span></div>",
+      "css": ".ds-toast { display: flex; align-items: center; gap: 10px; background: #1a2028; border: 1px solid #2a323c; border-radius: 8px; padding: 12px 16px; min-width: 240px; font-family: Geist, -apple-system, sans-serif; font-size: 0.875rem; color: #e8eef4; animation: ds-toast-in 0.3s cubic-bezier(0.16,1,0.3,1); } @keyframes ds-toast-in { from { opacity: 0; transform: translateX(40px); } to { opacity: 1; transform: translateX(0); } } @media (prefers-reduced-motion: reduce) { .ds-toast { animation: none; } }"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Recovery Score",
+    "overview": "OctoPrep2000 borrows its visual logic from the performance-tracker category (Whoop, Oura): a single dark instrument panel where a number you can trust matters more than decoration. The system is precise, calm, and quiet by design — it never shouts a grade and never punishes a low score with alarm-red panels. A number on a dark field, supporting data in mono type, status communicated by both color and label so nothing depends on color alone. This system explicitly rejects the generic corporate-SaaS-dashboard look: no purple-to-blue gradients, no gray text dropped onto colored chips, no cards nested inside cards, no bounce or elastic motion, and no system-default typography.",
+    "keyCharacteristics": [
+      "Near-black slate canvas, not pure black — feels like an instrument at rest, not a void.",
+      "One accent color (glacier sky blue), used sparingly, never as a page background.",
+      "A second typographic voice (mono) reserved for anything measured: scores, timestamps, session IDs.",
+      "Flat by default; elevation is tonal (a lighter slate surface), not shadow-driven."
+    ],
+    "rules": [
+      { "name": "The One Accent Rule", "body": "Glacier Sky is the only saturated color with no semantic status meaning. If a new element needs emphasis and it isn't interactive, reach for typography weight or the Raised Slate elevation step before reaching for color.", "section": "colors" },
+      { "name": "The Status-Plus-Label Rule", "body": "Every status color (green/amber/red) ships with an icon or text label in the same component. No color-only signal, anywhere.", "section": "colors" },
+      { "name": "The Two-Voice Rule", "body": "Prose is Geist; anything that is a measurement (a score, a timestamp, a slide number, a session ID) is Geist Mono.", "section": "typography" },
+      { "name": "The Flat-At-Rest Rule", "body": "No surface has a shadow in its default state. Shadows exist solely as hover/focus feedback on interactive elements.", "section": "elevation" }
+    ],
+    "dos": [
+      "Do keep the dark Slate Night → Raised Slate tonal step as the only elevation mechanism.",
+      "Do render every measured value in Geist Mono.",
+      "Do pair every status color with an icon or text label, with no exceptions.",
+      "Do use ease-out-quart/expo for all transitions, with a prefers-reduced-motion fallback.",
+      "Do treat a low score as information: Signal Red appears on numbers/icons only, never as a panel or page background."
+    ],
+    "donts": [
+      "Don't use Inter, Arial, or the literal system-ui font stack anywhere in this product.",
+      "Don't use a purple-to-blue gradient, or any gradient text.",
+      "Don't place gray (Slate Fog) text on any of the three status colors.",
+      "Don't nest a card/panel inside another card/panel.",
+      "Don't use bounce or elastic easing on any transition or entrance.",
+      "Don't use a colored side-stripe border on toasts, alerts, or list items.",
+      "Don't make the product feel like a generic corporate SaaS dashboard, a cartoon/gamified mascot experience, or a punitive grading screen."
+    ]
+  }
+}
