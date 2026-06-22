@@ -49,6 +49,34 @@ export const MOCK_REPORTS: Record<string, ReportData> = {
       { category: "content", type: "STRENGTH", message: "Solid technical accuracy throughout." },
     ],
   },
+  perfect: {
+    overall_score: 96,
+    voice_score: 97,
+    body_score: 95,
+    slide_score: 94,
+    content_score: 98,
+    mentor_unlocked: true,
+    insights: [
+      { category: "voice", type: "STRENGTH", message: "Excellent pacing and vocal variety throughout." },
+      { category: "body", type: "STRENGTH", message: "Commanding presence, steady eye contact." },
+      { category: "slide", type: "STRENGTH", message: "Clean, well-paced slide design." },
+      { category: "content", type: "STRENGTH", message: "Deep, accurate technical coverage." },
+    ],
+  },
+  "rough-cut": {
+    overall_score: 41,
+    voice_score: 44,
+    body_score: 38,
+    slide_score: 45,
+    content_score: 39,
+    mentor_unlocked: false,
+    insights: [
+      { category: "voice", type: "IMPROVEMENT", message: "Frequent long pauses broke the flow.", timestamps: [22000, 96000, 201000] },
+      { category: "body", type: "IMPROVEMENT", message: "Looked away from camera for most of the talk." },
+      { category: "slide", type: "IMPROVEMENT", message: "Slides 1-3 had dense walls of text.", slides: [1, 2, 3] },
+      { category: "content", type: "IMPROVEMENT", message: "Missed the core tradeoff the audience asked about." },
+    ],
+  },
 };
 
 export const MOCK_CONFIG = {

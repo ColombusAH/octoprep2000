@@ -1,11 +1,22 @@
 # Product Requirements Document
 
 **Product**: OctoPrep2000
-**Version**: 1.4
-**Date**: 2026-06-17
-**Hackathon Date**: 2026-06-24 (7 days away)
+**Version**: 1.5
+**Date**: 2026-06-22
+**Hackathon Date**: 2026-06-24 (2 days away)
 **Author**: Tikal Fuse Day Team
-**Status**: Approved — post-critique patch (v1.4)
+**Status**: Approved — creative-direction pivot (v1.5)
+
+> **v1.5 changelog (2026-06-22)** — creative direction pivot, no functional scope change:
+> - UI brand direction changed from the original "clinical Whoop/Oura performance-tracker"
+>   tone to a **Y2K / VHS-retro** aesthetic. `docs/presentation/octoprep2000-pitch.html` (the
+>   team's own pitch deck) is the visual reference — see §10.
+> - Gamification is now embraced rather than avoided: the existing mentor lock/unlock mechanic
+>   is joined by cosmetic dashboard elements (points wallet, membership-tier badge, mocked
+>   "recent sessions" archive). These are visual flourishes only — see §3 Non-Goals, unchanged.
+> - `packages/web-dashboard/DESIGN.md` and `PRODUCT.md` are being updated in lockstep to carry
+>   this direction. If either still describes the old clinical/anti-gamification tone, this PRD
+>   is authoritative — flag the staleness rather than following the older doc.
 
 > **v1.4 changelog (2026-06-17)** — architecture critique fixes applied:
 > - Vision API swapped: Google Cloud Vision → **GPT-4o Vision via Tikal LiteLLM** (Google Vision could not do posture/body language)
@@ -49,7 +60,7 @@ OctoPrep2000 closes this gap by acting as an always-available AI co-pilot that w
 - **Live deployment (Railway)** — not required for the demo. Runs locally. Railway is a Phase 3 bonus.
 - **Live in-session feedback toasts** — Phase 3 bonus only. If built, must have an ON/OFF toggle so the presenter decides whether to be interrupted during their rehearsal.
 - **Chrome Extension UI** — infrastructure is built, UI is deferred to Phase 3.
-- Persistent user accounts, multi-session history, or long-term progress tracking (post-hackathon roadmap).
+- Persistent user accounts, multi-session history, or long-term progress tracking (post-hackathon roadmap). The dashboard sidebar's points wallet, membership-tier badge, and "recent sessions" archive (§10) are cosmetic demo flourishes with mocked/local data — they do not imply real accounts, persistence, or backend wiring, and do not lift this non-goal.
 - Mobile app or native desktop application.
 - Live audience analytics or multi-speaker sessions.
 - 60 fps video processing (banned — latency and cost risk).
@@ -379,14 +390,26 @@ OctoPrep2000 closes this gap by acting as an always-available AI co-pilot that w
 
 ## 10. UX / UI Principles
 
-- **Speed over polish**: The demo must feel live. Latency is a UX metric.
+- **Creative direction (v1.5): Y2K / VHS-retro.** The team's own pitch deck,
+  `docs/presentation/octoprep2000-pitch.html`, is the visual reference — near-black "void"
+  background, a teal structural accent plus a single warm orange "hero" accent, the
+  Tektur / Space Mono / Chakra Petch type system, and retro CRT motifs (scanlines, grid
+  overlay, glitch title reveal, blinking REC dot) applied with restraint to UI chrome. This
+  supersedes the earlier "clinical Whoop/Oura performance-tracker" direction.
+- **Gamification is embraced, not avoided.** The mentor lock/unlock mechanic below is joined
+  by cosmetic dashboard elements — a points wallet, a membership-tier badge, a mocked "recent
+  sessions" archive — consistent with the Y2K direction. Earlier guidance to avoid gamified
+  badge/streak treatments no longer applies; see §3 Non-Goals for what stays out of scope
+  (these remain visual flourishes, not real accounts or persistence).
+- **Speed over polish**: The demo must feel live. Latency is a UX metric — decorate UI chrome
+  (sidebar, nav, transitions) freely, but keep the capture/record path and report load snappy.
 - **Live warning toasts (web dashboard)**: Minimal, non-intrusive overlay. Single line of text, subtle slide-in animation. Never fully obscures the camera preview or slide panel. Auto-dismiss after 5 s.
 - **Scorecard hero section**: The overall score is the first thing the eye lands on. Use a bold circular gauge. Colour: red < 60, amber 60–79, green ≥ 80.
 - **Lock/unlock mechanic**: The locked state must feel motivational, not punishing. Use warm tones and precise copy ("only 6 points away").
 - **Strengths / Improvements split**: Visual parity — equal screen weight given to positive and corrective feedback. Green left panel, amber right panel per sub-category.
 - **Timestamp citations**: Clickable (or highlighted) inline citations in insight text linking to the moment in the session recording (stretch: if recording is stored).
-- **Accessibility**: Colour is never the sole differentiator — icons and labels always accompany colour coding.
-- **Branding**: Tikal visual identity. Use the Fuse presentation skill framework standards for the final pitch web-app.
+- **Accessibility**: Colour is never the sole differentiator — icons and labels always accompany colour coding. Unchanged by the v1.5 creative pivot.
+- **Branding**: Visual identity should mirror the team's own pitch deck (above) rather than a generic Tikal/SaaS look — the deck *is* the Tikal Fuse Day artifact for this product.
 
 ---
 

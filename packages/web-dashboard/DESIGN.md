@@ -1,54 +1,58 @@
 ---
 name: OctoPrep2000
-description: AI rehearsal co-pilot — score your presentation practice like a recovery score, not a grade.
+description: AI rehearsal co-pilot — Y2K broadcast-deck dashboard shell wrapped around a calm, factual score report.
 colors:
-  slate-night: "#0f1419"
-  raised-slate: "#1a2028"
-  slate-seam: "#2a323c"
-  cool-white: "#e8eef4"
-  slate-fog: "#8a96a3"
-  glacier-sky: "#6cc4ff"
-  glacier-sky-hover: "#54b8fb"
-  glacier-sky-active: "#3aa3eb"
-  signal-green: "#1f9d55"
-  signal-amber: "#f59e0b"
-  signal-red: "#ef5858"
-  signal-red-solid: "#b91c1c"
+  void: "#060d1a"
+  navy: "#0a1e35"
+  navy-2: "#0d2742"
+  navy-3: "#14304a"
+  teal: "#4dd4cc"
+  orange: "#ff7a1a"
+  orange-hover: "#ff8c3d"
+  orange-d: "#e06a0f"
+  white: "#ffffff"
+  pearl: "#e8f4ff"
+  ash: "#9fb3c9"
+  dim: "rgba(232,244,255,0.6)"
+  green: "#2ed573"
+  amber: "#f5c518"
+  red: "#ff6b86"
+  red-solid: "#c81e3a"
 typography:
   display:
-    fontFamily: "Geist Mono, ui-monospace, monospace"
-    fontSize: "clamp(2.5rem, 6vw, 4rem)"
+    fontFamily: "Tektur, sans-serif"
+    fontSize: "clamp(1.75rem, 3vw, 2.5rem)"
     fontWeight: 700
-    lineHeight: 1
-    letterSpacing: "-0.02em"
+    lineHeight: 1.05
+    letterSpacing: "-0.015em"
   headline:
-    fontFamily: "Geist, -apple-system, sans-serif"
-    fontSize: "1.75rem"
-    fontWeight: 600
+    fontFamily: "Tektur, sans-serif"
+    fontSize: "1.125rem"
+    fontWeight: 700
     lineHeight: 1.2
     letterSpacing: "-0.01em"
   body:
-    fontFamily: "Geist, -apple-system, sans-serif"
+    fontFamily: "Chakra Petch, sans-serif"
     fontSize: "1rem"
     fontWeight: 400
     lineHeight: 1.5
     letterSpacing: "normal"
   label:
-    fontFamily: "Geist, -apple-system, sans-serif"
+    fontFamily: "Space Mono, ui-monospace, monospace"
     fontSize: "0.75rem"
     fontWeight: 600
     lineHeight: 1.2
-    letterSpacing: "0.04em"
+    letterSpacing: "0.14em"
   data:
-    fontFamily: "Geist Mono, ui-monospace, monospace"
+    fontFamily: "Space Mono, ui-monospace, monospace"
     fontSize: "0.875rem"
     fontWeight: 500
     lineHeight: 1.4
     letterSpacing: "normal"
 rounded:
-  sm: "8px"
-  md: "12px"
-  lg: "16px"
+  sm: "0.3rem"
+  md: "0.4rem"
+  lg: "0.5rem"
   full: "9999px"
 spacing:
   sm: "8px"
@@ -57,31 +61,31 @@ spacing:
   xl: "32px"
 components:
   button-primary:
-    backgroundColor: "{colors.glacier-sky}"
-    textColor: "{colors.slate-night}"
+    backgroundColor: "{colors.orange}"
+    textColor: "{colors.void}"
     typography: "{typography.body}"
-    rounded: "{rounded.sm}"
+    rounded: "{rounded.lg}"
     padding: "12px 16px"
   button-primary-hover:
-    backgroundColor: "{colors.glacier-sky-hover}"
+    backgroundColor: "{colors.orange-hover}"
   button-primary-active:
-    backgroundColor: "{colors.glacier-sky-active}"
+    backgroundColor: "{colors.orange-d}"
   button-secondary:
-    backgroundColor: "{colors.raised-slate}"
-    textColor: "{colors.cool-white}"
+    backgroundColor: "{colors.navy}"
+    textColor: "{colors.pearl}"
     typography: "{typography.body}"
-    rounded: "{rounded.sm}"
+    rounded: "{rounded.lg}"
     padding: "10px 16px"
   card:
-    backgroundColor: "{colors.raised-slate}"
-    textColor: "{colors.cool-white}"
-    rounded: "{rounded.md}"
+    backgroundColor: "{colors.navy-2}"
+    textColor: "{colors.pearl}"
+    rounded: "{rounded.lg}"
     padding: "20px"
   input:
-    backgroundColor: "{colors.raised-slate}"
-    textColor: "{colors.cool-white}"
+    backgroundColor: "transparent"
+    textColor: "{colors.pearl}"
     typography: "{typography.body}"
-    rounded: "{rounded.sm}"
+    rounded: "{rounded.md}"
     padding: "10px 12px"
 ---
 
@@ -89,113 +93,139 @@ components:
 
 ## 1. Overview
 
-**Creative North Star: "The Recovery Score"**
+**Creative North Star: "The Broadcast Deck"**
 
-OctoPrep2000 borrows its visual logic from the performance-tracker category (Whoop, Oura): a single dark instrument panel where a number you can trust matters more than decoration. The system is precise, calm, and quiet by design — it never shouts a grade and never punishes a low score with alarm-red panels. A number on a dark field, supporting data in mono type, status communicated by both color and label so nothing depends on color alone.
+OctoPrep2000's dashboard now shares its visual identity with `docs/presentation/octoprep2000-pitch.html`, the Fuse Day pitch deck: a Y2K / early-2000s broadcast aesthetic — VHS tracking, CRT scanlines, a blinking REC dot, corner-bracket HUD chrome — built on a navy instrument-panel base with one warm hero accent (orange) and a structural chrome accent (teal).
 
-This system explicitly rejects the generic corporate-SaaS-dashboard look: no purple-to-blue gradients, no gray text dropped onto colored chips, no cards nested inside cards, no bounce or elastic motion, and no system-default typography (the previous build used the literal `system-ui` stack, which reads as unfinished — every other touchpoint of this product needed a deliberate typeface instead).
+**This deliberately replaces the previous "Recovery Score" north star** (Whoop/Oura-style clinical restraint, no gamification, no bounce). That system was the right call for a screen with no surrounding product context; once the dashboard grew a persistent shell — sidebar, membership tier, a wallet, an archive, mock nav items — the brief shifted to match the deck's own showmanship: the product should *look* like the thing being pitched. The pivot is sanctioned, not drift: §6 documents exactly which old rules flipped and why.
 
 **Key Characteristics:**
-- Near-black slate canvas, not pure black — feels like an instrument at rest, not a void.
-- One accent color (glacier sky blue), used sparingly, never as a page background.
-- A second typographic voice (mono) reserved for anything measured: scores, timestamps, session IDs.
-- Flat by default; elevation is tonal (a lighter slate surface), not shadow-driven.
+- Near-black void canvas with a raised navy step (sidebar) and a second raised step (cards) — same tonal-elevation logic as before, now under a warmer name.
+- Two accent roles instead of one: **teal** is structural/chrome-only (borders, focus rings, HUD labels, icons) and never fills a surface; **orange** is the single warm hero accent (primary actions, brand, the gamified wallet).
+- Three typographic voices: Tektur for display/headlines, Chakra Petch for body and every interactive control, Space Mono for anything measured or HUD-styled.
+- Chrome is static and cheap (grid + vignette + scanlines, no canvas, no timers) so it can stay mounted through a live recording without cost; choreographed motion (glitch, tracking-roll, boot flash) is reserved for one-shot moments, never infinite loops on a working screen.
 
 ## 2. Colors
 
-The palette is a single dark neutral ramp plus one accent and three semantic status colors — restrained, not full-palette.
+Two accents instead of one, plus a status vocabulary tuned to read clearly against both background steps.
 
 ### Primary
-- **Glacier Sky** (#6cc4ff): the one accent. Primary buttons, links, the focus ring around the score circle, active-state UI. Never used as a fill larger than a button or ring — its rarity is what makes it feel deliberate rather than decorative.
+- **Orange** (`--orange` #ff7a1a): the one hero accent — primary buttons, the wallet number, brand moments. Solid-fill orange always pairs with `--void` text (7.5:1+ contrast); never gray-on-orange.
+- **Teal** (`--teal` #4dd4cc): chrome only — borders, focus rings, icons, HUD-style mono labels ("ONLINE", "TAPE 004"). Verified ≥8:1 against both `--void` and `--navy-2`, so it's safe for small mono labels, but it never carries a primary CTA — that's orange's job.
 
 ### Neutral
-- **Slate Night** (#0f1419): page background. Near-black with a cool, almost imperceptible blue cast — an instrument panel, not a void.
-- **Raised Slate** (#1a2028): surface for cards, panels, inputs, the toast background. One step up from Slate Night; this step IS the elevation system (see §4).
-- **Slate Seam** (#2a323c): borders and dividers only. Never used as a fill.
-- **Cool White** (#e8eef4): primary text. Not pure white — keeps the cool cast consistent top to bottom.
-- **Slate Fog** (#8a96a3): secondary/muted text (captions, metadata, helper copy). Must still clear 4.5:1 against Slate Night and Raised Slate; verify before reuse on a new surface.
+- **Void** (`--void` #060d1a): page background.
+- **Navy** (`--navy` #0a1e35): the sidebar / second neutral layer (product register's "cooler second layer for chrome").
+- **Navy 2** (`--navy-2` #0d2742): raised surface — cards, popovers, inputs' implicit background.
+- **Navy 3** (`--navy-3` #14304a): hover/active tint one step above Navy 2.
+- **Pearl** (`--pearl` #e8f4ff): primary text. 17.4:1 on void, 13.6:1 on navy-2.
+- **Ash** (`--ash` #9fb3c9): secondary/muted text — a **solid** color, ≥7:1 on both void and navy-2.
+- **Dim** (`--dim` rgba(232,244,255,0.6)): decorative HUD chrome only (eyebrow opacity, atmosphere). **Never used for functional text** — see the Solid-Text Rule below; this is the one place the deck's own values don't transfer directly.
 
-### Status (semantic, not brand)
-- **Signal Green** (#1f9d55): strengths, scores ≥80, the unlocked mentor state. Always paired with a label or icon, never color alone.
-- **Signal Amber** (#f59e0b): improvements, scores 60–79, medium-severity live warnings. Default "you're not there yet" tone — not alarming.
-- **Signal Red** (#ef5858): scores <60 and high-severity warnings — text and icon color. Used at low surface area (a number, an icon, a thin underline) — never as a panel background. A low score is information, not a verdict; the UI should never look like a punishment screen. (#dc2626, the initial pick, only hit 3.39:1 against Raised Slate — fails WCAG AA 4.5:1 for normal text. #ef5858 hits 4.84:1.)
-- **Signal Red Solid** (#b91c1c): the one exception to "Signal Red is text/icon only" — solid fill for the End Session button specifically, paired with white text (5.54:1). A single red can't satisfy both roles: text-on-dark wants it lighter, white-text-on-fill wants it darker.
+### Status (semantic, distinct from hero orange)
+- **Green** (`--green` #2ed573): strengths, scores ≥80, mentor-unlocked. ≥7.8:1 on both surfaces.
+- **Amber** (`--amber` #f5c518): improvements, scores 60–79. ≥9.3:1 on both surfaces.
+- **Red** (`--red` #ff6b86): scores <60, high-severity warnings — text/icon shade, ≥5.1:1 on navy-2.
+- **Red Solid** (`--red-solid` #c81e3a): the one destructive-button fill (End Session), white text at 5.67:1.
 
 ### Named Rules
-**The One Accent Rule.** Glacier Sky is the only saturated color with no semantic status meaning. If a new element needs emphasis and it isn't interactive (button, link, focus state), reach for typography weight or the Raised Slate elevation step before reaching for color.
+**The Solid-Text Rule (new).** `--dim` and any other alpha-blended pitch-deck color are decorative atmosphere values, calibrated for a fixed-stage slide, not for arbitrary UI backgrounds. Any text that must clear WCAG body contrast uses a **solid** token (`--pearl`, `--ash`, a status color) — never an alpha value. This is why the dashboard has `--ash` where the deck only has `--dim`.
 
-**The Status-Plus-Label Rule.** Every status color (green/amber/red) ships with an icon or text label in the same component. No color-only signal, anywhere — this is load-bearing for the PRD's accessibility requirement, not a nice-to-have.
+**The Two-Accent Rule.** Teal is structural, orange is the hero. If new chrome needs a saturated accent and it's not a primary action, reach for teal; if it's a primary action or the one moment of warmth on a screen, reach for orange. Never both as fills on the same component.
+
+**The Status-Plus-Label Rule** *(carried over, unchanged)*. Every status color ships with an icon or text label in the same component — survives the pivot per the brief's accessibility constraint.
 
 ## 3. Typography
 
-**Display/Data Font:** Geist Mono (fallback: ui-monospace, monospace)
-**Body/Headline Font:** Geist (fallback: -apple-system, sans-serif)
-
-**Character:** A geometric grotesk paired with its own monospace sibling — one family, two voices. Prose and UI chrome read in Geist; anything measured (the hero score, timestamps, session IDs, per-category point totals) reads in Geist Mono, so numbers feel like instrument readouts rather than typeset copy. Replaces the previous `ui-sans-serif, system-ui` stack everywhere — that stack is the literal definition of unfinished.
+**Display:** Tektur (weights 500/700/900) — hero numbers-adjacent moments, h1/h2 page titles, `CardTitle`, section headings. **Never** on a button, nav label, form label, or measured value — product register bans display fonts on functional UI text, and Tektur at small sizes loses legibility fast.
+**Body:** Chakra Petch (300–700) — all prose, every interactive control: buttons, nav items, form labels, descriptions. This is the only voice closest readers should ever parse a control's hit target as English text.
+**Data / HUD:** Space Mono (400/700) — anything computed or measured (scores, timestamps, slide refs, session IDs, the wallet balance) **and** HUD-style chrome labels (eyebrows, "TAPE 004", "ONLINE", category labels like "Strengths"/"Improvements"). Mono now carries two related but distinct jobs — see the rule below.
 
 ### Hierarchy
-- **Display** (700, `clamp(2.5rem, 6vw, 4rem)`, line-height 1, Geist Mono): the hero overall score only ("87"). Letter-spacing −0.02em so large mono digits don't drift apart.
-- **Headline** (600, 1.75rem, line-height 1.2, Geist): page titles, the score-panel section titles ("Voice & Delivery").
-- **Body** (400, 1rem, line-height 1.5, Geist): all prose — insight messages, form labels, helper text. Cap line length at 65–75ch inside insight panels.
-- **Label** (600, 0.75rem, letter-spacing 0.04em, uppercase, Geist): column headers ("Strengths", "Improvements"), small metadata tags.
-- **Data** (500, 0.875rem, line-height 1.4, Geist Mono): timestamps ("→ 2:14"), slide references ("→ slides 4, 6"), session IDs.
+- **Display**: `clamp(1.75rem, 3vw, 2.5rem)`, 700, Tektur, letter-spacing −0.015em. Page-level h1s only.
+- **Headline**: 1.125rem, 700, Tektur. Component-level titles (`CardTitle`, "Voice & Delivery" panel headers, "Mentor unlocked/locked").
+- **Body**: 1rem, 400, Chakra Petch. Cap prose at 65–75ch.
+- **Label**: 0.75rem, 600, Space Mono, uppercase, 0.14em tracking. HUD-style section labels.
+- **Data**: 0.875rem, 500, Space Mono. Scores, timestamps, IDs.
 
 ### Named Rules
-**The Two-Voice Rule.** Prose is Geist; anything that is a measurement (a score, a timestamp, a slide number, a session ID) is Geist Mono. If you're not sure which a piece of text is, ask whether it was computed — computed values get mono.
+**The Three-Voice Rule** *(supersedes the old Two-Voice Rule)*. Display is for headings only. Body is for prose and every functional control. Mono is for anything computed *or* anything styled as HUD chrome. If you're labeling a button, a nav item, or a form field — that's Body, even if the brand feels mono-coded; functional text must stay scannable at speed.
 
-## 4. Elevation
+## 4. Elevation & Chrome
 
-Flat by default, tonal instead of shadow-driven: depth comes from the Slate Night → Raised Slate step, not from `box-shadow`. This matches the "instrument, not decoration" personality — shadows read as a UI trying to look impressive; a clean tonal step reads as precise.
+Tonal elevation survives the pivot (Void → Navy → Navy-2 → Navy-3), but the system now layers static broadcast-deck atmosphere on top: a low-opacity teal grid, a radial vignette, and CRT scanlines (`.chrome-grid` / `.chrome-vignette` / `.chrome-scanlines` in `app/styles.css`). All three are static CSS — no canvas redraw, no interval timers — so they're cheap enough to stay mounted through a live recording without adding perceived latency.
 
-### Shadow Vocabulary
-- **Interactive lift** (`box-shadow: 0 1px 2px rgba(0,0,0,0.3)`): the *only* shadow in the system. Applied only on `:hover`/`:focus-visible` for buttons and the share-link affordance — a response to interaction, never present at rest.
+**Corner brackets** (`<CornerBrackets />`) are the dashboard's signature chrome motif, lifted from the deck's `.bracket` corners: four 2px teal hairlines at 50% opacity on the corners of a `relative` panel. Applied to cards, the video frame, and interactive home tiles — never animated, never blocking content.
+
+### Shadow / Glow Vocabulary
+- **Interactive lift** *(carried over)*: `0 1px 2px rgba(0,0,0,0.3)` on hover/focus for buttons — the only at-rest-absent shadow.
+- **Score glow** (new, deliberate second exception): the Score Ring's stroke now carries a `drop-shadow(0 0 6px <status-color>)` matching its own color — a CRT-phosphor glow, not decoration for decoration's sake. Two exceptions to "flat at rest" is the ceiling; a third needs a real reason.
 
 ### Named Rules
-**The Flat-At-Rest Rule.** No surface has a shadow in its default state. Shadows exist solely as hover/focus feedback on interactive elements, and disappear the instant the pointer/focus leaves.
+**The Flat-At-Rest Rule** *(amended)*: no surface has a shadow at rest **except** the Score Ring's signature glow. Everything else still earns its shadow only on hover/focus.
 
-## 5. Components
+## 5. Motion
 
-### Buttons
-- **Shape:** 8px radius (`rounded.sm`).
-- **Primary:** Glacier Sky background, Slate Night text, 600 weight, 12px/16px padding. This is the only place the accent fills a solid background.
-- **Secondary/Ghost:** Raised Slate background, Cool White text, Slate Seam 1px border. Used for "Copy share link", "Show live feedback" toggle, anything non-primary.
-- **Hover/Focus:** background steps to Glacier Sky Hover (#54b8fb) / darkens for secondary buttons to a lighter Slate Seam tint; add the Interactive Lift shadow; no transform/scale (no bounce).
-- **Destructive (End Session):** Signal Red Solid (#b91c1c) background, Cool White text (5.54:1) — the one button allowed to use a status color as a fill, because ending the recording is a deliberate, infrequent, consequential action. Uses the Solid shade, not text-Signal-Red, since white text on the lighter text-shade red fails AA.
+Lifted from the deck, restrained for a working tool: chrome gets choreography, the recording critical path does not.
+
+- **Ease standard** (`--ease-standard`, `cubic-bezier(0.16,1,0.3,1)`): ease-out-quint for transitions and entrances — **no bounce or elastic easing**, this constraint survives the pivot unchanged.
+- **Panel transitions**: route changes fade/slide up (`motion-safe:animate-in fade-in slide-in-from-bottom-2`, 300ms) — feedback that the tab-like panel changed, not an orchestrated load sequence.
+- **REC dot** (`.rec-dot`): hard on/off blink (`step-end`, 1s) — literal VHS REC blink, not a smooth pulse. Always paired with a "REC" text label.
+- **Glitch title** (`.glitch-text`): one-shot per mount (8s keyframe, plays once, no infinite loop) — reserved for the sidebar wordmark on initial load only. A dashboard a presenter stares at for minutes cannot repeat a glitch every 8 seconds; the deck can, because no one watches one slide that long.
+- **Boot flash** (`<BootFlash />`): a ~650ms color-bar flash on first hard load only, `pointer-events-none`, never blocks interaction, skipped under reduced motion. Does not replay on client-side navigation (it lives in the shell, which doesn't remount).
+- **Tracking-roll** (`.tracking-roll`): the CRT sweep, reserved for deliberate one-shot triggers (e.g. a future panel-transition flourish) — never a randomized interval timer like the deck's ambient version. Randomized "ambient" decoration belongs on a slide nobody is trying to read for 10 minutes, not a tool.
+
+### Named Rules
+**The No-Loop-On-Critical-Path Rule (new).** The recording screen (`session.$id.tsx`) gets static chrome only — corner brackets, a static REC blink paired with a label. No canvas noise, no randomized tracking-roll, nothing that runs continuously while a rehearsal is being captured. Decorate the chrome; never the thing the presenter is staring at while talking.
+
+**Reduced motion** *(carried over, unchanged)*: every keyframe-driven element (`recBlink`, `titleGlitch`, `trackingRoll`, `bootBars`) has a `prefers-reduced-motion: reduce` fallback that disables the animation outright, consistent with the project's existing `motion-safe:`/`motion-reduce:` convention.
+
+## 6. Components
+
+### Buttons *(token values changed, structure unchanged)*
+- **Primary**: Orange background, Void text, 600 weight. Hover → Orange Hover (#ff8c3d); active → Orange-D (#e06a0f).
+- **Secondary/Ghost**: Navy background, Pearl text, teal-tinted hairline border.
+- **Destructive (End Session)**: Red Solid (#c81e3a) fill, white text (5.67:1) — unchanged rationale: a deliberate, infrequent, consequential action earns the one status-as-fill exception.
 
 ### Cards / Panels
-- **Corner Style:** 12px radius (`rounded.md`).
-- **Background:** Raised Slate on Slate Night — the only elevation cue (§4).
-- **Shadow Strategy:** none at rest (Flat-At-Rest Rule).
-- **Border:** none by default; a 1px Slate Seam border only where two panels sit edge-to-edge with no gap.
-- **Internal Padding:** 20–24px (`rounded` aside, use `spacing.lg`).
-- **Never nest a card inside a card.** A panel's strength/improvement columns are plain flex columns, not sub-cards.
+- Navy-2 background, teal-tinted hairline border (`rgba(77,212,204,0.22)`), `--radius: 0.5rem` (slightly boxier than the old 0.75rem — a console, not a soft app tile).
+- **Never nest a card inside a card** *(carried over, unchanged)*.
+- Score-category panels and the hero score card now carry `<CornerBrackets />` — the one piece of "every-pixel" decoration that earned its place because the report screen is the highest-stakes screen in the live demo.
 
-### Inputs / Fields
-- **Style:** Raised Slate background, Slate Seam 1px border, 8px radius, Cool White text, Slate Fog placeholder (verified ≥4.5:1, not the default muted gray).
-- **Focus:** border shifts to Glacier Sky, no glow/ring blur — a clean 1px color change reads as precise, not decorative.
-- **Error/Disabled:** error border uses Signal Red + an inline icon/text (never red border alone); disabled drops opacity to 0.5 and removes the cursor pointer.
+### The Score Ring *(signature component, unchanged behavior)*
+- Same 160px circle / 8px stroke / one-time stroke-draw entrance as before. New: a `drop-shadow` glow in the score's own status color (§4).
 
-### The Score Ring (signature component)
-- A circular instrument readout, not a progress bar: 160px circle, 8px stroke, stroke color = status color for the overall score band (green ≥80 / amber 60–79 / red <60), center text in Display typography (Geist Mono, 700).
-- No gradient stroke, no drop shadow, no rotating/spinning entrance — it resolves into place once (a brief stroke-draw from 0 to the score value, ease-out-quart, ~600ms), then stays static. This is the one moment of choreographed motion in the whole system; everywhere else motion is purely responsive (§6).
+### Sidebar (new)
+- Navy background, teal-tinted border, persistent across all routes (mounted in `__root.tsx`, not per-route).
+- Avatar placeholder → dashed-teal square, mono "#OP-2000" tag.
+- Status row: green Wifi icon + "ONLINE" mono label (icon+label, never color alone) plus a "GOLD OPERATOR" tier badge — orange-tinted pill, mono, tracked.
+- Wallet ("Tape Credits"): Space Mono number, briefly scales + flashes orange on increment (`justIncreased` in `useWallet()`), 900ms, ease-standard.
+- Nav items: active state = Navy-3 fill + orange icon; mock-only items carry a small "DEMO" mono tag so it's honest about what's wired up.
 
-### Toasts
-- Raised Slate background, left edge uses a **full 1px Slate Seam border**, not a colored stripe (the system has no side-stripe-border components — severity is carried by an inline icon, not a colored bar). Slide in from the right, ease-out-quart, no bounce; auto-dismiss after 5s per PRD.
+### Reports Archive — "Tape Rack" (new)
+- A flat list of "tape" rows (mono `TAPE 00X` id, topic in Tektur, date in mono, score in its status color, lock/unlock icon) — teletext-listing density rather than a card grid, per the brief's VHS-rack framing. Clicking a row routes to `/session/$id/report?mock=<key>`, reusing the existing dev-fixture convention in `app/lib/mockReportData.ts`.
 
-## 6. Do's and Don'ts
+### Toasts *(unchanged structure, retuned voice)*
+- Same shape as before (full border, no colored stripe — the side-stripe ban is unchanged). Message text now renders in Space Mono — toasts are live telemetry, not prose.
+
+## 7. Do's and Don'ts
 
 ### Do:
-- **Do** keep the dark Slate Night → Raised Slate tonal step as the only elevation mechanism (Flat-At-Rest Rule).
-- **Do** render every measured value (scores, timestamps, slide numbers, session IDs) in Geist Mono (Two-Voice Rule).
-- **Do** pair every status color with an icon or text label, with no exceptions (Status-Plus-Label Rule).
-- **Do** use ease-out-quart/expo for all transitions, with a `prefers-reduced-motion` fallback that drops to an instant or cross-fade state change.
-- **Do** treat a low score as information: Signal Red appears on numbers/icons only, never as a panel or page background.
+- **Do** keep teal structural-only and orange as the single hero fill — the Two-Accent Rule.
+- **Do** use a solid color (`--ash`, `--pearl`, a status color) for any text that needs guaranteed contrast — never `--dim` or another alpha value (Solid-Text Rule).
+- **Do** keep Tektur off buttons, nav labels, form labels, and data — Body and Mono carry all functional text (Three-Voice Rule).
+- **Do** keep the dashboard's gamified chrome (wallet, tier badge, archive, leaderboard, achievements) honestly labeled as demo/mock where it isn't backed by real data.
+- **Do** keep every status color paired with an icon or label — unchanged accessibility floor.
+- **Do** keep chrome (grid/vignette/scanlines/brackets) static and cheap enough to run through a live recording.
 
 ### Don't:
-- **Don't** use Inter, Arial, or the literal `system-ui` font stack anywhere in this product (PRODUCT.md anti-reference).
-- **Don't** use a purple-to-blue gradient, or any gradient text (PRODUCT.md anti-reference; also an Impeccable absolute ban).
-- **Don't** place gray (Slate Fog) text on any of the three status colors — use Slate Night or Cool White depending on the status color's lightness, whichever clears 4.5:1.
-- **Don't** nest a card/panel inside another card/panel (PRODUCT.md anti-reference).
-- **Don't** use bounce or elastic easing on any transition or entrance (PRODUCT.md anti-reference).
-- **Don't** use a colored side-stripe border (`border-left`/`border-right` as an accent) on toasts, alerts, or list items — use a full border, background tint, or icon instead.
-- **Don't** make the product feel like a generic corporate SaaS dashboard, a cartoon/gamified mascot experience, or a punitive grading screen (PRODUCT.md anti-references) — the test is the Recovery Score North Star: would Whoop or Oura ship this screen?
+- **Don't** reach for bounce or elastic easing on any transition — *the no-bounce rule survives the pivot even though gamification doesn't*. Y2K showmanship reads as confident, snappy ease-out, not springy.
+- **Don't** run a continuous/randomized decorative loop (canvas noise, random tracking-roll, infinite glitch) on a screen the user is actively working in, especially the recording screen — see the No-Loop-On-Critical-Path Rule.
+- **Don't** use Tektur anywhere a user reads it as a control rather than a heading.
+- **Don't** place `--ash`-on-status-color or any low-contrast pairing — same AA floor as before, new palette.
+- **Don't** use a colored side-stripe border on toasts, alerts, or list/archive rows — full border or background tint only, unchanged ban.
+- **Don't** nest a card/panel inside another card/panel — unchanged ban.
+- **Don't** silently mix mock and real data — every pure-visual nav item (Leaderboard, Achievements, Settings) carries a "DEMO" tag so the live judged demo never implies a feature that isn't built.
+
+### What changed from "The Recovery Score" (for the record)
+The old system's anti-gamification and anti-bounce rules weren't wrong for what they were guarding — a single, high-stakes score screen judged in the moment. They're superseded, not violated, now that the surrounding shell is an explicit Y2K/gamified pivot: the **wallet, tier badge, leaderboard, and achievements are new, deliberate gamification** the old system explicitly banned. The bounce/elastic-easing ban is the one rule that **survives untouched** — Y2K showmanship in this deck is confident and snappy, not springy, so there was never a reason to introduce bounce even while everything else about the tone flipped.

@@ -45,6 +45,7 @@ export function ScoreRing({ score, size = 160 }: { score: number; size?: number 
           strokeLinecap="round"
           strokeDasharray={circumference}
           strokeDashoffset={offset}
+          style={{ filter: `drop-shadow(0 0 6px ${color})` }}
           className="transition-[stroke-dashoffset] duration-[600ms] ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none"
         />
       </svg>

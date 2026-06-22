@@ -1,118 +1,97 @@
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useState } from "react";
-import { createSession, storeToken, uploadPptx } from "~/lib/api";
-import { Button } from "~/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "~/components/ui/card";
-import { Input } from "~/components/ui/input";
-import { Textarea } from "~/components/ui/textarea";
-import { Label } from "~/components/ui/label";
+import { createFileRoute, Link } from "@tanstack/react-router";
+import { Archive, Lock, PlayCircle, User } from "lucide-react";
+import { CornerBrackets } from "~/components/chrome/CornerBrackets";
 
-export const Route = createFileRoute("/")({ component: LandingPage });
+export const Route = createFileRoute("/")({ component: HomePage });
 
-function LandingPage() {
-  const nav = useNavigate();
-  const [topic, setTopic] = useState("");
-  const [topicContext, setTopicContext] = useState("");
-  const [file, setFile] = useState<File | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+type Advisor = { name: string; specialty: string };
 
-  const handleStart = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError(null);
-    setLoading(true);
-    try {
-      const { session_id, access_token } = await createSession({
-        topic,
-        topic_context: topicContext || undefined,
-      });
-      storeToken(session_id, access_token);
-      if (file) await uploadPptx(session_id, file);
-      nav({ to: "/session/$id", params: { id: session_id } });
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
-    } finally {
-      setLoading(false);
-    }
-  };
+/**
+ * Demo-only — stand-ins for the real OctoPrep2000 build team, framed as the
+ * Tikal Experts you unlock a 1-on-1 with at 80+. Photos are placeholders
+ * until real headshots land; swap the icon tile for a real photo per advisor then.
+ */
+const ADVISORS: Advisor[] = [
+  { name: "Aviv", specialty: "Architecture & Delivery Coach" },
+  { name: "Naor", specialty: "Body Language & Camera Presence" },
+  { name: "Or Yam", specialty: "Voice & Delivery Coach" },
+  { name: "Din", specialty: "Technical Content Accuracy" },
+  { name: "Stav", specialty: "Slide Design & Clarity" },
+  { name: "Avner", specialty: "Systems & Storytelling" },
+  { name: "Ortal", specialty: "Audience Experience Design" },
+  { name: "Lihi", specialty: "Narrative & Stage Presence" },
+];
 
+function HomePage() {
   return (
-    <main className="mx-auto flex min-h-screen max-w-xl flex-col justify-center px-6 py-16">
-      <div className="mb-10">
-        <p className="font-mono text-xs tracking-[0.2em] text-muted-foreground uppercase">
-          OctoPrep2000
-        </p>
-        <h1 className="mt-2 text-3xl font-semibold tracking-tight text-balance">
-          Rehearse. Get a score you can trust.
-        </h1>
-        <p className="mt-3 text-base text-muted-foreground">
-          Upload your deck, practice live on camera, and get specific, timestamped feedback —
-          not a generic grade.
-        </p>
+    <main className="mx-auto flex h-screen w-full max-w-5xl flex-col justify-center overflow-hidden px-10 py-6">
+      <p className="font-mono text-xs tracking-[0.2em] text-teal uppercase">
+        Tikal Fuse Day · System Online
+      </p>
+      <h1 className="mt-2 font-display text-3xl font-bold tracking-tight text-balance text-pearl">
+        Welcome back, Lior.
+      </h1>
+      <p className="mt-2 max-w-xl text-sm text-muted-foreground">
+        Your rehearsal deck is standing by. Start a session to get a scored report, or pull up
+        a past run from the archive.
+      </p>
+
+      <div className="mt-5 grid gap-3 sm:grid-cols-2">
+        <Link
+          to="/start"
+          className="group relative flex flex-col gap-2 overflow-hidden rounded-xl border border-border bg-card p-4 transition-colors motion-safe:duration-200 hover:border-orange/50"
+        >
+          <CornerBrackets className="opacity-0 transition-opacity motion-safe:duration-200 group-hover:opacity-100" />
+          <PlayCircle className="size-5 text-orange" aria-hidden="true" />
+          <span className="font-display text-base font-bold text-pearl">Start Session</span>
+          <span className="text-xs text-muted-foreground">
+            Upload a deck, rehearse live, get your 4-vector score.
+          </span>
+        </Link>
+
+        <Link
+          to="/archive"
+          className="group relative flex flex-col gap-2 overflow-hidden rounded-xl border border-border bg-card p-4 transition-colors motion-safe:duration-200 hover:border-teal/50"
+        >
+          <CornerBrackets className="opacity-0 transition-opacity motion-safe:duration-200 group-hover:opacity-100" />
+          <Archive className="size-5 text-teal" aria-hidden="true" />
+          <span className="font-display text-base font-bold text-pearl">Reports Archive</span>
+          <span className="text-xs text-muted-foreground">
+            Browse past rehearsals and revisit their scored reports.
+          </span>
+        </Link>
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Start a session</CardTitle>
-          <CardDescription>Takes about a minute to set up.</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <form onSubmit={handleStart} className="flex flex-col gap-5">
-            <div className="flex flex-col gap-2">
-              <Label htmlFor="topic">
-                Topic <span className="text-muted-foreground">— what&apos;s your talk about?</span>
-              </Label>
-              <Input
-                id="topic"
-                type="text"
-                required
-                minLength={8}
-                maxLength={200}
-                placeholder="React 19 new features"
-                value={topic}
-                onChange={(e) => setTopic(e.target.value)}
-              />
+      <div className="mt-6">
+        <p className="font-mono text-xs tracking-[0.2em] text-teal uppercase">Demo Mock</p>
+        <h2 className="mt-1 font-display text-xl font-bold tracking-tight text-pearl">
+          Your Tikal Expert Advisors
+        </h2>
+        <p className="mt-1 max-w-xl text-xs text-muted-foreground">
+          Score 80+ overall to unlock a live 1-on-1 session with any advisor below.
+        </p>
+
+        <div className="mt-3 grid grid-cols-4 gap-2 sm:grid-cols-8">
+          {ADVISORS.map((advisor) => (
+            <div
+              key={advisor.name}
+              className="group relative flex flex-col items-center gap-1.5 overflow-hidden rounded-xl border border-border bg-card px-2 py-3 text-center transition-colors motion-safe:duration-200 hover:border-teal/50"
+            >
+              <CornerBrackets className="opacity-0 transition-opacity motion-safe:duration-200 group-hover:opacity-100" />
+              <div className="relative flex size-11 shrink-0 items-center justify-center rounded-full border border-dashed border-teal/50 bg-teal/10 text-teal">
+                <User className="size-4" aria-hidden="true" />
+                <span className="absolute -right-1 -bottom-1 flex size-4 items-center justify-center rounded-full border border-border bg-navy text-ash">
+                  <Lock className="size-2" aria-hidden="true" />
+                </span>
+              </div>
+              <span className="font-display text-xs font-bold text-pearl">{advisor.name}</span>
+              <span className="font-mono text-[9px] leading-tight tracking-wide text-ash">
+                {advisor.specialty}
+              </span>
             </div>
-
-            <div className="flex flex-col gap-2">
-              <Label htmlFor="audience">
-                Audience context <span className="text-muted-foreground">— optional</span>
-              </Label>
-              <Textarea
-                id="audience"
-                rows={2}
-                maxLength={500}
-                placeholder="Senior frontend devs at Tikal"
-                value={topicContext}
-                onChange={(e) => setTopicContext(e.target.value)}
-              />
-            </div>
-
-            <div className="flex flex-col gap-2">
-              <Label htmlFor="deck">
-                Slide deck{" "}
-                <span className="text-muted-foreground">— .pptx, optional but recommended</span>
-              </Label>
-              <Input
-                id="deck"
-                type="file"
-                accept=".pptx"
-                onChange={(e) => setFile(e.target.files?.[0] ?? null)}
-              />
-            </div>
-
-            <Button type="submit" disabled={loading} size="lg" className="mt-1">
-              {loading ? "Starting…" : "Start Session →"}
-            </Button>
-
-            {error && (
-              <p className="text-sm text-destructive" role="alert">
-                {error}
-              </p>
-            )}
-          </form>
-        </CardContent>
-      </Card>
+          ))}
+        </div>
+      </div>
     </main>
   );
 }

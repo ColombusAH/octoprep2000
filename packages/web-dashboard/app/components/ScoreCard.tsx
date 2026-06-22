@@ -1,6 +1,7 @@
 import { Mic, Camera, Image, Brain, Lock, LockOpen, CheckCircle2, ArrowUpCircle, VideoOff } from "lucide-react";
 import { Card } from "~/components/ui/card";
 import { ScoreRing, ScoreBar, scoreColor } from "~/components/ScoreRing";
+import { CornerBrackets } from "~/components/chrome/CornerBrackets";
 
 type Insight = {
   category: "voice" | "body" | "slide" | "content";
@@ -49,10 +50,11 @@ function Panel({
   const notScored = score === null && insights.length === 0;
 
   return (
-    <Card className="p-5">
+    <Card className="relative p-5">
+      <CornerBrackets />
       <div className="flex items-center gap-3">
-        <Icon className="size-5 text-muted-foreground" aria-hidden="true" />
-        <h3 className="flex-1 font-medium">{title}</h3>
+        <Icon className="size-5 text-teal" aria-hidden="true" />
+        <h3 className="flex-1 font-display text-base font-bold text-pearl">{title}</h3>
         {score !== null && (
           <span className="font-mono text-sm font-semibold" style={{ color: scoreColor(score) }}>
             {Math.round(score)}/100
@@ -71,7 +73,7 @@ function Panel({
       ) : (
         <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
           <div className="flex flex-col gap-2">
-            <h4 className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">
+            <h4 className="font-mono text-xs font-semibold tracking-[0.14em] text-teal uppercase">
               Strengths
             </h4>
             {strengths.length === 0 ? (
@@ -90,7 +92,7 @@ function Panel({
             )}
           </div>
           <div className="flex flex-col gap-2">
-            <h4 className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">
+            <h4 className="font-mono text-xs font-semibold tracking-[0.14em] text-teal uppercase">
               Improvements
             </h4>
             {improvements.length === 0 ? (
@@ -141,13 +143,14 @@ export function ScoreCard({
 
   return (
     <div className="flex flex-col gap-4">
-      <Card className="flex flex-col items-center gap-6 p-6 sm:flex-row sm:items-center">
+      <Card className="relative flex flex-col items-center gap-6 p-6 sm:flex-row sm:items-center">
+        <CornerBrackets />
         <ScoreRing score={overall} />
         {unlocked ? (
           <div className="flex flex-col items-center gap-2 text-center sm:items-start sm:text-left">
             <div className="flex items-center gap-2">
               <LockOpen className="size-4" style={{ color: "var(--green)" }} aria-hidden="true" />
-              <h2 className="text-lg font-semibold">Mentor unlocked</h2>
+              <h2 className="font-display text-lg font-bold text-pearl">Mentor unlocked</h2>
             </div>
             <a
               href={mentorBookingUrl}
@@ -162,7 +165,7 @@ export function ScoreCard({
           <div className="flex flex-col items-center gap-2 text-center sm:items-start sm:text-left">
             <div className="flex items-center gap-2">
               <Lock className="size-4 text-muted-foreground" aria-hidden="true" />
-              <h2 className="text-lg font-semibold">Mentor locked</h2>
+              <h2 className="font-display text-lg font-bold text-pearl">Mentor locked</h2>
             </div>
             <p className="max-w-md text-sm text-muted-foreground">
               You are{" "}

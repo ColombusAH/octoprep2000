@@ -27,10 +27,12 @@ export function Toast({ event, onDismiss }: { event: ToastEvent; onDismiss: () =
   return (
     <div
       role="status"
-      className="flex min-w-60 items-center gap-2.5 rounded-lg border border-border bg-card px-4 py-3 text-sm text-card-foreground motion-safe:animate-in motion-safe:fade-in motion-safe:slide-in-from-right-8 motion-safe:duration-300 motion-safe:ease-out"
+      className="flex min-w-60 items-center gap-2.5 rounded-lg border border-border bg-card px-4 py-3 text-sm text-card-foreground motion-safe:animate-in motion-safe:fade-in motion-safe:slide-in-from-right-8 motion-safe:duration-300 motion-safe:ease-[var(--ease-standard)]"
     >
       <Icon className={cn("size-4 shrink-0", className)} aria-hidden="true" />
-      <strong className="font-medium">{event.message ?? event.type}</strong>
+      <strong className="font-mono text-xs font-medium tracking-wide">
+        {event.message ?? event.type}
+      </strong>
     </div>
   );
 }

@@ -1,59 +1,89 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
-@import "@fontsource-variable/geist";
-@import "@fontsource-variable/geist-mono";
+@import "@fontsource/tektur/500.css";
+@import "@fontsource/tektur/700.css";
+@import "@fontsource/tektur/900.css";
+@import "@fontsource/space-mono/400.css";
+@import "@fontsource/space-mono/700.css";
+@import "@fontsource/chakra-petch/300.css";
+@import "@fontsource/chakra-petch/400.css";
+@import "@fontsource/chakra-petch/500.css";
+@import "@fontsource/chakra-petch/600.css";
+@import "@fontsource/chakra-petch/700.css";
 
 @custom-variant dark (&:is(.dark *));
 
 /*
- * OctoPrep2000 is dark-only (no light mode) — see DESIGN.md "The Recovery Score".
+ * OctoPrep2000 is dark-only (no light mode) — see DESIGN.md "Broadcast Deck".
  * :root carries the dark palette directly (no separate .dark override block,
  * no FOUC risk). The `dark` class is still applied to <html> in __root.tsx so
  * any literal `dark:` utility classes baked into shadcn/Nova component markup
  * resolve correctly against this same palette.
  */
 :root {
-  --green: #1f9d55;
-  --amber: #f59e0b;
-  --red: #ef5858; /* text/icon shade — #dc2626 only hits 3.39:1 on --card, fails AA */
-  --red-solid: #b91c1c; /* solid-fill shade for the one destructive button (white text needs darker) */
-  --primary-hover: #54b8fb;
+  /* Y2K broadcast palette — lifted from docs/presentation/octoprep2000-pitch.html */
+  --void: #060d1a; /* page background, near-black with a blue cast */
+  --navy: #0a1e35; /* second neutral layer — sidebar, toolbars */
+  --navy-2: #0d2742; /* raised surface — cards, panels, popovers */
+  --navy-3: #14304a; /* hover/active tint one step above navy-2 */
+  --teal: #4dd4cc; /* structural/chrome accent only — borders, focus, HUD labels, icons */
+  --orange: #ff7a1a; /* the one hero accent — primary actions, brand */
+  --orange-hover: #ff8c3d;
+  --orange-d: #e06a0f;
+  --white: #ffffff;
+  --pearl: #e8f4ff; /* primary text */
+  --ash: #9fb3c9; /* secondary/muted text — solid, NOT the decorative --dim alpha */
+  --dim: rgba(232, 244, 255, 0.6); /* decorative HUD chrome only, never functional text */
 
-  /* shadcn semantic tokens, mapped to DESIGN.md (Slate Night / Glacier Sky) */
-  --background: #0f1419;
-  --foreground: #e8eef4;
-  --card: #1a2028;
-  --card-foreground: #e8eef4;
-  --popover: #1a2028;
-  --popover-foreground: #e8eef4;
-  --primary: #6cc4ff;
-  --primary-foreground: #0f1419;
-  --secondary: #1a2028;
-  --secondary-foreground: #e8eef4;
-  --muted: #1a2028;
-  --muted-foreground: #8a96a3;
-  --accent: #2a323c;
-  --accent-foreground: #e8eef4;
-  --destructive: #ef5858;
-  --destructive-foreground: #e8eef4;
-  --border: #2a323c;
-  --input: #2a323c;
-  --ring: #6cc4ff;
-  --chart-1: #6cc4ff;
-  --chart-2: #1f9d55;
-  --chart-3: #f59e0b;
-  --chart-4: #ef5858;
-  --chart-5: #8a96a3;
-  --radius: 0.75rem;
-  --sidebar: #1a2028;
-  --sidebar-foreground: #e8eef4;
-  --sidebar-primary: #6cc4ff;
-  --sidebar-primary-foreground: #0f1419;
-  --sidebar-accent: #2a323c;
-  --sidebar-accent-foreground: #e8eef4;
-  --sidebar-border: #2a323c;
-  --sidebar-ring: #6cc4ff;
+  /* Status vocabulary — distinct from hero orange, verified >=4.5:1 on --void and --navy-2 */
+  --green: #2ed573;
+  --amber: #f5c518;
+  --red: #ff6b86; /* text/icon shade */
+  --red-solid: #c81e3a; /* solid-fill shade for the one destructive button (white text needs darker) */
+  --primary-hover: var(--orange-hover);
+
+  /* shadcn semantic tokens, mapped to the Y2K palette */
+  --background: var(--void);
+  --foreground: var(--pearl);
+  --card: var(--navy-2);
+  --card-foreground: var(--pearl);
+  --popover: var(--navy-2);
+  --popover-foreground: var(--pearl);
+  --primary: var(--orange);
+  --primary-foreground: var(--void);
+  --secondary: var(--navy);
+  --secondary-foreground: var(--pearl);
+  --muted: var(--navy);
+  --muted-foreground: var(--ash);
+  --accent: var(--navy-3);
+  --accent-foreground: var(--pearl);
+  --destructive: var(--red);
+  --destructive-foreground: var(--white);
+  --border: rgba(77, 212, 204, 0.22);
+  --input: rgba(77, 212, 204, 0.35);
+  --ring: var(--teal);
+  --chart-1: var(--orange);
+  --chart-2: var(--green);
+  --chart-3: var(--amber);
+  --chart-4: var(--red);
+  --chart-5: var(--teal);
+  --radius: 0.5rem;
+  --sidebar: var(--navy);
+  --sidebar-foreground: var(--pearl);
+  --sidebar-primary: var(--orange);
+  --sidebar-primary-foreground: var(--void);
+  --sidebar-accent: var(--navy-3);
+  --sidebar-accent-foreground: var(--pearl);
+  --sidebar-border: rgba(77, 212, 204, 0.2);
+  --sidebar-ring: var(--teal);
+
+  /* Motion */
+  --ease-standard: cubic-bezier(0.16, 1, 0.3, 1); /* ease-out-quint, no bounce */
+  --ease-glitch: cubic-bezier(0.2, 0.7, 0.3, 1);
+
+  /* Derived atmosphere shade — --void at partial alpha, used by .chrome-vignette */
+  --void-veil: rgba(6, 13, 26, 0.55);
 }
 
 * { box-sizing: border-box; }
@@ -61,9 +91,10 @@ html, body { margin: 0; }
 button { cursor: pointer; font: inherit; }
 
 @theme inline {
-  --font-heading: var(--font-sans);
-  --font-sans: 'Geist Variable', sans-serif;
-  --font-mono: 'Geist Mono Variable', ui-monospace, monospace;
+  --font-display: 'Tektur', sans-serif;
+  --font-heading: var(--font-display);
+  --font-sans: 'Chakra Petch', sans-serif;
+  --font-mono: 'Space Mono', ui-monospace, monospace;
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
@@ -95,6 +126,23 @@ button { cursor: pointer; font: inherit; }
   --color-card: var(--card);
   --color-foreground: var(--foreground);
   --color-background: var(--background);
+
+  /* Y2K palette exposed as Tailwind utilities (bg-teal, text-orange/70, border-navy-3, ...) */
+  --color-void: var(--void);
+  --color-navy: var(--navy);
+  --color-navy-2: var(--navy-2);
+  --color-navy-3: var(--navy-3);
+  --color-teal: var(--teal);
+  --color-orange: var(--orange);
+  --color-orange-hover: var(--orange-hover);
+  --color-orange-d: var(--orange-d);
+  --color-pearl: var(--pearl);
+  --color-ash: var(--ash);
+  --color-green: var(--green);
+  --color-amber: var(--amber);
+  --color-red: var(--red);
+  --color-red-solid: var(--red-solid);
+
   --radius-sm: calc(var(--radius) * 0.6);
   --radius-md: calc(var(--radius) * 0.8);
   --radius-lg: var(--radius);
@@ -113,5 +161,94 @@ button { cursor: pointer; font: inherit; }
   }
   html {
     @apply font-sans;
+  }
+}
+
+/* ===========================================
+   BROADCAST CHROME — static atmosphere layers
+   Cheap (no canvas, no intervals) so they're safe to leave mounted
+   through a live recording session.
+   =========================================== */
+@layer components {
+  .chrome-grid {
+    background-image:
+      linear-gradient(rgba(77, 212, 204, 0.05) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(77, 212, 204, 0.05) 1px, transparent 1px);
+    background-size: 32px 32px;
+  }
+  .chrome-scanlines {
+    background: repeating-linear-gradient(
+      0deg,
+      transparent,
+      transparent 5px,
+      rgba(0, 0, 0, 0.06) 5px,
+      rgba(0, 0, 0, 0.06) 7px
+    );
+  }
+  .chrome-vignette {
+    background: radial-gradient(ellipse 100% 100% at 50% 30%, transparent 45%, rgba(6, 13, 26, 0.55) 100%);
+  }
+
+  .chrome-bracket {
+    position: absolute;
+    width: 16px;
+    height: 16px;
+    border-color: var(--teal);
+    border-style: solid;
+    border-width: 0;
+    opacity: 0.5;
+    pointer-events: none;
+  }
+  .chrome-bracket-tl { top: 0; left: 0; border-top-width: 2px; border-left-width: 2px; }
+  .chrome-bracket-tr { top: 0; right: 0; border-top-width: 2px; border-right-width: 2px; }
+  .chrome-bracket-bl { bottom: 0; left: 0; border-bottom-width: 2px; border-left-width: 2px; }
+  .chrome-bracket-br { bottom: 0; right: 0; border-bottom-width: 2px; border-right-width: 2px; }
+
+  .glitch-text {
+    animation: titleGlitch 8s var(--ease-glitch) 1;
+  }
+
+  .rec-dot {
+    animation: recBlink 1s step-end infinite;
+  }
+
+  .tracking-roll {
+    animation: trackingRoll 0.7s linear 1;
+  }
+
+  .boot-bars {
+    animation: bootBars 0.7s ease-out 1 both;
+  }
+}
+
+@keyframes titleGlitch {
+  0%, 82%, 100% { transform: translate(0, 0); filter: none; }
+  85% { transform: translate(-3px, 0); filter: hue-rotate(8deg); }
+  88% { transform: translate(3px, 0); }
+  91% { transform: translate(-1px, 1px); }
+  94%, 100% { transform: translate(0, 0); filter: none; }
+}
+
+@keyframes recBlink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+
+@keyframes trackingRoll {
+  0% { transform: translateY(-100%); opacity: 0; }
+  10% { opacity: 0.9; }
+  90% { opacity: 0.6; }
+  100% { transform: translateY(2000%); opacity: 0; }
+}
+
+@keyframes bootBars {
+  0% { opacity: 1; }
+  60% { opacity: 1; }
+  100% { opacity: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .glitch-text, .rec-dot, .tracking-roll, .boot-bars {
+    animation: none !important;
   }
 }

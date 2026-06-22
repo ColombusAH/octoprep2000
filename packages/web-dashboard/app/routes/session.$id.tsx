@@ -7,6 +7,7 @@ import { ToastStack, type ToastEvent } from "~/components/Toast";
 import { Button } from "~/components/ui/button";
 import { Switch } from "~/components/ui/switch";
 import { Label } from "~/components/ui/label";
+import { CornerBrackets } from "~/components/chrome/CornerBrackets";
 
 export const Route = createFileRoute("/session/$id")({ component: SessionPage });
 
@@ -125,17 +126,20 @@ function SessionPage() {
   };
 
   return (
-    <main className="mx-auto min-h-screen max-w-5xl px-6 py-10">
-      <h1 className="mb-6 text-2xl font-semibold tracking-tight">Practice Session</h1>
+    <main className="mx-auto w-full max-w-5xl px-8 py-10">
+      <h1 className="mb-6 font-display text-2xl font-bold tracking-tight text-pearl">
+        Practice Session
+      </h1>
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1fr_300px]">
         <div>
           <div className="relative overflow-hidden rounded-xl bg-black">
+            <CornerBrackets />
             {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
             <video ref={videoRef} muted playsInline className="aspect-video w-full" />
             {running && (
-              <div className="absolute top-3 left-3 flex items-center gap-1.5 rounded-full bg-black/60 px-2.5 py-1 text-xs font-medium text-white backdrop-blur-sm">
-                <span className="size-1.5 rounded-full bg-[var(--red)] motion-safe:animate-pulse" />
-                Recording
+              <div className="absolute top-3 left-3 flex items-center gap-1.5 rounded-full bg-black/60 px-2.5 py-1 font-mono text-xs font-medium tracking-wide text-white backdrop-blur-sm">
+                <span className="rec-dot size-1.5 rounded-full bg-orange motion-reduce:opacity-100" />
+                REC
               </div>
             )}
           </div>
@@ -148,7 +152,7 @@ function SessionPage() {
               <Button
                 onClick={stop}
                 size="lg"
-                className="bg-[var(--red-solid)] text-white hover:bg-[#a31818]"
+                className="bg-red-solid text-white hover:bg-red-solid/85"
               >
                 End Session
               </Button>
@@ -167,7 +171,7 @@ function SessionPage() {
           </div>
         </div>
         <aside>
-          <h3 className="text-sm font-semibold tracking-wide uppercase text-muted-foreground">
+          <h3 className="font-mono text-xs font-semibold tracking-[0.14em] text-teal uppercase">
             Session ID
           </h3>
           <code className="mt-1 block font-mono text-xs text-muted-foreground">{id}</code>
