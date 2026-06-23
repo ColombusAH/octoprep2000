@@ -10,15 +10,24 @@ export type CaptureHandles = {
   stop: () => void;
 };
 
+/**
+ * Acquires the camera and attaches it to `videoEl` immediately, independent of
+ * recording — lets the presenter see themselves before hitting Start Recording
+ * instead of only once capture begins.
+ */
+export async function getCameraPreview(videoEl: HTMLVideoElement): Promise<MediaStream> {
+  const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+  videoEl.srcObject = stream;
+  await videoEl.play();
+  return stream;
+}
+
 export async function startVideoCapture(
+  stream: MediaStream,
   videoEl: HTMLVideoElement,
   sendFrame: (bytes: ArrayBuffer) => void,
   onDeviceLost?: () => void,
 ): Promise<CaptureHandles> {
-  const stream = await navigator.mediaDevices.getUserMedia({ video: true });
-  videoEl.srcObject = stream;
-  await videoEl.play();
-
   if (onDeviceLost) stream.getVideoTracks()[0].onended = onDeviceLost;
 
   const off = new OffscreenCanvas(320, 240);

@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { createShareLink, getPublicConfig, getReport, type PublicConfig } from "~/lib/api";
 import { ScoreCard, type ReportData } from "~/components/ScoreCard";
+import { ProcessingScreen } from "~/components/ProcessingScreen";
 import { Button } from "~/components/ui/button";
 import { MOCK_REPORTS, MOCK_CONFIG } from "~/lib/mockReportData";
 
@@ -26,6 +27,15 @@ function ReportPage() {
     mockReport === undefined && mock ? `Unknown mock key "${mock}"` : null,
   );
   const [shareUrl, setShareUrl] = useState<string | null>(null);
+  // Hold the report-ready transition for one "complete" beat on ProcessingScreen
+  // before swapping to ScoreCard, so the wait pays off instead of cutting away.
+  const [revealReport, setRevealReport] = useState(false);
+
+  useEffect(() => {
+    if (!report || !config) return;
+    const t = setTimeout(() => setRevealReport(true), 700);
+    return () => clearTimeout(t);
+  }, [report, config]);
 
   useEffect(() => {
     if (mockReport) return;
@@ -66,16 +76,13 @@ function ReportPage() {
     );
   }
 
-  if (!report || !config) {
+  if (!revealReport || !report || !config) {
     return (
       <main className="mx-auto max-w-3xl px-8 py-10">
-        <div className="flex items-center gap-3 font-mono text-sm tracking-[0.1em] text-teal">
-          <span className="relative flex size-2.5">
-            <span className="absolute inline-flex size-full rounded-full bg-teal motion-safe:animate-ping motion-reduce:hidden" />
-            <span className="relative inline-flex size-2.5 rounded-full bg-teal" />
-          </span>
-          PROCESSING SCORE…
-        </div>
+        <h1 className="mb-6 font-display text-2xl font-bold tracking-tight text-pearl">
+          Session Report
+        </h1>
+        <ProcessingScreen complete={!!(report && config)} />
       </main>
     );
   }

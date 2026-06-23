@@ -219,6 +219,10 @@ button { cursor: pointer; font: inherit; }
   .boot-bars {
     animation: bootBars 0.7s ease-out 1 both;
   }
+
+  .processing-complete-flash {
+    animation: processingCompleteFlash 0.7s var(--ease-standard) 1;
+  }
 }
 
 @keyframes titleGlitch {
@@ -247,8 +251,19 @@ button { cursor: pointer; font: inherit; }
   100% { opacity: 0; }
 }
 
+@keyframes sonarPing {
+  0% { transform: scale(0.6); opacity: 0.8; }
+  100% { transform: scale(1.4); opacity: 0; }
+}
+
+@keyframes processingCompleteFlash {
+  0% { box-shadow: 0 0 0 0 rgba(255, 122, 26, 0); }
+  30% { box-shadow: 0 0 40px 4px rgba(255, 122, 26, 0.45); }
+  100% { box-shadow: 0 0 0 0 rgba(255, 122, 26, 0); }
+}
+
 @media (prefers-reduced-motion: reduce) {
-  .glitch-text, .rec-dot, .tracking-roll, .boot-bars {
+  .glitch-text, .rec-dot, .tracking-roll, .boot-bars, .processing-complete-flash {
     animation: none !important;
   }
 }

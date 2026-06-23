@@ -1,7 +1,8 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
+import { Camera, VideoOff } from "lucide-react";
 import { endSession } from "~/lib/api";
-import { startAudioCapture, startVideoCapture, type CaptureHandles } from "~/lib/capture";
+import { getCameraPreview, startAudioCapture, startVideoCapture, type CaptureHandles } from "~/lib/capture";
 import { connectAudio, connectFeedback, connectVideo } from "~/lib/ws";
 import { ToastStack, type ToastEvent } from "~/components/Toast";
 import { Button } from "~/components/ui/button";
@@ -18,7 +19,34 @@ function SessionPage() {
   const [events, setEvents] = useState<ToastEvent[]>([]);
   const [liveFeedback, setLiveFeedback] = useState(false); // Phase 3 toggle
   const [running, setRunning] = useState(false);
+  const [previewReady, setPreviewReady] = useState(false);
+  const [previewError, setPreviewError] = useState(false);
+  const previewStreamRef = useRef<MediaStream | null>(null);
   const handlesRef = useRef<{ video?: CaptureHandles; audio?: CaptureHandles }>({});
+
+  // Show the presenter their own camera as soon as the page loads, before they
+  // hit Start Recording — avoids requesting the camera (and the multi-second
+  // permission/device-init delay) only at recording time.
+  useEffect(() => {
+    let stopped = false;
+    getCameraPreview(videoRef.current!)
+      .then((stream) => {
+        if (stopped) {
+          stream.getTracks().forEach((t) => t.stop());
+          return;
+        }
+        previewStreamRef.current = stream;
+        setPreviewReady(true);
+      })
+      .catch(() => {
+        if (!stopped) setPreviewError(true);
+      });
+    return () => {
+      stopped = true;
+      previewStreamRef.current?.getTracks().forEach((t) => t.stop());
+      previewStreamRef.current = null;
+    };
+  }, []);
 
   useEffect(() => {
     const fb = connectFeedback(id, {
@@ -69,6 +97,14 @@ function SessionPage() {
     ]);
   };
 
+  const acquireVideoStream = async (): Promise<MediaStream> => {
+    if (previewStreamRef.current) return previewStreamRef.current;
+    const stream = await getCameraPreview(videoRef.current!);
+    previewStreamRef.current = stream;
+    setPreviewReady(true);
+    return stream;
+  };
+
   const start = async () => {
     if (running) return;
     setRunning(true);
@@ -76,7 +112,9 @@ function SessionPage() {
     const audio = connectAudio(id);
 
     const [videoResult, audioResult] = await Promise.allSettled([
-      startVideoCapture(videoRef.current!, (buf) => video.send(buf), () => reportDeviceLost("Camera")),
+      acquireVideoStream().then((stream) =>
+        startVideoCapture(stream, videoRef.current!, (buf) => video.send(buf), () => reportDeviceLost("Camera")),
+      ),
       startAudioCapture((buf) => audio.send(buf), 2, () => reportDeviceLost("Microphone")),
     ]);
 
@@ -120,6 +158,7 @@ function SessionPage() {
   const stop = async () => {
     handlesRef.current.video?.stop();
     handlesRef.current.audio?.stop();
+    previewStreamRef.current = null; // its tracks were just stopped above
     setRunning(false);
     await endSession(id);
     // server emits REPORT_READY → nav happens via feedback WS handler
@@ -136,10 +175,27 @@ function SessionPage() {
             <CornerBrackets />
             {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
             <video ref={videoRef} muted playsInline className="aspect-video w-full" />
-            {running && (
+            {!previewReady && !previewError && (
+              <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-black/70 font-mono text-xs tracking-wide text-ash">
+                <Camera className="size-5 text-teal" aria-hidden="true" />
+                Requesting camera access…
+              </div>
+            )}
+            {previewError && !running && (
+              <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-black/70 px-6 text-center font-mono text-xs tracking-wide text-ash">
+                <VideoOff className="size-5 text-red" aria-hidden="true" />
+                Camera unavailable — check permission, then try Start Recording.
+              </div>
+            )}
+            {running ? (
               <div className="absolute top-3 left-3 flex items-center gap-1.5 rounded-full bg-black/60 px-2.5 py-1 font-mono text-xs font-medium tracking-wide text-white backdrop-blur-sm">
                 <span className="rec-dot size-1.5 rounded-full bg-orange motion-reduce:opacity-100" />
                 REC
+              </div>
+            ) : previewReady && (
+              <div className="absolute top-3 left-3 flex items-center gap-1.5 rounded-full bg-black/60 px-2.5 py-1 font-mono text-xs font-medium tracking-wide text-ash backdrop-blur-sm">
+                <span className="size-1.5 rounded-full bg-green" />
+                CAMERA READY
               </div>
             )}
           </div>
