@@ -16,13 +16,13 @@ const BADGES = [
 function AchievementsPage() {
   return (
     <main className="mx-auto w-full max-w-4xl px-8 py-16">
-      <p className="font-mono text-xs tracking-[0.2em] text-teal uppercase">Demo Mock</p>
+      <p className="font-mono text-xs tracking-[0.2em] text-teal uppercase">Demo</p>
       <h1 className="mt-3 flex items-center gap-3 font-display text-3xl font-bold tracking-tight text-pearl">
         <Award className="size-7 text-orange" aria-hidden="true" />
         Achievements
       </h1>
       <p className="mt-3 max-w-xl text-sm text-muted-foreground">
-        Visual mock for demo day — badges earned across rehearsal sessions.
+        Small wins, stacked — every badge here gets earned by showing up and doing the reps.
       </p>
 
       <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">

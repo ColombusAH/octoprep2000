@@ -81,7 +81,7 @@ function ReportPage() {
   }
 
   return (
-    <main className="mx-auto max-w-3xl px-8 py-10">
+    <main className="mx-auto max-w-5xl px-8 py-10">
       <header className="mb-6 flex items-center justify-between">
         <h1 className="font-display text-2xl font-bold tracking-tight text-pearl">
           Session Report

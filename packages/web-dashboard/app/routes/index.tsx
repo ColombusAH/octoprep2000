@@ -63,7 +63,7 @@ function HomePage() {
       </div>
 
       <div className="mt-6">
-        <p className="font-mono text-xs tracking-[0.2em] text-teal uppercase">Demo Mock</p>
+        <p className="font-mono text-xs tracking-[0.2em] text-teal uppercase">Unlock Tier</p>
         <h2 className="mt-1 font-display text-xl font-bold tracking-tight text-pearl">
           Your Tikal Expert Advisors
         </h2>

@@ -10,7 +10,7 @@ Single FastAPI process (all agents = `asyncio` tasks) + TanStack Start frontend 
 
 | Layer | Tech |
 |---|---|
-| Frontend | TanStack Start (React, TypeScript), Spec it |
+| Frontend | TanStack Start (React, TypeScript), shadcn/ui + Radix UI, Tailwind CSS v4 |
 | Backend | Python 3.11+, FastAPI, Agno, SQLAlchemy async, asyncpg |
 | DB | PostgreSQL 15 |
 | Vision | GPT-4o Vision via Tikal LiteLLM (semantic posture/gestures) + Google Cloud Vision face_detection (deterministic eye contact / smile / tilt — see `agents/face_detection.py`) |

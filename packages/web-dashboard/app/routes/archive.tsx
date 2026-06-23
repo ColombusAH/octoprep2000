@@ -37,7 +37,7 @@ function ArchivePage() {
         Tape Rack
       </h1>
       <p className="mt-3 max-w-xl text-sm text-muted-foreground">
-        Past rehearsals, fabricated for demo purposes. Pick a tape to replay its scored report.
+        Every rehearsal you've logged, cued up and ready — pick a tape to replay its scored report.
       </p>
 
       <div className="mt-8 flex flex-col gap-3">

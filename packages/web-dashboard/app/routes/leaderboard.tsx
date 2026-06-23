@@ -10,11 +10,13 @@ type Entrant = { name: string; score: number; sessions: number; isYou?: boolean 
 // No fixed rank field — rank is always derived from score, so the board can never
 // drift out of order as the live wallet balance (the YOU row) changes.
 const OTHERS: Entrant[] = [
-  { name: "K. NAKAMURA", score: 974, sessions: 19 },
-  { name: "T. OYELARAN", score: 911, sessions: 22 },
-  { name: "S. WEISS", score: 887, sessions: 14 },
-  { name: "R. PATEL", score: 742, sessions: 11 },
-  { name: "D. KOVACS", score: 695, sessions: 17 },
+  { name: "A. DANIEL", score: 1042, sessions: 26 },
+  { name: "O. NEHORAY", score: 968, sessions: 19 },
+  { name: "N. BITON", score: 911, sessions: 22 },
+  { name: "A. HATAB", score: 887, sessions: 14 },
+  { name: "R. SPIEGEL", score: 802, sessions: 17 },
+  { name: "A. MAOR", score: 749, sessions: 12 },
+  { name: "N. KAUFMAN", score: 695, sessions: 9 },
 ];
 
 function medalColor(rank: number) {
@@ -33,13 +35,13 @@ function LeaderboardPage() {
 
   return (
     <main className="mx-auto w-full max-w-3xl px-8 py-16">
-      <p className="font-mono text-xs tracking-[0.2em] text-teal uppercase">Demo Mock</p>
+      <p className="font-mono text-xs tracking-[0.2em] text-teal uppercase">Demo</p>
       <h1 className="mt-3 flex items-center gap-3 font-display text-3xl font-bold tracking-tight text-pearl">
         <Crown className="size-7 text-amber" aria-hidden="true" />
         Tape Credits Leaderboard
       </h1>
       <p className="mt-3 max-w-xl text-sm text-muted-foreground">
-        Visual mock for demo day — top operators by Tape Credits earned this season.
+        Every Tape Credit on this board was earned the same way — one rehearsal at a time. Here's who's leading the season.
       </p>
 
       <div className="mt-8 flex flex-col gap-2">

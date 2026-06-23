@@ -41,7 +41,7 @@ function LandingPage() {
   };
 
   return (
-    <main className="mx-auto w-full max-w-xl px-8 py-16">
+    <main className="mx-auto w-full max-w-2xl px-8 py-16">
       <div className="mb-10">
         <p className="flex items-center gap-2 font-mono text-xs tracking-[0.2em] text-teal uppercase">
           <span className="rec-dot size-2 rounded-full bg-orange motion-reduce:opacity-100" aria-hidden="true" />

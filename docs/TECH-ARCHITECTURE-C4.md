@@ -1,11 +1,27 @@
 # OctoPrep2000 — Technical Architecture (C4)
 
 **System**: OctoPrep2000
-**Version**: 1.3
-**Date**: 2026-06-17
+**Version**: 1.4
+**Date**: 2026-06-23
 **Architect**: Tikal Fuse Day Team
-**Status**: Approved for implementation — post-critique patch applied (v1.3)
+**Status**: Approved for implementation — frontend stack sync applied (v1.4)
 
+> **v1.4 changelog (2026-06-23)** — frontend stack + structure sync (Y2K redesign), no backend changes:
+> - UI component stack added: shadcn/ui, Radix UI primitives, Tailwind CSS v4, `class-variance-authority`,
+>   `clsx`, `tailwind-merge`, `tw-animate-css`, `lucide-react` — see §6 Technology Stack.
+> - Web fonts added: Tektur, Chakra Petch, Space Mono — implements the Y2K/VHS-retro direction
+>   from `docs/PRD.md` §10. (`@fontsource-variable/geist` is also in `package.json` but is an
+>   unused leftover from the prior design iteration — `PRODUCT.md`'s Anti-references explicitly
+>   bans the Geist pairing. Worth pruning from `package.json`.)
+> - Frontend monorepo structure (§9) updated: new routes `start.tsx`, `archive.tsx`,
+>   `leaderboard.tsx`, `achievements.tsx`, `settings.tsx`; new `components/{ui,shell,chrome}/`
+>   and `lib/{wallet,mockReportData}` modules — see `packages/web-dashboard/DESIGN.md` and
+>   `PRODUCT.md` for the full design system, which are the authoritative source for visual
+>   detail (this doc only tracks structure/stack).
+> - "Spec it" (§6) was a placeholder name — corrected to **Specify / spec-kit**, now actually
+>   installed per PR #1 (`speckit-init`) — see root `README.md` "Spec-Kit Setup".
+> - No backend, agent, or data-model changes in this revision.
+>
 > **v1.3 changelog (2026-06-17)** — addresses architecture critique:
 > - **Vision API swapped** to GPT-4o Vision via Tikal LiteLLM (Google Cloud Vision dropped — couldn't do posture/body language)
 > - Audio chunk size cut from 5s → 2s to meet NFR-002 (≤1s filler latency)
@@ -638,8 +654,12 @@ OVERALL SCORE: 74 / 100
 
 | Layer | Technology | Version | Rationale |
 |---|---|---|---|
-| Frontend framework | TanStack Start | Latest | SSR/SPA hybrid, file-based routing, hackathon eval multiplier |
-| Frontend type layer | Spec it | Latest | Type-safe specs, hackathon eval multiplier |
+| Frontend framework | TanStack Start | 1.120.20 | SSR/SPA hybrid, file-based routing, hackathon eval multiplier |
+| Frontend UI components | shadcn/ui + Radix UI | — | Headless accessible primitives (Button, Card, Input, Switch, etc.); variant styling via `class-variance-authority`, `clsx`, `tailwind-merge` |
+| Frontend CSS | Tailwind CSS | v4 | Utility-first styling; `tw-animate-css` for motion utilities |
+| Frontend icons | lucide-react | — | Icon set used across dashboard chrome |
+| Frontend fonts | Tektur / Chakra Petch / Space Mono | — | Y2K/VHS-retro type system — see PRD §10, `DESIGN.md`. (`@fontsource-variable/geist` is installed but unused — banned by `PRODUCT.md` Anti-references; candidate for removal.) |
+| Dev tooling | Specify (spec-kit) | — | Tikal internal spec-driven-dev CLI, hackathon eval multiplier. Installed via `uv tool install agentic-sdlc-specify-cli` — see README |
 | Backend framework | FastAPI | 0.111+ | Native async WebSocket, Python ecosystem for AI libs |
 | Agent orchestration | Agno | Latest | Required by spec; manages agent lifecycle + shared async state |
 | Vision AI | GPT-4o Vision via Tikal LiteLLM | — | Multimodal LLM evaluates posture, eye contact, framing, gestures. Batched 3 frames/call @ 5fps source → ~1000 calls per 10-min session. Routed through LiteLLM gateway, no separate IT key. |
@@ -859,12 +879,27 @@ octoprep2000/                     ← pnpm workspace root
 ├── packages/
 │   ├── web-dashboard/            ← Dev 6 (TanStack Start, TypeScript)
 │   │   ├── package.json
+│   │   ├── DESIGN.md             ← Y2K design system spec (colors, type, components) — source of truth for visuals
+│   │   ├── PRODUCT.md            ← brand/product framing behind the design system
 │   │   ├── app/
 │   │   │   ├── routes/
-│   │   │   │   ├── index.tsx         ← landing / session setup
-│   │   │   │   ├── session.$id.tsx   ← live session view (toasts + camera)
-│   │   │   │   └── session.$id.report.tsx ← scorecard
-│   │   │   └── components/
+│   │   │   │   ├── index.tsx              ← dashboard home
+│   │   │   │   ├── start.tsx              ← session setup (topic, audience context, PPTX upload)
+│   │   │   │   ├── session.$id.tsx        ← live session view (toasts + camera)
+│   │   │   │   ├── session.$id_.report.tsx ← scorecard
+│   │   │   │   ├── archive.tsx            ← demo-mock: past sessions list
+│   │   │   │   ├── leaderboard.tsx        ← demo-mock: gamified leaderboard
+│   │   │   │   ├── achievements.tsx       ← demo-mock: badge wall
+│   │   │   │   └── settings.tsx           ← demo-mock: session preferences
+│   │   │   ├── components/
+│   │   │   │   ├── ui/                    ← shadcn/ui primitives (button, card, input, label, switch, ...)
+│   │   │   │   ├── shell/                 ← AppShell, Sidebar (persistent nav chrome)
+│   │   │   │   ├── chrome/                ← Atmosphere, CornerBrackets (CRT/VHS decorative chrome)
+│   │   │   │   └── ScoreCard.tsx, ScoreRing.tsx, Toast.tsx
+│   │   │   └── lib/
+│   │   │       ├── api.ts, ws.ts, capture.ts, utils.ts
+│   │   │       ├── wallet.tsx             ← cosmetic points wallet — local state only, no backend (see PRD §3 Non-Goals)
+│   │   │       └── mockReportData.ts      ← demo-mock report fixture
 │   │   └── ...
 │   │
 │   ├── backend/                  ← Single FastAPI service (all agents live here)

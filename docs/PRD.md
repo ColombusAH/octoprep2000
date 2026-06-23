@@ -1,11 +1,24 @@
 # Product Requirements Document
 
 **Product**: OctoPrep2000
-**Version**: 1.5
-**Date**: 2026-06-22
-**Hackathon Date**: 2026-06-24 (2 days away)
+**Version**: 1.6
+**Date**: 2026-06-23
+**Hackathon Date**: 2026-06-24 (1 day away)
 **Author**: Tikal Fuse Day Team
-**Status**: Approved — creative-direction pivot (v1.5)
+**Status**: Approved — frontend stack sync (v1.6)
+
+> **v1.6 changelog (2026-06-23)** — frontend stack sync, no functional scope change:
+> - UI component stack added: **shadcn/ui + Radix UI primitives** (Button, Card, Input, Switch, etc.)
+>   styled with Tailwind CSS v4, `class-variance-authority`, `clsx`, `tailwind-merge`,
+>   `tw-animate-css`, and `lucide-react` icons — this is the implementation layer for the v1.5
+>   Y2K dashboard shell. See §8 and `docs/TECH-ARCHITECTURE-C4.md` §6 for the full stack.
+> - **"Spec it" (§8, §13 Appendix D) was a placeholder name — corrected to *Specify / spec-kit***
+>   (`https://github.com/tikalk/agentic-sdlc-spec-kit`), Tikal's internal spec-driven-development
+>   CLI. It is now actually installed (PR #1, `speckit-init`) — see root `README.md` "Spec-Kit
+>   Setup" for the one-time install steps every dev needs to run.
+> - New dashboard nav surfaces (Leaderboard, Achievements, Settings) and a dedicated `/start`
+>   session-setup page shipped as part of the v1.5 redesign — no new functional requirements;
+>   they fall under existing §3 Non-Goals (cosmetic flourishes, no persistence).
 
 > **v1.5 changelog (2026-06-22)** — creative direction pivot, no functional scope change:
 > - UI brand direction changed from the original "clinical Whoop/Oura performance-tracker"
@@ -364,7 +377,9 @@ OctoPrep2000 closes this gap by acting as an always-available AI co-pilot that w
 | **python-pptx** | PPTX file parsing and content extraction | Dev 4 |
 | **Tikal Presentation Skills Playbook** | 12-factor evaluation rubric for slide analysis (internal wiki) | Dev 4 |
 | **TanStack Start** | Frontend framework for web dashboard | Dev 6 |
-| **Spec it** | Frontend spec/type layer (evaluation multiplier) | Dev 6 |
+| **shadcn/ui + Radix UI** | UI component primitives for the dashboard (Button, Card, Input, Switch, etc.), styled via Tailwind CSS v4 + `class-variance-authority`/`clsx`/`tailwind-merge` | Dev 6 |
+| **Tailwind CSS v4** | Utility CSS framework for dashboard styling (`tw-animate-css` for motion utilities, `lucide-react` for icons) | Dev 6 |
+| **Specify (spec-kit)** | Tikal internal spec-driven-development CLI (evaluation multiplier). Installed via `uv tool install agentic-sdlc-specify-cli` — see README "Spec-Kit Setup" | All devs |
 | **Railway** | Production hosting and deployment pipeline | Team Lead |
 | **Calendly (or equivalent)** | Deep-link URL for mentor booking CTA | Dev 6 |
 | **Chrome Extensions API (MV3)** | WebSocket client + floating bubble UI — **stretch goal only** | Dev 6 |
@@ -503,7 +518,8 @@ overall_score = (voice_score   × 0.40)
 | **12-Factor Playbook** | Tikal's internal Presentation Skills standard used as the evaluation rubric for slide quality |
 | **Railway** | Cloud hosting platform used for the production deployment pipeline |
 | **TanStack Start** | Full-stack React framework used for the web dashboard |
-| **Spec it** | Frontend type/spec layer used as a hackathon evaluation multiplier |
+| **Specify (spec-kit)** | Tikal's internal spec-driven-development CLI, used as a hackathon evaluation multiplier (formerly referred to as "Spec it" in earlier drafts) |
+| **shadcn/ui** | Copy-into-repo UI component pattern built on Radix UI primitives + Tailwind CSS; source of the dashboard's Button/Card/Input/Switch components |
 
 ### E. Hackathon Day Schedule — June 24, 2026
 
