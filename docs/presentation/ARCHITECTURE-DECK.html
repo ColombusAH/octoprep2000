@@ -486,7 +486,258 @@ graph LR
     </div>
   </section>
 
-  <!-- 17 WHO OWNS WHAT TODAY -->
+  <!-- 17 LIVE SESSION SEQUENCE -->
+  <section class="slide" data-title="Live Session Flow">
+    <div class="kicker">C4 · Level 4</div><h2>Live Session — Sequence</h2>
+    <div class="body"><div class="diagram"><pre class="mermaid">
+sequenceDiagram
+    actor P as Presenter
+    participant FE as Dashboard
+    participant API as SessionRouter
+    participant ORC as Orchestrator
+    participant VA as VisionAgent
+    participant AA as AudioAgent
+    participant BC as Broadcaster
+    participant GPT as GPT-4o Vision
+    participant STT as ElevenLabs STT
+    participant DB as PostgreSQL
+    P->>FE: Click "Start Session"
+    FE->>API: POST /sessions
+    API->>DB: INSERT Session(session_id, access_token, ACTIVE)
+    API-->>FE: { session_id, access_token }
+    FE->>ORC: open 3 WS (video · audio · feedback) + token
+    Note over FE,ORC: token validated on handshake · invalid → close(4003)
+    ORC->>ORC: spawn video_task + audio_task
+    loop frames ~200ms, post-dhash dedup
+        FE->>VA: JPEG frame
+        VA->>VA: GCV face_detection (~1fps cap, NFR-004)
+        VA->>ORC: emit EYE_CONTACT_LOST / FACE_TILTED / SMILING_STRONG
+        opt every 3rd frame
+            VA->>GPT: batch(3 frames) — posture/gestures
+            GPT-->>VA: POSTURE_ISSUE / GESTURE_CLOSED / OUT_OF_FRAME
+            VA->>ORC: emit(VideoEventPayload)
+        end
+        ORC->>DB: INSERT VideoEvent (batched 1s/N=20)
+        ORC->>BC: publish warning
+        BC-->>P: 🔴 Toast "Look at the camera!"
+    end
+    loop audio ~2s
+        FE->>AA: PCM chunk (16-bit · 16kHz)
+        AA->>STT: transcribe
+        STT-->>AA: text + timestamps
+        AA->>ORC: emit(Transcript + AudioWarning)
+        ORC->>DB: INSERT TranscriptEntry
+    end
+    P->>FE: Click "End Session"
+    FE->>API: POST /sessions/:id/end
+    API->>ORC: cancel tasks → trigger ReportAgent
+    ORC->>DB: UPDATE status=REPORT_READY
+    BC-->>FE: REPORT_READY → /session/:id/report
+    </pre></div></div>
+    <p class="sub">Two vision providers, not one: <b>Google Cloud Vision</b> runs on every kept frame (capped ~1fps for cost, NFR-004) for fast deterministic eye-contact/face signals; <b>GPT-4o Vision</b> only sees a 3-frame batch for the slower semantic posture/gesture call. See <code>agents/vision_agent.py</code>.</p>
+  </section>
+
+  <!-- 18 PPTX UPLOAD SEQUENCE -->
+  <section class="slide" data-title="PPTX Upload Flow">
+    <div class="kicker">C4 · Level 4</div><h2>PPTX Upload — Sequence</h2>
+    <div class="body"><div class="diagram"><pre class="mermaid">
+sequenceDiagram
+    actor P as Presenter
+    participant FE as Dashboard
+    participant UR as UploadRouter
+    participant PA as PPTXAgent
+    participant ORC as Orchestrator
+    participant DB as PostgreSQL
+    P->>FE: Drag &amp; drop .pptx
+    FE->>UR: POST /sessions/:id/upload (multipart)
+    UR->>UR: save /tmp/{session_id}.pptx
+    UR->>PA: analyse_async(path, session_id)
+    UR-->>FE: 202 Accepted
+    FE-->>P: "Analysing your deck…"
+    PA->>PA: python-pptx extract slide text
+    Note over PA: persist slides_raw_text to DB<br/>survives restart
+    PA->>PA: LLM eval vs 12-factor Playbook
+    PA->>ORC: emit(SlideAnalysisPayload[])
+    Note over ORC: Pydantic validation wall ✓
+    loop per validated finding
+        ORC->>DB: INSERT SlideAnalysis
+    end
+    ORC->>DB: UPDATE Session(pptx_ready=true)
+    FE->>FE: poll GET /sessions/:id
+    FE-->>P: "Deck analysed ✓ — ready to start"
+    </pre></div></div>
+  </section>
+
+  <!-- 19 FALLBACK SEQUENCE -->
+  <section class="slide" data-title="Audio Fallback">
+    <div class="kicker">C4 · Level 4</div><h2>Audio-Only Fallback</h2>
+    <div class="body"><div class="diagram"><pre class="mermaid">
+sequenceDiagram
+    participant VA as VisionAgent
+    participant ORC as Orchestrator
+    participant FE as Dashboard
+    participant P as Presenter
+    loop 3 consecutive GPT-4o batches, no response
+        VA->>VA: batch(3 frames) → GPT-4o Vision
+        Note over VA: no response within VISION_TIMEOUT_MS (5000)
+        VA--xORC: timeout
+    end
+    ORC->>ORC: activate_fallback_mode()
+    ORC->>ORC: cancel video_task
+    ORC->>ORC: reweight Voice 40% + Slides 30% + Content 30%
+    ORC->>FE: publish FALLBACK_ACTIVATED
+    FE-->>P: ⚠️ "Video unavailable — continuing with audio coaching"
+    Note over P: session continues with audio + slides only<br/>GCV face checks already ran independently and are unaffected
+    </pre></div></div>
+  </section>
+
+  <!-- 20 FRAME OPTIMIZATION -->
+  <section class="slide" data-title="Frame Filter">
+    <div class="kicker">Algorithm · cost control</div><h2>Frame Delta Filtering</h2>
+    <div class="two">
+      <div class="diagram"><pre class="mermaid">
+flowchart TB
+    A([📷 getUserMedia<br/>60fps capture]) --> B["downscale 320×240<br/>JPEG q0.7 · every 200ms"]
+    B --> C{{"dhash<br/>Hamming distance"}}
+    C -->|"≤ 8 · duplicate"| D["🗑️ drop frame"]
+    C -->|"&gt; 8 · changed"| E["queue for batch"]
+    E --> F["batch 3 frames<br/>@ ~600ms"]
+    F --> G[("🤖 GPT-4o Vision<br/>1 call / batch")]
+    class A sky
+    class B,E,F amber
+    class C violet
+    class D red
+    class G green
+      </pre></div>
+      <div style="display:flex;flex-direction:column;justify-content:center">
+        <ul>
+          <li>60fps would be ruinous on latency + token cost — <b>banned</b></li>
+          <li><code>imagehash</code> dhash → Hamming distance vs last frame</li>
+          <li>Distance ≤ <b>8</b> → frame is redundant → drop silently</li>
+          <li>Survivors <b>batched 3 per call</b> to amortise tokens (~1000 calls / 10-min session)</li>
+          <li>Result: <b>≤5fps</b> reaches the Vision Agent</li>
+          <li>Independent second cap: GCV face_detection self-throttles to <b>~1fps</b> inside VisionAgent (NFR-004), a separate cost layer from this filter</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- 21 AUTH / CAPABILITY TOKEN -->
+  <section class="slide" data-title="Session Isolation">
+    <div class="kicker">Security · no user accounts</div><h2>Capability Token Pattern</h2>
+    <div class="body"><div class="diagram"><pre class="mermaid">
+flowchart TB
+    Create(["POST /sessions"]) -->|returns| Pair["session_id (public)<br/>+ access_token (secret)"]
+    Pair --> LS["💾 localStorage<br/>token_{session_id}"]
+    subgraph Protected["🔴 require access_token"]
+        direction LR
+        E1["GET /sessions/:id"]; E2["POST /upload"]; E3["POST /end"]
+        E4["WS video · audio · feedback"]
+    end
+    subgraph Share["🟢 read-only share_token"]
+        direction LR
+        E5["GET /report?share=…"]
+    end
+    LS -->|"Bearer / ?token="| Protected
+    E6["POST /report/share"] -.->|generates| E5
+    class Create sky
+    class Pair,LS green
+    class E1,E2,E3,E4 red
+    class E5,E6 green
+    style Protected fill:#450a0a,stroke:#f87171,color:#fecaca
+    style Share fill:#052e16,stroke:#4ade80,color:#bbf7d0
+    </pre></div>
+    <p class="sub">Two UUIDs, zero login. <b>session_id</b> public (safe in URLs/logs), <b>access_token</b> secret in localStorage. Both required for every protected op. WS can't send headers → <code>?token=</code> query param, validated on handshake, <code>close(4003)</code> if invalid. Opt-in <b>share_token</b> grants read-only report access.</p>
+    </div>
+  </section>
+
+  <!-- 22 WS CONTRACT -->
+  <section class="slide" data-title="WebSocket Contract">
+    <div class="kicker">Realtime · 3 channels</div><h2>WebSocket Contract</h2>
+    <div class="body">
+      <table>
+        <tr><th>Route</th><th>Dir</th><th>Format</th><th>Auth</th></tr>
+        <tr><td><code>/video-stream</code></td><td>browser → backend</td><td>Binary JPEG frame</td><td>access_token</td></tr>
+        <tr><td><code>/audio-stream</code></td><td>browser → backend</td><td>Binary PCM 16-bit 16kHz · 2s</td><td>access_token</td></tr>
+        <tr><td><code>/realtime-feedback</code></td><td>backend → browser</td><td>JSON events</td><td>access_token</td></tr>
+      </table>
+      <div class="grid" style="margin-top:18px">
+        <div class="card">
+          <h3><span class="dot" style="background:var(--sky)"></span>Event types out</h3>
+          <ul>
+            <li><code>EYE_CONTACT_LOST</code> · severity + timestamp_ms</li>
+            <li><code>REPORT_READY</code> · redirect signal</li>
+            <li><code>FALLBACK_ACTIVATED</code> · video down banner</li>
+          </ul>
+        </div>
+        <div class="card">
+          <h3><span class="dot" style="background:var(--green)"></span>Resilience</h3>
+          <ul>
+            <li>Token validated on handshake → <code>close(4003)</code></li>
+            <li>Browser reconnect: exp backoff 1·2·4·8s cap</li>
+            <li>session_id + token in localStorage → rebind same session</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 23 DEPLOYMENT -->
+  <section class="slide" data-title="Deployment">
+    <div class="kicker">Infra · Railway (P3)</div><h2>Deployment Architecture</h2>
+    <div class="body"><div class="diagram"><pre class="mermaid">
+graph TB
+    Deploy(["⬆️ git push main"]) -->|auto-deploy| Railway
+    subgraph Railway["☁️ Railway Project · octoprep2000"]
+        FE["🖥️ web-dashboard<br/>TanStack Start · Node"]
+        BE["⚡ backend<br/>FastAPI · all agents<br/>uvicorn :$PORT · /health"]
+        PG[("🐘 PostgreSQL 15<br/>plugin · DATABASE_URL")]
+    end
+    FE -->|HTTPS / WSS| BE
+    BE -->|asyncpg| PG
+    BE -.->|LITELLM_API_KEY| V(["🤖 LiteLLM gateway"])
+    BE -.->|ELEVENLABS_API_KEY| S(["🎙️ Scribe v1"])
+    BE -.->|"ANTHROPIC_API_KEY · PROVIDER_MODE"| C(["🧠 Claude + direct ElevenLabs<br/>fallback"])
+    class Deploy slate
+    class FE,BE sky
+    class PG violet
+    class V,S,C amber
+    style Railway fill:#0f172a,stroke:#334155,color:#94a3b8
+    </pre></div>
+    <p class="sub"><b>Local-first for the demo</b>: no deploy required. Railway is a P3 bonus: one project, one branch (<code>main</code>), Postgres plugin injects <code>DATABASE_URL</code>. Keep-warm pings <code>/health</code> every 30s. <code>PROVIDER_MODE</code> (<code>auto</code>/<code>direct</code>) routes Vision/PPTX/Content to Claude and STT to direct ElevenLabs if the shared LiteLLM gateway is exhausted; flip it without restarting. <code>DEMO_MODE=replay</code> swaps live calls for canned fixtures if APIs flake.</p>
+    </div>
+  </section>
+
+  <!-- 24 DECISIONS -->
+  <section class="slide" data-title="Key Decisions">
+    <div class="kicker">Rationale</div><h2>Why These Choices</h2>
+    <div class="body">
+      <div class="grid">
+        <div class="card">
+          <h3><span class="dot" style="background:var(--sky)"></span>Single FastAPI process</h3>
+          <ul><li>All agents = <code>asyncio</code> tasks, zero inter-service networking</li><li>Right for a 6-hour build · risk: blocking call stalls loop → <code>run_in_executor</code></li></ul>
+        </div>
+        <div class="card">
+          <h3><span class="dot" style="background:var(--violet)"></span>In-process pub/sub</h3>
+          <ul><li><code>asyncio.Queue</code> + <code>dict[session_id → set[WS]]</code></li><li>No Redis · clean interface, swappable post-hackathon</li></ul>
+        </div>
+        <div class="card">
+          <h3><span class="dot" style="background:var(--green)"></span>Orchestrator = sole DB writer</h3>
+          <ul><li>Agents pure AI, emit typed payloads · Pydantic validation wall</li><li>VideoEvents batched 1s/N=20 to avoid write bottleneck</li></ul>
+        </div>
+        <div class="card">
+          <h3><span class="dot" style="background:var(--amber)"></span>Capability tokens</h3>
+          <ul><li>Full session isolation, no login flow</li><li>Agno PoC not adopted for the Orchestrator — raw <code>asyncio.create_task</code> instead</li></ul>
+        </div>
+        <div class="card">
+          <h3><span class="dot" style="background:var(--red)"></span>Provider fallback (Claude + direct ElevenLabs)</h3>
+          <ul><li>Shared LiteLLM gateway is one team token budget, a single chokepoint risk</li><li><code>PROVIDER_MODE=auto</code> retries Vision/PPTX/Content on personal-key Claude + STT on direct ElevenLabs after a gateway failure; <code>direct</code> flips the order pre-emptively if the team knows the gateway is exhausted</li></ul>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 25 WHO OWNS WHAT TODAY -->
   <section class="slide" data-title="Who Owns What Today">
     <div class="kicker">Team · Today</div><h2>Who Owns What Today</h2>
     <div class="body">
@@ -497,14 +748,14 @@ graph LR
         <tr><td>🎙️ Or Yam</td><td>Audio Agent</td><td>Live audio streaming, speech-to-text, filler word detection, speaking pace (words per minute)</td></tr>
         <tr><td>🧠 Din</td><td>Content Analysis Agent</td><td>Post-session transcript accuracy + coverage gaps</td></tr>
         <tr><td>🖼️ Stav</td><td>PPTX Agent</td><td>Slide analysis vs Tikal 12-factor Playbook</td></tr>
-        <tr><td>⚙️ Avner</td><td>Orchestrator + Report Agent</td><td>Orchestrator + Report Generator</td></tr>
-        <tr><td>🖥️ Ortal</td><td>Frontend Dashboard</td><td>TanStack Start dashboard; Chrome Extension stretch</td></tr>
-        <tr><td>✍️ Lihi</td><td>Content &amp; Frontend (Backup)</td><td>Hackathon pitch deck + LinkedIn/social content; frontend backup</td></tr>
+        <tr><td>⚙️ Avner</td><td>Orchestrator</td><td>Orchestrator (central state, async task lifecycle)</td></tr>
+        <tr><td>🖥️ Ortal</td><td>Frontend Dashboard + Report Agent</td><td>TanStack Start dashboard; Report Generator; Chrome Extension stretch</td></tr>
+        <tr><td>✍️ Lihi</td><td>Content &amp; Frontend (Backup) + Report Agent</td><td>Hackathon pitch deck + LinkedIn/social content; Report Generator; frontend backup</td></tr>
       </table>
     </div>
   </section>
 
-  <!-- 18 DB SCHEMA (ER) -->
+  <!-- 26 DB SCHEMA (ER) -->
   <section class="slide" data-title="DB Schema (ER)">
     <div class="kicker">Data · PostgreSQL</div><h2>Relational Schema — 5 Tables</h2>
     <div class="body"><div class="diagram"><pre class="mermaid">
@@ -554,7 +805,7 @@ erDiagram
     </pre></div></div>
   </section>
 
-  <!-- 19 BUILD PHASES -->
+  <!-- 27 BUILD PHASES -->
   <section class="slide" data-title="Build Phases">
     <div class="kicker">Plan · ship incrementally</div><h2>Three Phases</h2>
     <div class="body"><div class="diagram"><pre class="mermaid">
@@ -571,7 +822,7 @@ graph LR
     </div>
   </section>
 
-  <!-- 20 AI PATTERNS -->
+  <!-- 28 AI PATTERNS -->
   <section class="slide" data-title="AI Patterns — What We Use">
     <div class="kicker">Before You Dive In</div><h2>AI Patterns — What We Use (and Don't, Yet)</h2>
     <div class="body">
@@ -592,7 +843,7 @@ graph LR
     </div>
   </section>
 
-  <!-- 21 WHAT'S NEXT? -->
+  <!-- 29 WHAT'S NEXT? -->
   <section class="slide" data-title="What's Next?">
     <div class="kicker">Your Turn</div><h2>What's Next?</h2>
     <div class="body">
