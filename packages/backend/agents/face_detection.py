@@ -75,8 +75,9 @@ async def _call_gateway(frame_bytes: bytes) -> FaceMetrics:
             }
         ]
     }
+    headers = {"Authorization": f"Bearer {s.litellm_vision_annotate_api_key}"}
     async with httpx.AsyncClient(timeout=s.vision_timeout_ms / 1000) as client:
-        resp = await client.post(s.litellm_vision_annotate_url, json=payload)
+        resp = await client.post(s.litellm_vision_annotate_url, json=payload, headers=headers)
     resp.raise_for_status()
     data = resp.json()
 

@@ -37,7 +37,9 @@ class Settings(BaseSettings):
 
     # Google Cloud Vision via the Tikal LiteLLM gateway (deterministic face metrics — supplements GPT-4o Vision)
     # Shared gateway route — no per-dev GCP service account needed. Empty disables face detection.
+    # This route is authenticated with its own key (not litellm_api_key).
     litellm_vision_annotate_url: str = "https://litellm.tikalk.dev/vision/annotate"
+    litellm_vision_annotate_api_key: str = ""
     face_detection_pan_threshold_deg: float = 25.0  # head turn left/right → eye contact lost
     face_detection_tilt_threshold_deg: float = 20.0  # head up/down → eye contact lost
     face_detection_roll_threshold_deg: float = 25.0  # sideways head tilt
