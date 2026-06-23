@@ -47,6 +47,28 @@ make dev
 # frontend: http://localhost:3000
 ```
 
+## Spec-Kit Setup (one-time, after pulling main)
+
+This repo now uses [spec-kit](https://github.com/tikalk/agentic-sdlc-spec-kit) (see PR [#1](https://github.com/ColombusAH/octoprep2000/pull/1)). After pulling `main`, every dev needs to do this once:
+
+```bash
+# 1. Install uv (if you don't have it)
+curl -LsSf https://astral.sh/uv/install.sh | sh
+
+# 2. Install the spec-kit CLI
+uv tool install agentic-sdlc-specify-cli --from git+https://github.com/tikalk/agentic-sdlc-spec-kit.git
+
+# 3. Verify installation
+specify check
+
+# 4. Inside the project, wire up your coding agent (claude, cursor-agent, codex, opencode, ...)
+specify integration use <your coding agent>
+```
+
+After that, restart/run your agent and the `specify`, `plan`, `implement`, `clarify`, etc. commands should be available.
+
+> If you use a coding agent not listed above, ping Oryam.
+
 ## Phases
 
 - **P1** (first 2h, hackathon day): PPTX upload + audio + STT + simple report
