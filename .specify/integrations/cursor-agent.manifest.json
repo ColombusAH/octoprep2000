@@ -1,0 +1,16 @@
+{
+  "integration": "cursor-agent",
+  "version": "unknown",
+  "installed_at": "2026-06-23T14:20:44.495504+00:00",
+  "files": {
+    ".cursor/skills/spec-analyze/SKILL.md": "257745825adc09cd4bfbd9ced6711015f14eeac36fe511840f52e8964029ec43",
+    ".cursor/skills/spec-clarify/SKILL.md": "f9a794cf719cdf5fecca587c0a005d3cfef041bc3695a3d223ba045140cef1c7",
+    ".cursor/skills/spec-constitution/SKILL.md": "4a82c0e6bd25080d57ac6a11d6dd45122a12f0f995115a0af50a4dd4344ead55",
+    ".cursor/skills/spec-implement/SKILL.md": "adf17c0dcf6ab304a718581e52351eac45c03edc8e987c85e6b32426b6c24e97",
+    ".cursor/skills/spec-plan/SKILL.md": "2653a908b520cb557b2b404df4a49e003c62834bcd27a060996046d06a380e4a",
+    ".cursor/skills/spec-checklist/SKILL.md": "755bf1f5a865ce3655e56cf5365aa7d5111013cdcd65f7ad8eea9026dc003000",
+    ".cursor/skills/spec-specify/SKILL.md": "1d25fa5d2e5ecb8c98733cc4718a8066dc912d7e333d2eb2a84c908160646a9e",
+    ".cursor/skills/spec-tasks/SKILL.md": "ef0478220cc13bf102c0ee36bcd1ba85043d84570c173a4633c75a901bfd8410",
+    ".cursor/skills/speckit-taskstoissues/SKILL.md": "209a7e481d582dfa1f565eee2c4f5c6b03c03333c0c2cd689d39cd44a80074cd"
+  }
+}
