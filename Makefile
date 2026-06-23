@@ -1,8 +1,10 @@
-.PHONY: help install db-up db-down backend frontend dev test lint clean
+.PHONY: help install check-node install-uv db-up db-down backend frontend dev test lint clean
+
+NODE_MIN_MAJOR := 20
 
 help:
 	@echo "OctoPrep2000 — dev tasks"
-	@echo "  make install   — install all deps (pnpm + uv)"
+	@echo "  make install   — install all deps (pnpm + uv), checking Node >= $(NODE_MIN_MAJOR)"
 	@echo "  make db-up     — start local Postgres"
 	@echo "  make db-down   — stop local Postgres"
 	@echo "  make backend   — run FastAPI backend (port 8000)"
@@ -11,9 +13,25 @@ help:
 	@echo "  make test      — run all tests"
 	@echo "  make lint      — lint all packages"
 
-install:
+install: check-node install-uv
 	pnpm install
-	cd packages/backend && uv sync
+	cd packages/backend && PATH="$$HOME/.local/bin:$$PATH" uv sync
+
+check-node:
+	@command -v node >/dev/null 2>&1 || { \
+		echo "Node.js not found. Install Node >= $(NODE_MIN_MAJOR) (e.g. via nvm: nvm install $(NODE_MIN_MAJOR))."; \
+		exit 1; \
+	}
+	@node -e 'process.exit(parseInt(process.versions.node.split(".")[0], 10) >= $(NODE_MIN_MAJOR) ? 0 : 1)' || { \
+		echo "Node $$(node -v) found, but >= $(NODE_MIN_MAJOR) is required. Run: nvm install $(NODE_MIN_MAJOR) && nvm use $(NODE_MIN_MAJOR)"; \
+		exit 1; \
+	}
+
+install-uv:
+	@command -v uv >/dev/null 2>&1 || { \
+		echo "uv not found — installing..."; \
+		curl -LsSf https://astral.sh/uv/install.sh | sh; \
+	}
 
 db-up:
 	docker compose up -d db
