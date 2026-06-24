@@ -35,7 +35,9 @@ async def audio_stream(
             chunk = await ws.receive_bytes()
             chunk_count += 1
             logger.info("audio chunk #{} ({} bytes) for {}", chunk_count, len(chunk), session_id)
-            assert rt.audio is not None
-            await rt.audio.push_chunk(chunk)
+            assert rt.aggregator is not None
+            # Each 2s chunk closes a live window (frames buffered since last chunk + this
+            # chunk) and fires one LiveSessionWorkflow run — does not block this receive loop.
+            await rt.aggregator.add_chunk(chunk)
     except WebSocketDisconnect:
         logger.info("audio WS closed for {} after {} chunks", session_id, chunk_count)

@@ -627,12 +627,23 @@ class PPTXAgent(AgentPersistence):
         return True
 
     async def analyse(self, session_id: uuid.UUID, pptx_path: str) -> None:
+        """Static pre-session pass. Kept as the back-compat entry; PptxPrepWorkflow
+        calls the three phases below directly so each is its own agno Workflow step."""
+        slides_raw = await self.extract(pptx_path)
+        findings = await self.review(slides_raw)
+        await self.persist(session_id, slides_raw, findings)
+
+    # ── static pass, split into agno-Workflow-friendly phases ─────────
+    async def extract(self, pptx_path: str) -> list[dict]:
+        """Phase 1: parse the deck to structured slide rows (off the LLM path)."""
         try:
-            slides_raw = await asyncio.to_thread(self._extract_text, pptx_path)
+            return await asyncio.to_thread(self._extract_text, pptx_path)
         except Exception as exc:  # noqa: BLE001
             logger.exception("PPTX parse failed: {}", exc)
-            slides_raw = []
+            return []
 
+    async def review(self, slides_raw: list[dict]) -> list[SlideAnalysisPayload]:
+        """Phase 2: evaluate against the playbook (LLM, or replay fixtures)."""
         if get_settings().demo_replay:
             findings = replay_slide_findings()
         else:
@@ -641,11 +652,14 @@ class PPTXAgent(AgentPersistence):
             except Exception as exc:  # noqa: BLE001
                 logger.exception("PPTX LLM eval failed: {}", exc)
                 findings = []
+        return validate_findings(findings, slides_raw)
 
-        findings = validate_findings(findings, slides_raw)
+    async def persist(
+        self, session_id: uuid.UUID, slides_raw: list[dict], findings: list[SlideAnalysisPayload]
+    ) -> None:
+        """Phase 3: this agent owns slide_analyses + sessions(pptx) writes (Principle II).
+        Order preserved from the prior Orchestrator write: findings, then pptx_ready."""
 
-        # This agent owns slide_analyses + sessions(pptx) writes (Principle II).
-        # Order preserved from the prior Orchestrator write: findings, then pptx_ready.
         async def write(repo: PostgreSQLRepository) -> None:
             await repo.insert_slide_analyses(
                 [

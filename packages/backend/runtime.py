@@ -19,6 +19,7 @@ from agents.pptx_agent import PPTXAgent
 from agents.report_agent import ReportAgent
 from agents.vision_agent import VisionAgent
 from orchestrator.orchestrator import Orchestrator
+from workflows.live_window import LiveWindowAggregator
 
 
 class SessionRuntime:
@@ -29,6 +30,7 @@ class SessionRuntime:
         self.vision: VisionAgent | None = None
         self.audio: AudioAgent | None = None
         self.frame_service: FrameService | None = None
+        self.aggregator: LiveWindowAggregator | None = None
 
 
 class RuntimeRegistry:
@@ -53,7 +55,16 @@ class RuntimeRegistry:
                 orch,
                 slide_state_provider=rt.pptx.get_slide_state,
             )
-            rt.frame_service = FrameService(on_keep_frame=rt.vision.push_frame)
+            rt.aggregator = LiveWindowAggregator(session_id, rt.vision, rt.audio, orch)
+
+            async def _on_keep_frame(frame: bytes, rt: SessionRuntime = rt) -> None:
+                # Instant GCV cues fire here (off the agno window); the frame is then
+                # buffered for the LiveSessionWorkflow's per-window LLM batch.
+                assert rt.vision is not None and rt.aggregator is not None
+                await rt.vision.on_frame_instant(frame)
+                await rt.aggregator.add_frame(frame)
+
+            rt.frame_service = FrameService(on_keep_frame=_on_keep_frame)
             self._runtimes[session_id] = rt
             return rt
 
@@ -65,8 +76,11 @@ class RuntimeRegistry:
         if rt is None:
             return
         await rt.orchestrator.end_session(session_id)
-        # Flush the VisionAgent's final batch so video_events are durable before the
-        # ReportAgent reads them (Principle II — durability before report assembly).
+        # Drain any in-flight live windows first so their writes land, THEN flush the
+        # VisionAgent's final batch so video_events are durable before the ReportAgent
+        # reads them (Principle II — durability before report assembly).
+        if rt.aggregator:
+            await rt.aggregator.aclose()
         if rt.vision:
             await rt.vision.aclose()
         if rt.audio:

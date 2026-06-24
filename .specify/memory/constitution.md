@@ -1,6 +1,17 @@
 <!--
 Sync Impact Report
-Version change: 1.0.0 -> 2.0.0 (MAJOR — Principle II redefined: agent-owned, role-scoped
+Version change: 2.0.0 -> 2.1.0 (MINOR — added a governed clarification sanctioning agno
+Workflow/Team/Parallel objects as the in-process orchestration substrate; expands
+compliance obligations without redefining any existing principle)
+Amendment driver: agno-Workflow orchestration layer (branch agno-workflows-flow):
+packages/backend/workflows/ — PptxPrepWorkflow, LiveSessionWorkflow (Parallel
+"LiveAnalysisTeam"), ReportWorkflow
+Modified principles:
+- None redefined. Clarifying note appended under Technical Constraints; meaning of
+  Principle II (agent-owned role-scoped writes) and Principle V (broker-free, in-process)
+  is unchanged — workflows perform no DB writes and hold no durable state.
+
+Prior version change: 1.0.0 -> 2.0.0 (MAJOR — Principle II redefined: agent-owned, role-scoped
 writes + completion signals replace Orchestrator-as-sole-writer)
 Amendment driver: feature 001-agent-direct-persistence (specs/001-agent-direct-persistence/)
 Modified principles:
@@ -28,7 +39,10 @@ Templates requiring updates:
 Runtime guidance requiring updates:
 - ✅ README.md (already aligned; no edit required)
 - ✅ docs/PRD.md (already aligned; no edit required)
-- ✅ docs/TECH-ARCHITECTURE-C4.md (already aligned; no edit required)
+- ✅ docs/TECH-ARCHITECTURE-C4.md (updated to v1.6 — adds the three Workflows +
+  LiveWindowAggregator + per-window Parallel("LiveAnalysisTeam"))
+- ✅ docs/presentation/ARCHITECTURE-DECK.html (architecture/flow slides updated to the
+  agno-Workflow shape)
 Follow-up TODOs:
 - None
 -->
@@ -104,6 +118,15 @@ execution.
 
 - The backend MUST remain a single FastAPI process for the hackathon scope; all agents
   run as async tasks unless the constitution is amended.
+- agno `Workflow`, `Team`, and `Parallel` objects ARE the sanctioned in-process
+  orchestration substrate for sequencing and fan-out (e.g. `PptxPrepWorkflow`,
+  `ReportWorkflow`, and the live tier's `Parallel("LiveAnalysisTeam")`). They MUST be
+  constructed as pure in-process glue: `telemetry=False`, `db=None`, performing NO DB
+  writes and holding NO durable session state. Agents remain the sole writers of their
+  own role-scoped tables and still emit completion signals after commit (Principle II
+  unchanged), and the system stays broker-free / in-process (Principle V unchanged) —
+  these workflow objects coordinate, they do not persist. This note clarifies, and does
+  not alter, the meaning of any existing principle.
 - PostgreSQL MUST be the system of record for sessions, transcript entries, video
   events, slide analyses, and reports.
 - PPTX analysis MUST use the Tikal Presentation Skills Playbook as its rubric and MUST
@@ -155,4 +178,4 @@ MUST treat unaddressed constitution violations as blockers unless the plan recor
 explicit, time-boxed exception with owner and follow-up. Exceptions expire after the
 hackathon demo and MUST NOT become default practice without a constitution amendment.
 
-**Version**: 2.0.0 | **Ratified**: 2026-06-23 | **Last Amended**: 2026-06-24
+**Version**: 2.1.0 | **Ratified**: 2026-06-23 | **Last Amended**: 2026-06-24
