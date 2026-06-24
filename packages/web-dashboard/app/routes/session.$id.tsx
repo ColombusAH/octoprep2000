@@ -25,7 +25,11 @@ function SessionPage() {
   const [events, setEvents] = useState<ToastEvent[]>([]);
   const [liveFeedback, setLiveFeedback] = useState(false);
   const [running, setRunning] = useState(false);
+<<<<<<< Updated upstream
   const [awaitingReport, setAwaitingReport] = useState(false);
+=======
+  const [ending, setEnding] = useState(false);
+>>>>>>> Stashed changes
   const [previewReady, setPreviewReady] = useState(false);
   const [previewError, setPreviewError] = useState(false);
   const [slideCount, setSlideCount] = useState<number | null>(null);
@@ -34,6 +38,7 @@ function SessionPage() {
   const handlesRef = useRef<{ video?: CaptureHandles; audio?: CaptureHandles }>({});
   const slideWsRef = useRef<WSHandle | null>(null);
   const recordingStartedAtRef = useRef<number>(0);
+  const endingInFlightRef = useRef(false);
 
   useEffect(() => {
     getSession(id)
@@ -236,27 +241,51 @@ function SessionPage() {
   };
 
   const stop = async () => {
+<<<<<<< Updated upstream
     if (awaitingReport) return;
+=======
+    if (endingInFlightRef.current) return;
+
+    endingInFlightRef.current = true;
+    setEnding(true);
+>>>>>>> Stashed changes
     handlesRef.current.video?.stop();
     handlesRef.current.audio?.stop();
     slideWsRef.current?.close();
     slideWsRef.current = null;
     previewStreamRef.current = null;
     setRunning(false);
+<<<<<<< Updated upstream
     setAwaitingReport(true);
     try {
       await endSession(id);
     } catch (err) {
       setAwaitingReport(false);
+=======
+    try {
+      await endSession(id);
+      await nav({ to: "/session/$id/report", params: { id } });
+    } catch (err) {
+>>>>>>> Stashed changes
       setEvents((es) => [
         ...es,
         {
           id: crypto.randomUUID(),
+<<<<<<< Updated upstream
           type: "SESSION_END_ERROR",
           severity: "HIGH",
           message: err instanceof Error ? err.message : "Could not end session — try again.",
         },
       ]);
+=======
+          type: "END_SESSION_ERROR",
+          severity: "HIGH",
+          message: err instanceof Error ? err.message : String(err),
+        },
+      ]);
+      setEnding(false);
+      endingInFlightRef.current = false;
+>>>>>>> Stashed changes
     }
   };
 
@@ -298,13 +327,28 @@ function SessionPage() {
             )}
           </div>
           <div className="mt-4 flex flex-wrap items-center gap-3">
+<<<<<<< Updated upstream
             {!running && !awaitingReport ? (
               <Button onClick={start} size="lg" disabled={previewError}>
+=======
+            {ending ? (
+              <Button disabled aria-busy="true" size="lg" className="bg-red-solid text-white">
+                <span
+                  className="size-4 animate-spin rounded-full border-2 border-current border-r-transparent"
+                  aria-hidden="true"
+                />
+                Preparing report…
+              </Button>
+            ) : !running ? (
+              <Button onClick={start} size="lg">
+>>>>>>> Stashed changes
                 Start Recording
               </Button>
             ) : running ? (
               <Button
                 onClick={stop}
+                disabled={ending}
+                aria-busy={ending}
                 size="lg"
                 className="bg-red-solid text-white hover:bg-red-solid/85"
               >
