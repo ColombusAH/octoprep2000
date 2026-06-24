@@ -1,6 +1,7 @@
 """ContentAnalysisAgent — post-session technical accuracy + coverage gap analysis.
 
-Reads transcript from DB (read-only) + session topic. Emits ContentAnalysisPayload.
+Reads transcript from DB (read-only) + session topic. For technical topics, fetches
+reference material (Context7 docs, Exa articles/improvements) before LLM evaluation.
 Uses get_session_maker() to own its own AsyncSession (decoupled from request scope).
 """
 
@@ -11,6 +12,13 @@ import uuid
 from agno.agent import Agent
 from loguru import logger
 
+from agents.content_research.classifier import classify_topic
+from agents.content_research.fetcher import fetch_reference_bundle
+from agents.content_research.reference_bundle import (
+    ReferenceBundle,
+    ResearchStatus,
+    compute_research_status,
+)
 from agents.llm import (
     call_with_fallback,
     get_text_model,
@@ -24,13 +32,56 @@ from db.repository import PostgreSQLRepository
 from db.session import get_session_maker
 
 CONTENT_PROMPT = """You evaluate a presenter's transcript for technical accuracy and coverage
-against the stated topic. Return JSON:
+against the stated topic using the reference material provided.
+
+Rules:
+- Prefer official documentation excerpts over articles for factual disputes.
+- Use improvement guidance for COVERAGE_GAP findings and actionable pitfall callouts.
+- Each FACTUAL_ERROR must include a verbatim context_quote from the transcript.
+- COVERAGE_GAP may have an empty context_quote.
+- Disclose uncertainty for topics that may post-date training cutoff.
+
+Return JSON:
 {"content_score": int (0-100), "findings": [
   {"type": "FACTUAL_ERROR" | "COVERAGE_GAP" | "STRENGTH",
    "message": "short, specific",
    "context_quote": "verbatim phrase from transcript (or empty for COVERAGE_GAP)"}
 ]}.
-Disclose uncertainty for topics that may post-date training cutoff."""
+"""
+
+
+def _build_evaluation_prompt(
+    *,
+    topic: str,
+    topic_context: str | None,
+    transcript: str,
+    slide_text: str,
+    research_status: ResearchStatus,
+    bundle: ReferenceBundle | None,
+) -> str:
+    docs_block, articles_block, improvement_block = (
+        bundle.blocks_by_source() if bundle else ("", "", "")
+    )
+    context_line = f"\nAdditional context: {topic_context}" if topic_context else ""
+    slide_block = slide_text.strip() or "No slide text available."
+    return f"""Topic: {topic}{context_line}
+Research status: {research_status}
+
+## Official documentation excerpts
+{docs_block}
+
+## Articles and expert sources
+{articles_block}
+
+## Improvement guidance
+{improvement_block}
+
+## Slide text (supplementary)
+{slide_block[:4000]}
+
+## Transcript
+{transcript[:12000]}
+"""
 
 
 class ContentAnalysisAgent:
@@ -41,6 +92,7 @@ class ContentAnalysisAgent:
             if not session:
                 return None
             entries = await repo.read_transcript(session_id)
+            slide_analyses = await repo.read_slide_analyses(session_id)
 
         if get_settings().demo_replay:
             return replay_content_analysis(session_id, session.topic)
@@ -52,9 +104,40 @@ class ContentAnalysisAgent:
                 topic=session.topic,
                 content_score=0,
                 findings=[],
+                research_status="not_applicable",
             )
 
-        prompt = f"Topic: {session.topic}\n\nTranscript:\n{transcript[:12000]}"
+        slide_text = " ".join(
+            a.description for a in slide_analyses if getattr(a, "description", None)
+        )
+
+        classification = await classify_topic(session.topic, session.topic_context)
+        bundle: ReferenceBundle | None = None
+        research_status: ResearchStatus = "not_applicable"
+
+        if classification.is_technical:
+            bundle = await fetch_reference_bundle(
+                session.topic,
+                classification,
+                include_improvements=True,
+            )
+            research_status = compute_research_status(
+                is_technical=True,
+                attempted=bundle.providers_attempted,
+                succeeded=bundle.providers_succeeded,
+            )
+        else:
+            research_status = "not_applicable"
+
+        prompt = _build_evaluation_prompt(
+            topic=session.topic,
+            topic_context=session.topic_context,
+            transcript=transcript,
+            slide_text=slide_text,
+            research_status=research_status,
+            bundle=bundle,
+        )
+
         agent = Agent(
             model=get_text_model(),
             instructions=CONTENT_PROMPT,
@@ -67,7 +150,9 @@ class ContentAnalysisAgent:
         fb = get_text_model_fallback()
 
         async def _claude():
-            return await Agent(model=fb, instructions=CONTENT_PROMPT, output_schema=ContentResult).arun(prompt)
+            return await Agent(model=fb, instructions=CONTENT_PROMPT, output_schema=ContentResult).arun(
+                prompt
+            )
 
         claude_fn = _claude if fb else None
         primary, secondary = pick_provider_order(claude_fn, _gateway)
@@ -78,10 +163,16 @@ class ContentAnalysisAgent:
             return None
 
         cr = result.content
-        logger.info("Content LLM result: score={} findings={}", cr.content_score, len(cr.findings))
+        logger.info(
+            "Content LLM result: score={} findings={} research={}",
+            cr.content_score,
+            len(cr.findings),
+            research_status,
+        )
         return ContentAnalysisPayload(
             session_id=session_id,
             topic=session.topic,
             content_score=float(max(0, min(100, cr.content_score))),
             findings=cr.findings,
+            research_status=research_status,
         )

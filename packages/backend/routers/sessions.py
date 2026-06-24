@@ -82,6 +82,7 @@ async def get_report(
         "body_score": float(report.body_score) if report.body_score is not None else None,
         "slide_score": float(report.slide_score or 0),
         "content_score": float(report.content_score or 0),
+        "content_research_status": report.content_research_status or "not_applicable",
         "insights": report.insights or [],
         "mentor_unlocked": report.mentor_unlocked,
         "generated_at": report.generated_at,

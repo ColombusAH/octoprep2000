@@ -88,9 +88,7 @@ Copy `.env.example` to `.env` and fill in:
 - [`docs/MASTER-DOCUMENT.md`](docs/MASTER-DOCUMENT.md) — hackathon plan and team composition
 
 <!-- SPECKIT START -->
-Active feature plan: [`specs/001-agent-direct-persistence/plan.md`](specs/001-agent-direct-persistence/plan.md)
-— moves DB-write ownership from the Orchestrator into each role-owning agent (agents write their own
-tables + emit a completion signal; Orchestrator coordinates lifecycle and assembles the report by
-reading the agreed tables). Gated on a Constitution Principle II amendment. See the feature's
-research.md, data-model.md, contracts/, and quickstart.md for details.
+**Active feature plan**: [`specs/001-content-agent-research-tools/plan.md`](specs/001-content-agent-research-tools/plan.md)
+
+For technologies, project structure, shell commands, and implementation context for the current feature, read the plan above and its linked artifacts (`research.md`, `data-model.md`, `contracts/`, `quickstart.md`).
 <!-- SPECKIT END -->

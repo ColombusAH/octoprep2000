@@ -101,6 +101,7 @@ class ReportAgent(AgentPersistence):
         body_insights, body_score = self._score_body(video_events) if not fallback_mode else ([], None)
         slide_insights, slide_score = self._score_slides(slide_analyses)
         content_insights, content_score = self._content_breakdown(content)
+        research_status = content.research_status if content else "not_applicable"
 
         if fallback_mode:
             overall = voice_score * 0.40 + slide_score * 0.30 + content_score * 0.30
@@ -119,6 +120,7 @@ class ReportAgent(AgentPersistence):
             body_score=round(body_score, 2) if body_score is not None else None,
             slide_score=round(slide_score, 2),
             content_score=round(content_score, 2),
+            content_research_status=research_status,
             insights=voice_insights + body_insights + slide_insights + content_insights,
         )
 
@@ -132,6 +134,7 @@ class ReportAgent(AgentPersistence):
                     "body_score": payload.body_score,
                     "slide_score": payload.slide_score,
                     "content_score": payload.content_score,
+                    "content_research_status": payload.content_research_status,
                     "insights": [i.model_dump() for i in payload.insights],
                     "mentor_unlocked": payload.mentor_unlocked,
                 }
@@ -271,13 +274,33 @@ class ReportAgent(AgentPersistence):
     ) -> tuple[list[Insight], float]:
         if not content:
             return [Insight(category="content", type="IMPROVEMENT", message="Content analysis skipped")], 0.0
+
+        insights: list[Insight] = []
+        status = content.research_status
+        if status == "partial":
+            insights.append(
+                Insight(
+                    category="content",
+                    type="IMPROVEMENT",
+                    message="Reference lookup partially available — some sources could not be reached.",
+                )
+            )
+        elif status == "skipped":
+            insights.append(
+                Insight(
+                    category="content",
+                    type="IMPROVEMENT",
+                    message="Reference lookup unavailable — content scored from transcript only.",
+                )
+            )
+
         type_map = {"FACTUAL_ERROR": "IMPROVEMENT", "COVERAGE_GAP": "IMPROVEMENT", "STRENGTH": "STRENGTH"}
-        insights = [
+        insights.extend(
             Insight(
                 category="content",
                 type=type_map.get(f.type, "IMPROVEMENT"),
                 message=f.message + (f"  (\"{f.context_quote}\")" if f.context_quote else ""),
             )
             for f in content.findings
-        ]
+        )
         return insights, float(content.content_score)
