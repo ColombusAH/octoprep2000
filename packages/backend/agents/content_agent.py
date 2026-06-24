@@ -97,6 +97,11 @@ def _format_slides_raw_text(slides_raw: list[dict] | None) -> str:
         parts.append(f"Slide {idx}: {text}")
     return "\n".join(parts)
 
+_LANGUAGE_NOTE = {
+    "en": 'Write every "message" in English. "context_quote" is always copied verbatim from the transcript, never translated.',
+    "he": 'Write every "message" in Hebrew. "context_quote" is always copied verbatim from the transcript, never translated.',
+}
+
 
 class ContentAnalysisAgent:
     async def analyse(self, session_id: uuid.UUID) -> ContentAnalysisPayload | None:
@@ -135,9 +140,12 @@ class ContentAnalysisAgent:
             bundle=bundle,
         )
 
+        instructions = CONTENT_PROMPT + "\n\n## Output language\n" + _LANGUAGE_NOTE.get(
+            session.speech_language, _LANGUAGE_NOTE["en"]
+        )
         agent = Agent(
             model=get_text_model(),
-            instructions=CONTENT_PROMPT,
+            instructions=instructions,
             output_schema=ContentResult,
         )
 
@@ -147,9 +155,7 @@ class ContentAnalysisAgent:
         fb = get_text_model_fallback()
 
         async def _claude():
-            return await Agent(model=fb, instructions=CONTENT_PROMPT, output_schema=ContentResult).arun(
-                prompt
-            )
+            return await Agent(model=fb, instructions=instructions, output_schema=ContentResult).arun(prompt)
 
         claude_fn = _claude if fb else None
         primary, secondary = pick_provider_order(claude_fn, _gateway)

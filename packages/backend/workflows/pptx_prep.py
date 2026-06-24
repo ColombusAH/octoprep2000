@@ -24,7 +24,11 @@ from orchestrator.orchestrator import Orchestrator
 
 
 async def run_pptx_prep_workflow(
-    orchestrator: Orchestrator, session_id: uuid.UUID, pptx_path: str
+    orchestrator: Orchestrator,
+    session_id: uuid.UUID,
+    pptx_path: str,
+    speech_language: str = "en",
+    deck_language: str = "en",
 ) -> None:
     agent = PPTXAgent(orchestrator)
     ctx: dict = {"bundle": None, "research_status": "not_applicable"}
@@ -34,7 +38,7 @@ async def run_pptx_prep_workflow(
         return StepOutput(content=f"extracted {len(ctx['slides_raw'])} slide(s)")
 
     async def review_step(_si: StepInput) -> StepOutput:
-        ctx["findings"] = await agent.review(ctx["slides_raw"])
+        ctx["findings"] = await agent.review(ctx["slides_raw"], speech_language, deck_language)
         return StepOutput(content=f"{len(ctx['findings'])} finding(s)")
 
     async def research_step(_si: StepInput) -> StepOutput:

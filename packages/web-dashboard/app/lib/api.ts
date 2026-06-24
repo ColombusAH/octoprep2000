@@ -39,7 +39,14 @@ function authHeaders(sessionId: string): HeadersInit {
   return token ? { Authorization: `Bearer ${token}` } : {};
 }
 
-export type CreateSessionBody = { topic: string; topic_context?: string };
+export type Language = "en" | "he";
+
+export type CreateSessionBody = {
+  topic: string;
+  topic_context?: string;
+  speech_language?: Language;
+  deck_language?: Language;
+};
 
 export async function createSession(
   body: CreateSessionBody,
@@ -138,8 +145,11 @@ export async function endSession(sessionId: string): Promise<void> {
   if (!res.ok) throw new Error(`end failed: ${res.status}`);
 }
 
-export async function getReport(sessionId: string, share?: string) {
-  const qs = share ? `?share=${encodeURIComponent(share)}` : "";
+export async function getReport(sessionId: string, share?: string, lang?: Language) {
+  const params = new URLSearchParams();
+  if (share) params.set("share", share);
+  if (lang) params.set("lang", lang);
+  const qs = params.toString() ? `?${params.toString()}` : "";
   const headers: HeadersInit = share ? {} : authHeaders(sessionId);
   const res = await fetch(`${BACKEND_URL}/sessions/${sessionId}/report${qs}`, { headers });
   if (!res.ok) throw new ApiError(`report failed: ${res.status}`, res.status);

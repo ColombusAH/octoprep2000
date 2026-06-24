@@ -19,7 +19,7 @@ const TAPES: Tape[] = [
   { num: "005", id: "demo-perfect", mock: "perfect", topic: "Israeli Tech Radar Vol. 9 — Keynote Walkthrough", date: "2026-06-21", score: 96, unlocked: true },
   { num: "004", id: "demo-unlocked", mock: "unlocked", topic: "Tech Radar Voice Podcast — Season Intro", date: "2026-06-18", score: 87, unlocked: true },
   { num: "003", id: "demo-no-camera", mock: "no-camera", topic: "2026-27 Tech Trends: Agent-Oriented Design", date: "2026-06-14", score: 71, unlocked: false, noCamera: true },
-  { num: "002", id: "demo-locked", mock: "locked", topic: "Tikal Meetup: Harness Engineering 101", date: "2026-06-09", score: 64, unlocked: false },
+  { num: "002", id: "demo-locked", mock: "locked", topic: "Agentic Engineering: Patterns, Architectures", date: "2026-06-09", score: 91, unlocked: true },
   { num: "001", id: "demo-rough-cut", mock: "rough-cut", topic: "First dry run — AI Economics talk", date: "2026-06-02", score: 41, unlocked: false },
 ];
 

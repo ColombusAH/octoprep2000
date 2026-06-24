@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { Download } from "lucide-react";
-import { ApiError, createShareLink, getPublicConfig, getReport, type PublicConfig } from "~/lib/api";
+import { ApiError, createShareLink, getPublicConfig, getReport, type Language, type PublicConfig } from "~/lib/api";
 import { ScoreCard, type ReportData } from "~/components/ScoreCard";
 import { ProcessingScreen } from "~/components/ProcessingScreen";
 import { Button } from "~/components/ui/button";
@@ -30,6 +30,7 @@ function ReportPage() {
     mockReport === undefined && mock ? `Unknown mock key "${mock}"` : null,
   );
   const [shareUrl, setShareUrl] = useState<string | null>(null);
+  const [lang, setLang] = useState<Language | null>(mockReport ? "en" : null);
   // Hold the report-ready transition for one "complete" beat on ProcessingScreen
   // before swapping to ScoreCard, so the wait pays off instead of cutting away.
   const [revealReport, setRevealReport] = useState(false);
@@ -52,6 +53,7 @@ function ReportPage() {
         const [r, c] = await Promise.all([getReport(id, share), getPublicConfig()]);
         if (stop) return;
         setReport(r);
+        setLang(r.language ?? "en");
         setConfig(c);
       } catch (err) {
         if (stop) return;
@@ -68,6 +70,20 @@ function ReportPage() {
       stop = true;
     };
   }, [id, share, mockReport]);
+
+  const handleToggleLang = async (next: Language) => {
+    if (next === lang || mockReport) {
+      setLang(next);
+      return;
+    }
+    try {
+      const r = await getReport(id, share, next);
+      setReport(r);
+      setLang(next);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    }
+  };
 
   const handleShare = async () => {
     try {
@@ -121,14 +137,40 @@ function ReportPage() {
   }
 
   return (
-    <main className="mx-auto max-w-5xl px-8 py-10">
+    <main className="mx-auto max-w-5xl px-8 py-10" dir={lang === "he" ? "rtl" : "ltr"}>
       <header className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <h1 className="font-display text-2xl font-bold tracking-tight text-pearl">
-          Session Report
-        </h1>
-        {!share && (
-          <div className="flex flex-col items-stretch gap-2 sm:items-end">
-            <div className="flex flex-wrap gap-2">
+        <div>
+          <h1 className="font-display text-2xl font-bold tracking-tight text-pearl">
+            Session Report
+          </h1>
+          {report.topic && (
+            <p className="mt-1 font-mono text-xs tracking-[0.08em] text-teal">{report.topic}</p>
+          )}
+        </div>
+        <div className="flex flex-col items-stretch gap-2 sm:items-end">
+          <div className="flex flex-wrap items-center gap-2.5">
+          <div role="group" aria-label="Report language" className="inline-flex gap-1.5">
+            <Button
+              type="button"
+              size="sm"
+              variant={lang === "en" ? "default" : "outline"}
+              aria-pressed={lang === "en"}
+              onClick={() => handleToggleLang("en")}
+            >
+              EN
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant={lang === "he" ? "default" : "outline"}
+              aria-pressed={lang === "he"}
+              onClick={() => handleToggleLang("he")}
+            >
+              עברית
+            </Button>
+          </div>
+          {!share && (
+            <>
               <Button
                 variant="outline"
                 onClick={handleDownloadPdf}
@@ -141,14 +183,15 @@ function ReportPage() {
               <Button variant="outline" onClick={handleShare}>
                 {shareUrl ? "Link copied ✓" : "Copy share link"}
               </Button>
-            </div>
-            {pdfError && (
-              <p className="text-sm text-destructive" role="alert">
-                {pdfError}
-              </p>
-            )}
+            </>
+          )}
           </div>
-        )}
+          {pdfError && (
+            <p className="text-sm text-destructive" role="alert">
+              {pdfError}
+            </p>
+          )}
+        </div>
       </header>
       <ScoreCard report={report} mentorBookingUrl={config.mentor_booking_url} />
     </main>

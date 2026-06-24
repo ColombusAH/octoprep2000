@@ -19,8 +19,19 @@ class PostgreSQLRepository:
         self.db = db
 
     # ── Sessions ──────────────────────────────────────────────────────
-    async def create_session(self, topic: str, topic_context: str | None = None) -> Session:
-        session = Session(topic=topic, topic_context=topic_context)
+    async def create_session(
+        self,
+        topic: str,
+        topic_context: str | None = None,
+        speech_language: str = "en",
+        deck_language: str = "en",
+    ) -> Session:
+        session = Session(
+            topic=topic,
+            topic_context=topic_context,
+            speech_language=speech_language,
+            deck_language=deck_language,
+        )
         self.db.add(session)
         await self.db.commit()
         await self.db.refresh(session)

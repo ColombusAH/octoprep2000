@@ -25,7 +25,10 @@ if TYPE_CHECKING:
 
 
 async def run_report_workflow(
-    agent: ReportAgent, session_id: uuid.UUID, fallback_mode: bool = False
+    agent: ReportAgent,
+    session_id: uuid.UUID,
+    fallback_mode: bool = False,
+    speech_language: str = "en",
 ) -> ReportPayload:
     ctx: dict = {}
 
@@ -43,7 +46,7 @@ async def run_report_workflow(
 
     async def score_step(_si: StepInput) -> StepOutput:
         ctx["payload"] = await agent.assemble_and_write(
-            session_id, ctx["inputs"], ctx["content"], fallback_mode
+            session_id, ctx["inputs"], ctx["content"], fallback_mode, speech_language
         )
         return StepOutput(content="report written")
 

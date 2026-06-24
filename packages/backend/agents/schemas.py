@@ -14,6 +14,9 @@ from typing import Literal
 
 from pydantic import BaseModel, Field, field_validator
 
+# ── Hebrew & RTL support ────────────────────────────────────────────────
+Language = Literal["en", "he"]
+
 # ── Vision ────────────────────────────────────────────────────────────
 VideoEventType = Literal[
     "EYE_CONTACT_LOST",
@@ -124,6 +127,16 @@ class ContentAnalysisPayload(BaseModel):
     research_status: Literal["full", "partial", "skipped", "not_applicable"] = "not_applicable"
 
 
+# ── Report-insight translation (Decision 3, research.md) ──────────────
+class TranslatedItem(BaseModel):
+    id: int
+    text: str
+
+
+class TranslationBatch(BaseModel):
+    items: list[TranslatedItem]
+
+
 # ── Report ────────────────────────────────────────────────────────────
 InsightCategory = Literal["voice", "body", "slide", "content"]
 
@@ -131,7 +144,8 @@ InsightCategory = Literal["voice", "body", "slide", "content"]
 class Insight(BaseModel):
     category: InsightCategory
     type: FindingType
-    message: str
+    message_en: str
+    message_he: str
     timestamps: list[int] = Field(default_factory=list)
     slides: list[int] = Field(default_factory=list)
 
@@ -178,6 +192,8 @@ class CompletionSignal(BaseModel):
 class CreateSessionBody(BaseModel):
     topic: str = Field(min_length=8, max_length=200)
     topic_context: str | None = Field(default=None, max_length=500)
+    speech_language: Language = "en"
+    deck_language: Language = "en"
 
     @field_validator("topic")
     @classmethod

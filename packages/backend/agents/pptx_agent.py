@@ -14,12 +14,6 @@ from loguru import logger
 from pptx import Presentation
 from pptx.enum.shapes import MSO_SHAPE_TYPE
 
-from agents.llm import (
-    call_with_fallback,
-    get_text_model,
-    get_text_model_fallback,
-    pick_provider_order,
-)
 from agents.content_research.classifier import classify_topic
 from agents.content_research.fetcher import fetch_reference_bundle
 from agents.content_research.reference_bundle import (
@@ -27,6 +21,12 @@ from agents.content_research.reference_bundle import (
     ResearchStatus,
     compute_research_status,
     to_jsonb,
+)
+from agents.llm import (
+    call_with_fallback,
+    get_text_model,
+    get_text_model_fallback,
+    pick_provider_order,
 )
 from agents.persistence import AgentPersistence
 from agents.replay_fixtures import replay_delivery_findings, replay_slide_findings
@@ -217,6 +217,20 @@ Return 3–8 findings. Flag ahead/behind slide sync, long dwell with off-topic s
  "suggested_fix": "Advance to slide 7 before diving into its architecture, or pause until you catch up."}"""
 
 
+def _language_instructions(speech_language: str, deck_language: str) -> str:
+    """FR-009: the deck's declared language is interpretive context only — every
+    description/suggested_fix is written in the presenter's declared speech_language
+    (the report's default display language), regardless of deck_language.
+    """
+    deck_note = "The deck's text is in Hebrew." if deck_language == "he" else "The deck's text is in English."
+    out_note = (
+        'Write every "description" and "suggested_fix" in Hebrew, regardless of the deck\'s language.'
+        if speech_language == "he"
+        else 'Write every "description" and "suggested_fix" in English, regardless of the deck\'s language.'
+    )
+    return f"\n\n## Output language\n{deck_note} {out_note}"
+
+
 MAX_FINDINGS_PER_SLIDE = 3
 MAX_DELIVERY_FINDINGS = 8
 MAX_DELIVERY_PER_SLIDE = 2
@@ -239,6 +253,23 @@ _FACTOR_FIX_TEMPLATES: dict[int, str] = {
     12: "Reorder slides so each one raises a question answered on the next slide.",
 }
 
+# Hebrew variants, selected by Session.speech_language (research.md Decision 2) — a
+# deterministic fallback must never silently write English into a Hebrew-spoken report.
+_FACTOR_FIX_TEMPLATES_HE: dict[int, str] = {
+    1: "כתבו תחילה את מתווה ההרצאה, והוסיפו שקפים רק היכן שהם ממחישים נקודה.",
+    2: "החליפו ניסוחים שגורים בסיפור אישי או במקור מקושר על השקף.",
+    3: "החליפו קיר של בולטים בכותרת אחת + תרשים; העבירו טקסט תומך להערות הדובר.",
+    4: "מזגו שקפים קרובים או העבירו הרחבות לנספח; כוונו לכ-10 שקפים וטקסט בגודל 30+.",
+    5: "השאירו כותרת, עד 3 בולטים, ותמונה אחת; מחקו או העבירו צורות נוספות.",
+    6: "עברו לרקע כהה וטקסט בהיר, או הוסיפו שקף ריק לפני הנקודה המרכזית.",
+    7: "בחרו גודל כותרת אחד וגודל גוף אחד; החילו דרך תבנית השקפים בכל המצגת.",
+    8: "סדרו מחדש את השקפים: פתיח → בעיה → ניסיון כושל → השראה → פתרון → סיכום.",
+    9: "הציגו רק 3–5 שורות קוד רלוונטיות עם הדגשה; הדביקו את הקובץ המלא בהערות.",
+    10: "השאירו כותרת של עד 5 מילים על השקף; הדביקו את התסריט המלא רק בהערות הדובר.",
+    11: "הוסיפו שקף ריק לפני מעברים מרכזיים כדי להחזיר את תשומת הלב לדובר.",
+    12: "סדרו מחדש את השקפים כך שכל אחד מעורר שאלה שנענית בשקף הבא.",
+}
+
 
 def _truncate(text: str, max_len: int) -> str:
     text = text.strip()
@@ -247,27 +278,48 @@ def _truncate(text: str, max_len: int) -> str:
     return text[: max_len - 1] + "…"
 
 
-def _default_suggested_fix(factor: int, row: dict | None = None) -> str:
+def _default_suggested_fix(factor: int, row: dict | None = None, speech_language: str = "en") -> str:
     idx = row["slide_index"] if row else None
+    he = speech_language == "he"
     if factor == 4 and row:
         sizes = row.get("font_sizes_pt") or []
         small = [s for s in sizes if s < 30]
         if small:
-            return f"Set body text on slide {idx} to 30pt+; demote secondary lines to notes."
+            return (
+                f"הגדילו את טקסט הגוף בשקף {idx} ל-30+ נקודות; העבירו שורות משניות להערות."
+                if he
+                else f"Set body text on slide {idx} to 30pt+; demote secondary lines to notes."
+            )
         total = row.get("_deck_total")
         if total and total > 12:
-            return "Merge related slides or move deep dives to appendix; aim for ~10 slides total."
+            return (
+                "מזגו שקפים קרובים או העבירו הרחבות לנספח; כוונו לכ-10 שקפים בסך הכול."
+                if he
+                else "Merge related slides or move deep dives to appendix; aim for ~10 slides total."
+            )
     if factor == 5 and row:
         return (
-            f"On slide {idx}, keep title + ≤3 bullets + one chart; "
-            "delete or move the other shapes to notes."
+            f"בשקף {idx}, השאירו כותרת + עד 3 בולטים + תרשים אחד; "
+            "מחקו או העבירו את שאר הצורות להערות."
+            if he
+            else (
+                f"On slide {idx}, keep title + ≤3 bullets + one chart; "
+                "delete or move the other shapes to notes."
+            )
         )
     if factor == 3 and row:
         return (
-            f"On slide {idx}, replace dense bullets with one headline + diagram; "
-            "move detail to speaker notes."
+            f"בשקף {idx}, החליפו בולטים צפופים בכותרת אחת + תרשים; "
+            "העבירו פרטים להערות הדובר."
+            if he
+            else (
+                f"On slide {idx}, replace dense bullets with one headline + diagram; "
+                "move detail to speaker notes."
+            )
         )
-    return _FACTOR_FIX_TEMPLATES.get(factor, "Apply the playbook guidance for this factor on this slide.")
+    templates = _FACTOR_FIX_TEMPLATES_HE if he else _FACTOR_FIX_TEMPLATES
+    fallback = "החילו את הנחיית הפלייבוק עבור גורם זה בשקף." if he else "Apply the playbook guidance for this factor on this slide."
+    return templates.get(factor, fallback)
 
 
 def _normalize_finding(
@@ -275,11 +327,15 @@ def _normalize_finding(
     row: dict | None = None,
     *,
     phase: str = "static",
+    speech_language: str = "en",
 ) -> SlideAnalysisPayload:
     desc = _truncate(item.description, MAX_DESCRIPTION_LEN)
     fix = _truncate(item.suggested_fix, MAX_SUGGESTED_FIX_LEN)
     if item.finding_type == "IMPROVEMENT" and not fix:
-        fix = _truncate(_default_suggested_fix(item.playbook_factor, row), MAX_SUGGESTED_FIX_LEN)
+        fix = _truncate(
+            _default_suggested_fix(item.playbook_factor, row, speech_language),
+            MAX_SUGGESTED_FIX_LEN,
+        )
     return SlideAnalysisPayload(
         slide_index=item.slide_index,
         playbook_factor=item.playbook_factor,
@@ -374,7 +430,9 @@ def _format_content_context(content: ContentAnalysisPayload | None) -> str:
     return "\n".join(parts)
 
 
-def validate_delivery_findings(findings: list[SlideAnalysisPayload]) -> list[SlideAnalysisPayload]:
+def validate_delivery_findings(
+    findings: list[SlideAnalysisPayload], speech_language: str = "en"
+) -> list[SlideAnalysisPayload]:
     """Cap delivery findings — semantic pass, no metadata supplement."""
     per_slide: dict[int, int] = {}
     kept: list[SlideAnalysisPayload] = []
@@ -384,7 +442,7 @@ def validate_delivery_findings(findings: list[SlideAnalysisPayload]) -> list[Sli
         count = per_slide.get(item.slide_index, 0)
         if count >= MAX_DELIVERY_PER_SLIDE:
             continue
-        kept.append(_normalize_finding(item, row=None, phase="delivery"))
+        kept.append(_normalize_finding(item, row=None, phase="delivery", speech_language=speech_language))
         per_slide[item.slide_index] = count + 1
     return kept
 
@@ -405,6 +463,7 @@ def _notes_overlap_body(body: str, notes: str) -> bool:
 def validate_findings(
     findings: list[SlideAnalysisPayload],
     slides_raw: list[dict] | None = None,
+    speech_language: str = "en",
 ) -> list[SlideAnalysisPayload]:
     """Enforce FR-001 limits and log coverage gaps for tuning."""
     rows_by_index = {row["slide_index"]: row for row in slides_raw} if slides_raw else {}
@@ -420,7 +479,7 @@ def validate_findings(
         if count >= MAX_FINDINGS_PER_SLIDE:
             continue
         row = rows_by_index.get(item.slide_index)
-        kept.append(_normalize_finding(item, row, phase="static"))
+        kept.append(_normalize_finding(item, row, phase="static", speech_language=speech_language))
         per_slide[item.slide_index] = count + 1
 
     factors = {f.playbook_factor for f in kept}
@@ -436,7 +495,7 @@ def validate_findings(
         logger.warning("PPTX findings missing STRENGTH/IMPROVEMENT mix: {}", types)
 
     if slides_raw and len(factors) < MIN_DISTINCT_FACTORS:
-        kept = _supplement_from_metadata(kept, slides_raw)
+        kept = _supplement_from_metadata(kept, slides_raw, speech_language)
 
     return kept
 
@@ -444,8 +503,15 @@ def validate_findings(
 def _supplement_from_metadata(
     findings: list[SlideAnalysisPayload],
     slides_raw: list[dict],
+    speech_language: str = "en",
 ) -> list[SlideAnalysisPayload]:
-    """Deterministic fallback when the LLM under-covers factors (demo reliability)."""
+    """Deterministic fallback when the LLM under-covers factors (demo reliability).
+
+    Every description/fix below has a Hebrew variant selected by speech_language —
+    this fallback must never silently write English into a Hebrew-spoken report
+    (research.md Decision 2).
+    """
+    he = speech_language == "he"
     existing_factors = {f.playbook_factor for f in findings}
     extras: list[SlideAnalysisPayload] = []
 
@@ -454,16 +520,28 @@ def _supplement_from_metadata(
     for row in slides_raw:
         row["_deck_total"] = deck_total
     if 4 not in existing_factors and total > 0:
-        desc = (
-            f"Deck has {total} slides — well above the ~10-slide 10-20-30 target."
-            if total > 12
-            else f"Deck has {total} slides — check pace against the 10-20-30 rule."
-        )
-        fix = (
-            "Merge related slides or move deep dives to appendix; aim for ~10 slides total."
-            if total > 12
-            else "Keep one idea per slide; cut or appendix anything that does not advance the story."
-        )
+        if he:
+            desc = (
+                f"במצגת {total} שקפים — הרבה מעבר למטרת כ-10 השקפים של חוק 10-20-30."
+                if total > 12
+                else f"במצגת {total} שקפים — בדקו את הקצב לפי חוק 10-20-30."
+            )
+            fix = (
+                "מזגו שקפים קרובים או העבירו הרחבות לנספח; כוונו לכ-10 שקפים בסך הכול."
+                if total > 12
+                else "השאירו רעיון אחד בכל שקף; הוציאו או העבירו לנספח כל מה שלא מקדם את הסיפור."
+            )
+        else:
+            desc = (
+                f"Deck has {total} slides — well above the ~10-slide 10-20-30 target."
+                if total > 12
+                else f"Deck has {total} slides — check pace against the 10-20-30 rule."
+            )
+            fix = (
+                "Merge related slides or move deep dives to appendix; aim for ~10 slides total."
+                if total > 12
+                else "Keep one idea per slide; cut or appendix anything that does not advance the story."
+            )
         extras.append(
             SlideAnalysisPayload(
                 slide_index=1,
@@ -480,65 +558,89 @@ def _supplement_from_metadata(
             break
         idx = row["slide_index"]
         if 5 not in existing_factors and row.get("shape_count", 0) > 6:
+            desc = (
+                f"בשקף {idx} יש {row['shape_count']} אובייקטים — מעבר למגבלת ה-6."
+                if he
+                else f"Slide {idx} has {row['shape_count']} objects — above the ≤6 limit."
+            )
             extras.append(
                 SlideAnalysisPayload(
                     slide_index=idx,
                     playbook_factor=5,
                     finding_type="IMPROVEMENT",
-                    description=(
-                        f"Slide {idx} has {row['shape_count']} objects — above the ≤6 limit."
-                    )[:MAX_DESCRIPTION_LEN],
-                    suggested_fix=_default_suggested_fix(5, row)[:MAX_SUGGESTED_FIX_LEN],
+                    description=desc[:MAX_DESCRIPTION_LEN],
+                    suggested_fix=_default_suggested_fix(5, row, speech_language)[:MAX_SUGGESTED_FIX_LEN],
                 )
             )
             existing_factors.add(5)
         if 3 not in existing_factors and row.get("text_line_count", 0) >= 8:
+            desc = (
+                f"בשקף {idx} יש {row['text_line_count']} שורות טקסט — צפוף מדי לסריקה מהירה."
+                if he
+                else f"Slide {idx} has {row['text_line_count']} text lines — too dense to scan."
+            )
             extras.append(
                 SlideAnalysisPayload(
                     slide_index=idx,
                     playbook_factor=3,
                     finding_type="IMPROVEMENT",
-                    description=(
-                        f"Slide {idx} has {row['text_line_count']} text lines — too dense to scan."
-                    )[:MAX_DESCRIPTION_LEN],
-                    suggested_fix=_default_suggested_fix(3, row)[:MAX_SUGGESTED_FIX_LEN],
+                    description=desc[:MAX_DESCRIPTION_LEN],
+                    suggested_fix=_default_suggested_fix(3, row, speech_language)[:MAX_SUGGESTED_FIX_LEN],
                 )
             )
             existing_factors.add(3)
         sizes = row.get("font_sizes_pt") or []
         small = [s for s in sizes if s < 30]
         if 4 not in existing_factors and small:
+            desc = (
+                f"בשקף {idx} משתמשים בטקסט בגודל {min(small):.0f} נקודות — מתחת למינימום של 30."
+                if he
+                else f"Slide {idx} uses {min(small):.0f}pt text — below the 30pt minimum."
+            )
             extras.append(
                 SlideAnalysisPayload(
                     slide_index=idx,
                     playbook_factor=4,
                     finding_type="IMPROVEMENT",
-                    description=(
-                        f"Slide {idx} uses {min(small):.0f}pt text — below the 30pt minimum."
-                    )[:MAX_DESCRIPTION_LEN],
-                    suggested_fix=_default_suggested_fix(4, row)[:MAX_SUGGESTED_FIX_LEN],
+                    description=desc[:MAX_DESCRIPTION_LEN],
+                    suggested_fix=_default_suggested_fix(4, row, speech_language)[:MAX_SUGGESTED_FIX_LEN],
                 )
             )
             existing_factors.add(4)
         if 11 not in existing_factors and row.get("is_blank"):
+            desc = (
+                f"שקף {idx} ריק — שקף מיקוד טוב שמחזיר את הקשב לדובר."
+                if he
+                else f"Slide {idx} is blank — good focus slide for the speaker."
+            )
+            fix = (
+                "הוסיפו שקפים ריקים לפני מעברים מרכזיים כדי להחזיר את תשומת הלב."
+                if he
+                else "Insert blank slides before key transitions to reclaim attention."
+            )
             extras.append(
                 SlideAnalysisPayload(
                     slide_index=idx,
                     playbook_factor=11,
                     finding_type="STRENGTH",
-                    description=f"Slide {idx} is blank — good focus slide for the speaker.",
-                    suggested_fix="Insert blank slides before key transitions to reclaim attention.",
+                    description=desc,
+                    suggested_fix=fix,
                 )
             )
             existing_factors.add(11)
         if 10 not in existing_factors and row.get("notes_overlap_body"):
+            desc = (
+                f"שקף {idx} משכפל את הערות הדובר בתוך גוף השקף."
+                if he
+                else f"Slide {idx} duplicates speaker notes on the slide body."
+            )
             extras.append(
                 SlideAnalysisPayload(
                     slide_index=idx,
                     playbook_factor=10,
                     finding_type="IMPROVEMENT",
-                    description=f"Slide {idx} duplicates speaker notes on the slide body.",
-                    suggested_fix=_default_suggested_fix(10, row)[:MAX_SUGGESTED_FIX_LEN],
+                    description=desc,
+                    suggested_fix=_default_suggested_fix(10, row, speech_language)[:MAX_SUGGESTED_FIX_LEN],
                 )
             )
             existing_factors.add(10)
@@ -563,8 +665,12 @@ def _supplement_from_metadata(
                 slide_index=idx,
                 playbook_factor=12,
                 finding_type="IMPROVEMENT",
-                description="Deck reads as a list of facts — weak narrative pull slide to slide.",
-                suggested_fix=_default_suggested_fix(12)[:MAX_SUGGESTED_FIX_LEN],
+                description=(
+                    "המצגת נקראת כרשימת עובדות — חסר סיפור מושך בין השקפים."
+                    if he
+                    else "Deck reads as a list of facts — weak narrative pull slide to slide."
+                ),
+                suggested_fix=_default_suggested_fix(12, speech_language=speech_language)[:MAX_SUGGESTED_FIX_LEN],
             )
         )
         per_slide[idx] = per_slide.get(idx, 0) + 1
@@ -576,12 +682,16 @@ def _supplement_from_metadata(
                 slide_index=idx,
                 playbook_factor=7,
                 finding_type="IMPROVEMENT",
-                description="Title and body font sizes vary across slides.",
-                suggested_fix=_default_suggested_fix(7)[:MAX_SUGGESTED_FIX_LEN],
+                description=(
+                    "גודלי הגופן של כותרות וגוף הטקסט משתנים בין השקפים."
+                    if he
+                    else "Title and body font sizes vary across slides."
+                ),
+                suggested_fix=_default_suggested_fix(7, speech_language=speech_language)[:MAX_SUGGESTED_FIX_LEN],
             )
         )
 
-    return validate_findings(merged, slides_raw=None)
+    return validate_findings(merged, slides_raw=None, speech_language=speech_language)
 
 
 class PPTXAgent(AgentPersistence):
@@ -635,11 +745,17 @@ class PPTXAgent(AgentPersistence):
         await self._with_repo(write)
         return True
 
-    async def analyse(self, session_id: uuid.UUID, pptx_path: str) -> None:
+    async def analyse(
+        self,
+        session_id: uuid.UUID,
+        pptx_path: str,
+        speech_language: str = "en",
+        deck_language: str = "en",
+    ) -> None:
         """Static pre-session pass. Kept as the back-compat entry; PptxPrepWorkflow
         calls the three phases below directly so each is its own agno Workflow step."""
         slides_raw = await self.extract(pptx_path)
-        findings = await self.review(slides_raw)
+        findings = await self.review(slides_raw, speech_language, deck_language)
         await self.persist(session_id, slides_raw, findings)
 
     # ── static pass, split into agno-Workflow-friendly phases ─────────
@@ -651,17 +767,22 @@ class PPTXAgent(AgentPersistence):
             logger.exception("PPTX parse failed: {}", exc)
             return []
 
-    async def review(self, slides_raw: list[dict]) -> list[SlideAnalysisPayload]:
+    async def review(
+        self,
+        slides_raw: list[dict],
+        speech_language: str = "en",
+        deck_language: str = "en",
+    ) -> list[SlideAnalysisPayload]:
         """Phase 2: evaluate against the playbook (LLM, or replay fixtures)."""
         if get_settings().demo_replay:
             findings = replay_slide_findings()
         else:
             try:
-                findings = await self._evaluate(slides_raw)
+                findings = await self._evaluate(slides_raw, speech_language, deck_language)
             except Exception as exc:  # noqa: BLE001
                 logger.exception("PPTX LLM eval failed: {}", exc)
                 findings = []
-        return validate_findings(findings, slides_raw)
+        return validate_findings(findings, slides_raw, speech_language)
 
     async def research(
         self, topic: str, topic_context: str | None
@@ -740,6 +861,8 @@ class PPTXAgent(AgentPersistence):
         *,
         content: ContentAnalysisPayload | None = None,
         slide_events=None,
+        speech_language: str = "en",
+        deck_language: str = "en",
     ) -> None:
         """Post-session pass: compare timed speech + slide text (+ content findings).
 
@@ -781,12 +904,14 @@ class PPTXAgent(AgentPersistence):
                     content=content,
                     timeline=timeline if use_timeline else None,
                     transcript=transcript if use_timeline else None,
+                    speech_language=speech_language,
+                    deck_language=deck_language,
                 )
             except Exception as exc:  # noqa: BLE001
                 logger.exception("PPTX delivery LLM eval failed: {}", exc)
                 findings = []
 
-        findings = validate_delivery_findings(findings)
+        findings = validate_delivery_findings(findings, speech_language)
         if not findings:
             return
 
@@ -894,11 +1019,17 @@ class PPTXAgent(AgentPersistence):
             f"Speaker notes: {notes_note}"
         )
 
-    async def _evaluate(self, slides_raw: list[dict]) -> list[SlideAnalysisPayload]:
+    async def _evaluate(
+        self,
+        slides_raw: list[dict],
+        speech_language: str = "en",
+        deck_language: str = "en",
+    ) -> list[SlideAnalysisPayload]:
         deck_dump = self.build_deck_dump(slides_raw)
+        instructions = PLAYBOOK_PROMPT + _language_instructions(speech_language, deck_language)
         agent = Agent(
             model=get_text_model(),
-            instructions=PLAYBOOK_PROMPT,
+            instructions=instructions,
             output_schema=SlideFindings,
         )
 
@@ -908,7 +1039,7 @@ class PPTXAgent(AgentPersistence):
         fb = get_text_model_fallback()
 
         async def _claude():
-            return await Agent(model=fb, instructions=PLAYBOOK_PROMPT, output_schema=SlideFindings).arun(deck_dump)
+            return await Agent(model=fb, instructions=instructions, output_schema=SlideFindings).arun(deck_dump)
 
         claude_fn = _claude if fb else None
         primary, secondary = pick_provider_order(claude_fn, _gateway)
@@ -927,6 +1058,8 @@ class PPTXAgent(AgentPersistence):
         content: ContentAnalysisPayload | None,
         timeline: list[dict[str, int]] | None = None,
         transcript=None,
+        speech_language: str = "en",
+        deck_language: str = "en",
     ) -> list[SlideAnalysisPayload]:
         use_timeline = bool(timeline)
         dump = self.build_delivery_dump(
@@ -938,7 +1071,9 @@ class PPTXAgent(AgentPersistence):
             timeline=timeline,
             transcript=transcript if use_timeline else None,
         )
-        prompt = DELIVERY_TIMELINE_PROMPT if use_timeline else DELIVERY_PROMPT
+        prompt = (DELIVERY_TIMELINE_PROMPT if use_timeline else DELIVERY_PROMPT) + _language_instructions(
+            speech_language, deck_language
+        )
         agent = Agent(
             model=get_text_model(),
             instructions=prompt,

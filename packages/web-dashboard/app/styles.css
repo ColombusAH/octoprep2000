@@ -11,6 +11,7 @@
 @import "@fontsource/chakra-petch/500.css";
 @import "@fontsource/chakra-petch/600.css";
 @import "@fontsource/chakra-petch/700.css";
+@import "@fontsource-variable/noto-sans-hebrew";
 
 @custom-variant dark (&:is(.dark *));
 
@@ -89,6 +90,22 @@
 * { box-sizing: border-box; }
 html, body { margin: 0; }
 button { cursor: pointer; font: inherit; }
+
+/*
+ * Tektur/Chakra Petch/Space Mono (the Y2K display/body/mono trio) are Latin-only —
+ * no Hebrew glyphs — so Hebrew text would silently fall back to a generic system
+ * font and break the brand's visual identity. Scope Noto Sans Hebrew Variable to
+ * any RTL subtree instead of swapping the whole theme's font stack.
+ */
+[dir="rtl"] {
+  font-family: 'Noto Sans Hebrew Variable', var(--font-sans);
+}
+[dir="rtl"] .font-display {
+  font-family: 'Noto Sans Hebrew Variable', var(--font-display);
+}
+[dir="rtl"] .font-mono {
+  font-family: 'Noto Sans Hebrew Variable', var(--font-mono);
+}
 
 @theme inline {
   --font-display: 'Tektur', sans-serif;

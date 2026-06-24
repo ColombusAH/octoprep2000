@@ -1,6 +1,7 @@
 import { createRootRoute, HeadContent, Outlet, Scripts } from "@tanstack/react-router";
 import type { ReactNode } from "react";
 import { AppShell } from "~/components/shell/AppShell";
+import { UI_LANG_INIT_SCRIPT } from "~/lib/i18n";
 import appCss from "../styles.css?url";
 
 export const Route = createRootRoute({
@@ -29,6 +30,8 @@ function RootDocument({ children }: { children: ReactNode }) {
   return (
     <html lang="en" className="dark">
       <head>
+        {/* Runs before first paint so lang/dir reflect the saved preference with no flash. */}
+        <script dangerouslySetInnerHTML={{ __html: UI_LANG_INIT_SCRIPT }} />
         <HeadContent />
       </head>
       <body>

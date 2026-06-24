@@ -41,6 +41,8 @@ export interface Insight {
   slides?: number[];
 }
 
+export type Language = "en" | "he";
+
 export interface ReportData {
   session_id: string;
   overall_score: number;
@@ -52,6 +54,8 @@ export interface ReportData {
   insights: Insight[];
   mentor_unlocked: boolean;
   generated_at: string;
+  language: Language;
+  speech_language: Language;
 }
 
 export interface CreateSessionResponse {

@@ -7,6 +7,7 @@ import {
   uploadVideo,
   waitForPptxReady,
   waitForVideoReady,
+  type Language,
 } from "~/lib/api";
 import { Button } from "~/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "~/components/ui/card";
@@ -18,6 +19,39 @@ import { useWallet } from "~/lib/wallet";
 
 export const Route = createFileRoute("/start")({ component: LandingPage });
 
+function LanguageToggle({
+  id,
+  value,
+  onChange,
+}: {
+  id: string;
+  value: Language;
+  onChange: (lang: Language) => void;
+}) {
+  return (
+    <div role="group" aria-labelledby={id} className="inline-flex gap-1.5">
+      <Button
+        type="button"
+        size="sm"
+        variant={value === "en" ? "default" : "outline"}
+        aria-pressed={value === "en"}
+        onClick={() => onChange("en")}
+      >
+        English
+      </Button>
+      <Button
+        type="button"
+        size="sm"
+        variant={value === "he" ? "default" : "outline"}
+        aria-pressed={value === "he"}
+        onClick={() => onChange("he")}
+      >
+        עברית
+      </Button>
+    </div>
+  );
+}
+
 function LandingPage() {
   const nav = useNavigate();
   const { addPoints } = useWallet();
@@ -25,6 +59,8 @@ function LandingPage() {
   const [topicContext, setTopicContext] = useState("");
   const [file, setFile] = useState<File | null>(null);
   const [video, setVideo] = useState<File | null>(null);
+  const [speechLanguage, setSpeechLanguage] = useState<Language>("en");
+  const [deckLanguage, setDeckLanguage] = useState<Language>("en");
   const [loading, setLoading] = useState(false);
   const [analysing, setAnalysing] = useState(false);
   const [processingVideo, setProcessingVideo] = useState(false);
@@ -53,6 +89,8 @@ function LandingPage() {
       const { session_id, access_token } = await createSession({
         topic,
         topic_context: topicContext || undefined,
+        speech_language: speechLanguage,
+        deck_language: deckLanguage,
       });
       storeToken(session_id, access_token);
       if (file) {
@@ -133,6 +171,20 @@ function LandingPage() {
                 value={topicContext}
                 onChange={(e) => setTopicContext(e.target.value)}
               />
+            </div>
+
+            <div className="flex flex-col gap-2">
+              <Label id="speech-language-label">
+                Speech language <span className="text-muted-foreground">— what will you speak?</span>
+              </Label>
+              <LanguageToggle id="speech-language-label" value={speechLanguage} onChange={setSpeechLanguage} />
+            </div>
+
+            <div className="flex flex-col gap-2">
+              <Label id="deck-language-label">
+                Deck language <span className="text-muted-foreground">— what language is the deck in?</span>
+              </Label>
+              <LanguageToggle id="deck-language-label" value={deckLanguage} onChange={setDeckLanguage} />
             </div>
 
             <div className="flex flex-col gap-2">

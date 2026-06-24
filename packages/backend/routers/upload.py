@@ -22,7 +22,7 @@ async def upload_pptx(
     session_id: uuid.UUID,
     background: BackgroundTasks,
     file: UploadFile = File(...),
-    _=Depends(require_session_owner),
+    session=Depends(require_session_owner),
 ):
     if not file.filename or not file.filename.lower().endswith(".pptx"):
         raise HTTPException(status_code=400, detail="Only .pptx accepted")
@@ -34,10 +34,19 @@ async def upload_pptx(
     tmp = Path(tempfile.gettempdir()) / f"{session_id}.pptx"
     tmp.write_bytes(data)
 
+    speech_language = session.speech_language
+    deck_language = session.deck_language
+
     async def run_agent():
         orch = Orchestrator()
         try:
-            await run_pptx_prep_workflow(orch, session_id, str(tmp))
+            await run_pptx_prep_workflow(
+                orch,
+                session_id,
+                str(tmp),
+                speech_language=speech_language,
+                deck_language=deck_language,
+            )
         finally:
             tmp.unlink(missing_ok=True)
 
