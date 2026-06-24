@@ -17,7 +17,7 @@ Single FastAPI process (all agents = `asyncio` tasks) + TanStack Start frontend 
 | STT | ElevenLabs Scribe v1 |
 | PPTX | python-pptx |
 | Monorepo | pnpm workspaces + uv |
-| Host | Railway (Phase 3 bonus) |
+| Host | Railway (Phase 3 bonus) — see [`docs/DEPLOY-RAILWAY.md`](docs/DEPLOY-RAILWAY.md) |
 
 ## Repo Layout
 

@@ -1,5 +1,6 @@
 from functools import lru_cache
 
+from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -75,6 +76,20 @@ class Settings(BaseSettings):
 
     # CTA
     mentor_booking_url: str = "https://calendly.com/tikal-experts/30min"
+
+    @field_validator("database_url")
+    @classmethod
+    def _normalize_database_url(cls, v: str) -> str:
+        """Railway/Heroku inject DATABASE_URL as `postgres://` or `postgresql://`
+        (libpq scheme). SQLAlchemy's async engine needs the asyncpg driver
+        explicitly, so coerce to `postgresql+asyncpg://`. Already-async URLs and
+        non-Postgres URLs pass through untouched. Alembic re-maps this to a sync
+        driver in migrations/env.py."""
+        if v.startswith("postgres://"):
+            v = "postgresql://" + v[len("postgres://") :]
+        if v.startswith("postgresql://"):
+            v = "postgresql+asyncpg://" + v[len("postgresql://") :]
+        return v
 
     @property
     def demo_replay(self) -> bool:

@@ -38,3 +38,6 @@ Thumbs.db
 
 # Generated routes
 **/routeTree.gen.ts
+
+# Vinxi build artifacts
+**/app.config.timestamp_*.js
