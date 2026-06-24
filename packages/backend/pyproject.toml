@@ -24,6 +24,7 @@ dependencies = [
     "python-dotenv>=1.0",
     "loguru>=0.7",
     "exa-py>=1.0",
+    "markitdown[pptx]>=0.1.6",
 ]
 
 [project.optional-dependencies]
