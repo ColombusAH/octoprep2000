@@ -145,6 +145,32 @@ def test_slides_delivery_prefix_in_message():
     assert "Instead:" in insights[0].message
 
 
+def test_slides_static_and_delivery_same_factor_not_merged():
+    agent = ReportAgent()
+
+    class _Static:
+        slide_index = 4
+        playbook_factor = 1
+        finding_type = "IMPROVEMENT"
+        description = "Too much text on slide."
+        suggested_fix = "Cut bullets."
+        analysis_phase = "static"
+
+    class _Delivery:
+        slide_index = 4
+        playbook_factor = 1
+        finding_type = "IMPROVEMENT"
+        description = "Speech mismatched slide at 2:15."
+        suggested_fix = "Update slide content."
+        analysis_phase = "delivery"
+
+    insights, _ = agent._score_slides([_Static(), _Delivery()])
+    assert len(insights) == 2
+    messages = {i.message for i in insights}
+    assert any("While presenting:" in m for m in messages)
+    assert any("While presenting:" not in m for m in messages)
+
+
 def test_smile_strong_surfaces_as_strength_not_penalty():
     agent = ReportAgent()
     events = [

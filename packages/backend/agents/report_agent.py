@@ -18,11 +18,13 @@ from collections import defaultdict
 from agents.content_agent import ContentAnalysisAgent
 from agents.persistence import AgentPersistence
 from agents.pptx_agent import PPTXAgent
+from agents.replay_fixtures import replay_slide_events
 from agents.schemas import (
     ContentAnalysisPayload,
     Insight,
     ReportPayload,
 )
+from config import get_settings
 from db.repository import PostgreSQLRepository
 from db.session import get_session_maker
 
@@ -68,8 +70,21 @@ class ReportAgent(AgentPersistence):
         self, session_id: uuid.UUID, inputs: dict, content: ContentAnalysisPayload | None
     ) -> None:
         """Step 3: PPTX delivery pass — consumes the content findings (real data dependency)."""
-        pptx = PPTXAgent(self.orchestrator)
-        await pptx.analyse_delivery(session_id, content=content)
+        slide_events: list = []
+        async with get_session_maker()() as db:
+            repo = PostgreSQLRepository(db)
+            slide_events = await repo.read_slide_events(session_id)
+
+        if get_settings().demo_replay and not slide_events:
+            slide_events = replay_slide_events()
+
+        pptx = PPTXAgent(self.orchestrator, session_id=session_id)
+        await pptx.analyse_delivery(
+            session_id,
+            content=content,
+            slide_events=slide_events or None,
+        )
+
 
     async def assemble_and_write(
         self,
@@ -224,25 +239,25 @@ class ReportAgent(AgentPersistence):
     def _score_slides(self, analyses) -> tuple[list[Insight], float]:
         if not analyses:
             return [Insight(category="slide", type="IMPROVEMENT", message="No deck uploaded")], 0.0
-        grouped: dict[tuple[int, str], list[tuple[int, str, str]]] = defaultdict(list)
+        grouped: dict[tuple[int, str, str], list[tuple[int, str, str]]] = defaultdict(list)
         for a in analyses:
             fix = getattr(a, "suggested_fix", "") or ""
             phase = getattr(a, "analysis_phase", "static") or "static"
             desc = a.description
             if phase == "delivery":
                 desc = f"While presenting: {desc}"
-            grouped[(a.playbook_factor, a.finding_type)].append((a.slide_index, desc, fix))
+            grouped[(a.playbook_factor, a.finding_type, phase)].append((a.slide_index, desc, fix))
 
         insights: list[Insight] = []
         improvements = 0
         strengths = 0
-        for (factor, ftype), items in grouped.items():
+        for (_factor, ftype, _phase), items in grouped.items():
             slides = sorted({s for s, _, _ in items})
             desc, fix = items[0][1], items[0][2]
             if len(items) == 1:
                 msg = _format_slide_insight(desc, fix, ftype)
             else:
-                msg = _format_slide_insight(f"Factor #{factor}: {desc}", fix, ftype)
+                msg = _format_slide_insight(f"Factor #{_factor}: {desc}", fix, ftype)
             insights.append(
                 Insight(
                     category="slide",

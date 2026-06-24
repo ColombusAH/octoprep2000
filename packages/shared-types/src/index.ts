@@ -58,3 +58,10 @@ export interface CreateSessionResponse {
   session_id: string;
   access_token: string;
 }
+
+/** Client → /slide-stream JSON frame (ms since recording start). */
+export interface SlideEventMessage {
+  slide_index: number;
+  timestamp_ms: number;
+  source?: "manual" | "keyboard";
+}

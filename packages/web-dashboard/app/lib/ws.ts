@@ -69,5 +69,7 @@ export const connectVideo = (sessionId: string, opts: Options = {}) =>
   connect("/video-stream", sessionId, opts);
 export const connectAudio = (sessionId: string, opts: Options = {}) =>
   connect("/audio-stream", sessionId, opts);
+export const connectSlide = (sessionId: string, opts: Options = {}) =>
+  connect("/slide-stream", sessionId, opts);
 export const connectFeedback = (sessionId: string, opts: Options = {}) =>
   connect("/realtime-feedback", sessionId, opts);

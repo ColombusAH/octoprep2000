@@ -57,6 +57,9 @@ class Session(Base):
     slide_analyses: Mapped[list["SlideAnalysis"]] = relationship(
         back_populates="session", cascade="all, delete-orphan"
     )
+    slide_events: Mapped[list["SlideEvent"]] = relationship(
+        back_populates="session", cascade="all, delete-orphan"
+    )
     report: Mapped["Report | None"] = relationship(
         back_populates="session", cascade="all, delete-orphan", uselist=False
     )
@@ -105,6 +108,20 @@ class AudioWarning(Base):
     message: Mapped[str] = mapped_column(Text, nullable=False)
 
     session: Mapped[Session] = relationship(back_populates="audio_warnings")
+
+
+class SlideEvent(Base):
+    __tablename__ = "slide_events"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    session_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("sessions.session_id", ondelete="CASCADE"), index=True
+    )
+    slide_index: Mapped[int] = mapped_column(Integer, nullable=False)
+    timestamp_ms: Mapped[int] = mapped_column(Integer, nullable=False)
+    source: Mapped[str] = mapped_column(String(16), nullable=False, server_default="manual")
+
+    session: Mapped[Session] = relationship(back_populates="slide_events")
 
 
 class SlideAnalysis(Base):

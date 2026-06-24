@@ -19,7 +19,7 @@ from slowapi.middleware import SlowAPIMiddleware
 
 from config import get_settings
 from core.rate_limit import limiter
-from routers import audio_ws, feedback_ws, health, sessions, upload, upload_video, video_ws
+from routers import audio_ws, feedback_ws, health, sessions, slide_ws, upload, upload_video, video_ws
 
 
 class _InterceptHandler(logging.Handler):
@@ -75,4 +75,5 @@ app.include_router(upload.router)
 app.include_router(upload_video.router)
 app.include_router(video_ws.router)
 app.include_router(audio_ws.router)
+app.include_router(slide_ws.router)
 app.include_router(feedback_ws.router)
