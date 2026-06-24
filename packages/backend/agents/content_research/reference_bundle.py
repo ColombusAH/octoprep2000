@@ -1,10 +1,15 @@
-"""Ephemeral reference material assembled before content LLM evaluation."""
+"""Ephemeral reference material assembled before content LLM evaluation.
+
+Gathered during pre-session PPTX prep, persisted on the session row as JSONB, and
+reconstructed at report time (feature 002-pre-session-research).
+"""
 
 from __future__ import annotations
 
-from typing import Literal
+from typing import Any, Literal
 
-from pydantic import BaseModel, Field
+from loguru import logger
+from pydantic import BaseModel, Field, ValidationError
 
 ResearchStatus = Literal["full", "partial", "skipped", "not_applicable"]
 SnippetSource = Literal["official_docs", "article", "improvement_guide"]
@@ -77,6 +82,28 @@ def _format_block(snippets: list[ReferenceSnippet], empty_msg: str) -> str:
         header = f"### {s.title}" + (f" ({s.url})" if s.url else "")
         parts.append(f"{header}\n{s.excerpt}")
     return "\n\n".join(parts)
+
+
+def to_jsonb(bundle: ReferenceBundle | None) -> dict[str, Any] | None:
+    """Serialize a ReferenceBundle for JSONB persistence on the session row."""
+    if bundle is None:
+        return None
+    return bundle.model_dump()
+
+
+def from_jsonb(data: dict[str, Any] | None) -> ReferenceBundle | None:
+    """Reconstruct a ReferenceBundle from persisted JSONB.
+
+    Returns None for missing/empty/invalid data so the content agent falls back to
+    transcript-only analysis (FR-008) instead of failing.
+    """
+    if not data:
+        return None
+    try:
+        return ReferenceBundle(**data)
+    except (ValidationError, TypeError) as exc:
+        logger.warning("Discarding unparseable persisted research_bundle: {}", exc)
+        return None
 
 
 def compute_research_status(

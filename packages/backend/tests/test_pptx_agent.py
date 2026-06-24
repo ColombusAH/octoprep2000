@@ -21,6 +21,11 @@ from agents.pptx_agent import (
     _notes_overlap_body,
     _supplement_from_metadata,
 )
+from agents.content_research.reference_bundle import (
+    ReferenceBundle,
+    ReferenceSnippet,
+    TopicClassification,
+)
 from agents.replay_fixtures import replay_delivery_findings
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
@@ -206,6 +211,95 @@ async def test_analyse_persists_and_notifies():
     assert written[0]["suggested_fix"]
     assert written[0]["analysis_phase"] == "static"
     orch.notify_complete.assert_awaited_once_with(session_id, "PPTX")
+
+
+# ── Pre-session research persistence (feature 002) ────────────────────
+
+
+@pytest.mark.asyncio
+async def test_research_returns_bundle_and_status():
+    agent = PPTXAgent(AsyncMock())
+    classification = TopicClassification(
+        is_technical=True, primary_libraries=["react"], confidence=0.9, rationale="t"
+    )
+    bundle = ReferenceBundle(
+        topic="React 19",
+        providers_attempted=["exa"],
+        providers_succeeded=["exa"],
+        snippets=[ReferenceSnippet(source="article", title="A", excerpt="x", provider="exa")],
+    )
+    with patch("agents.pptx_agent.get_settings") as ms, patch(
+        "agents.pptx_agent.classify_topic", new=AsyncMock(return_value=classification)
+    ), patch("agents.pptx_agent.fetch_reference_bundle", new=AsyncMock(return_value=bundle)):
+        ms.return_value.demo_replay = False
+        out_bundle, status = await agent.research("React 19", None)
+    assert status == "full"
+    assert out_bundle is not None and out_bundle.snippets
+
+
+@pytest.mark.asyncio
+async def test_research_non_technical_skips_fetch():
+    agent = PPTXAgent(AsyncMock())
+    classification = TopicClassification(
+        is_technical=False, primary_libraries=[], confidence=0.9, rationale="n"
+    )
+    with patch("agents.pptx_agent.get_settings") as ms, patch(
+        "agents.pptx_agent.classify_topic", new=AsyncMock(return_value=classification)
+    ), patch(
+        "agents.pptx_agent.fetch_reference_bundle",
+        new=AsyncMock(side_effect=AssertionError("must not fetch for non-technical")),
+    ):
+        ms.return_value.demo_replay = False
+        b, status = await agent.research("My summer vacation", None)
+    assert b is None
+    assert status == "not_applicable"
+
+
+@pytest.mark.asyncio
+async def test_research_demo_replay_bypasses():
+    agent = PPTXAgent(AsyncMock())
+    with patch("agents.pptx_agent.get_settings") as ms, patch(
+        "agents.pptx_agent.classify_topic",
+        new=AsyncMock(side_effect=AssertionError("must not classify in replay")),
+    ):
+        ms.return_value.demo_replay = True
+        b, status = await agent.research("React 19", None)
+    assert b is None
+    assert status == "not_applicable"
+
+
+@pytest.mark.asyncio
+async def test_persist_threads_research_to_mark_ready():
+    agent = PPTXAgent(AsyncMock())
+    bundle = ReferenceBundle(
+        topic="React",
+        snippets=[ReferenceSnippet(source="article", title="A", excerpt="x", provider="exa")],
+    )
+    captured: dict = {}
+
+    async def capture_write(fn):
+        repo = AsyncMock()
+        repo.insert_slide_analyses = AsyncMock()
+
+        async def mpr(sid, slides, research_bundle=None, content_research_status=None):
+            captured["bundle"] = research_bundle
+            captured["status"] = content_research_status
+
+        repo.mark_pptx_ready = AsyncMock(side_effect=mpr)
+        await fn(repo)
+
+    with patch.object(agent, "_with_repo", side_effect=capture_write):
+        await agent.persist(
+            uuid.uuid4(),
+            [{"slide_index": 1, "text": "hi"}],
+            [],
+            bundle=bundle,
+            research_status="full",
+        )
+
+    assert captured["status"] == "full"
+    assert captured["bundle"]["snippets"][0]["provider"] == "exa"
+    agent.orchestrator.notify_complete.assert_awaited_once()
 
 
 def test_format_timed_transcript():
