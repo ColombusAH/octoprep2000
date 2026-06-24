@@ -94,6 +94,7 @@ After that, restart/run your agent and the `specify`, `plan`, `implement`, `clar
 
 - `/health` keep-warm
 - `DEMO_MODE=replay` swaps live Vision/STT for canned fixtures (`packages/backend/fixtures/`)
+- Content research: `EXA_API_KEY` + `CONTEXT7_API_KEY` for technical topic grounding; `CONTENT_RESEARCH_ENABLED=false` to disable
 - WS auto-reconnect (exp backoff 1–8s)
 - `POST /sessions` rate-limited via slowapi
 - VideoEvent inserts batched (1s OR N=20)

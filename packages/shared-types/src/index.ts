@@ -48,6 +48,7 @@ export interface ReportData {
   body_score: number | null;
   slide_score: number;
   content_score: number;
+  content_research_status?: "full" | "partial" | "skipped" | "not_applicable";
   insights: Insight[];
   mentor_unlocked: boolean;
   generated_at: string;

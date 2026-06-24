@@ -17,6 +17,7 @@ export type ReportData = {
   body_score: number | null;
   slide_score: number;
   content_score: number;
+  content_research_status?: "full" | "partial" | "skipped" | "not_applicable";
   insights: Insight[];
   mentor_unlocked: boolean;
 };
@@ -187,8 +188,13 @@ export function ScoreCard({
       </div>
 
       <p className="px-1 text-xs text-muted-foreground">
-        Content accuracy powered by AI training data. May not reflect features released after the
-        model&apos;s training cutoff.
+        {report.content_research_status === "full"
+          ? "Technical content evaluated with all configured reference sources that were attempted for this session."
+          : report.content_research_status === "partial"
+            ? "Reference lookup partially available — some external sources could not be reached."
+            : report.content_research_status === "skipped"
+              ? "Reference lookup unavailable — content scored from transcript and AI knowledge only."
+              : "Content accuracy powered by AI analysis. May not reflect features released after the model's training cutoff."}
       </p>
     </div>
   );

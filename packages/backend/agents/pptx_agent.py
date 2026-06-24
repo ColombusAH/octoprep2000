@@ -30,6 +30,7 @@ from agents.schemas import (
 )
 from config import get_settings
 from db.repository import PostgreSQLRepository
+from db.session import get_session_maker
 from orchestrator.orchestrator import Orchestrator
 
 PLAYBOOK_PROMPT = """You are a slide deck reviewer trained on the Tikal Presentation Skills Playbook.
@@ -684,16 +685,21 @@ class PPTXAgent(AgentPersistence):
         self,
         session_id: uuid.UUID,
         *,
-        topic: str,
-        topic_context: str | None,
-        slides_raw: list[dict],
-        transcript,
         content: ContentAnalysisPayload | None = None,
         slide_events=None,
     ) -> None:
-        """Post-session pass: compare timed speech + slide text (+ content findings)."""
-        if not slides_raw:
-            return
+        """Post-session pass: compare timed speech + slide text (+ content findings).
+
+        Reads session, transcript, and slides_raw_text from the agreed DB tables.
+        """
+        async with get_session_maker()() as db:
+            repo = PostgreSQLRepository(db)
+            session = await repo.get_session(session_id)
+            if not session or not session.slides_raw_text:
+                return
+            transcript = await repo.read_transcript(session_id)
+
+        slides_raw = session.slides_raw_text
         transcript_text = _format_timed_transcript(transcript)
         if not transcript_text.strip():
             return
@@ -715,8 +721,8 @@ class PPTXAgent(AgentPersistence):
         else:
             try:
                 findings = await self._evaluate_delivery(
-                    topic=topic,
-                    topic_context=topic_context,
+                    topic=session.topic,
+                    topic_context=session.topic_context,
                     slides_raw=slides_raw,
                     transcript_text=transcript_text,
                     content=content,

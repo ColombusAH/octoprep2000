@@ -5,7 +5,7 @@ from __future__ import annotations
 import tempfile
 import uuid
 from pathlib import Path
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from pptx import Presentation
@@ -252,15 +252,31 @@ def test_replay_delivery_findings_have_phase():
 async def test_analyse_delivery_skips_without_transcript():
     orch = AsyncMock()
     agent = PPTXAgent(orch)
-    with patch.object(agent, "_with_repo", new=AsyncMock()) as mock_repo:
-        await agent.analyse_delivery(
-            uuid.uuid4(),
-            topic="React 19",
-            topic_context=None,
-            slides_raw=[{"slide_index": 1, "text": "Hi"}],
-            transcript=[],
-        )
-    mock_repo.assert_not_awaited()
+    session_id = uuid.uuid4()
+
+    class _Session:
+        topic = "React 19"
+        topic_context = None
+        slides_raw_text = [{"slide_index": 1, "text": "Hi"}]
+
+    mock_repo = AsyncMock()
+    mock_repo.get_session = AsyncMock(return_value=_Session())
+    mock_repo.read_transcript = AsyncMock(return_value=[])
+
+    class _Ctx:
+        async def __aenter__(self):
+            return object()
+
+        async def __aexit__(self, *args):
+            return None
+
+    with patch("agents.pptx_agent.get_session_maker") as mock_maker, patch(
+        "agents.pptx_agent.PostgreSQLRepository", return_value=mock_repo
+    ):
+        mock_maker.return_value = MagicMock(return_value=_Ctx())
+        with patch.object(agent, "_with_repo", new=AsyncMock()) as mock_repo_write:
+            await agent.analyse_delivery(session_id)
+    mock_repo_write.assert_not_awaited()
 
 
 @pytest.mark.asyncio
@@ -284,17 +300,30 @@ async def test_analyse_delivery_persists_delivery_phase():
         end_ms = 2000
         text = "Today we cover authentication flows."
 
-    with patch.object(agent, "_with_repo", side_effect=capture_write), patch(
+    class _Session:
+        topic = "Auth in React"
+        topic_context = "Senior devs"
+        slides_raw_text = [{"slide_index": 1, "text": "Auth overview"}]
+
+    mock_repo = AsyncMock()
+    mock_repo.get_session = AsyncMock(return_value=_Session())
+    mock_repo.read_transcript = AsyncMock(return_value=[_Entry()])
+
+    class _Ctx:
+        async def __aenter__(self):
+            return object()
+
+        async def __aexit__(self, *args):
+            return None
+
+    with patch("agents.pptx_agent.get_session_maker") as mock_maker, patch(
+        "agents.pptx_agent.PostgreSQLRepository", return_value=mock_repo
+    ), patch.object(agent, "_with_repo", side_effect=capture_write), patch(
         "agents.pptx_agent.get_settings"
     ) as mock_settings:
+        mock_maker.return_value = MagicMock(return_value=_Ctx())
         mock_settings.return_value.demo_replay = True
-        await agent.analyse_delivery(
-            session_id,
-            topic="Auth in React",
-            topic_context="Senior devs",
-            slides_raw=[{"slide_index": 1, "text": "Auth overview"}],
-            transcript=[_Entry()],
-        )
+        await agent.analyse_delivery(session_id)
 
     assert deleted == ["delivery"]
     assert written
@@ -400,7 +429,8 @@ def test_replay_slide_events_fixture():
 @pytest.mark.asyncio
 async def test_analyse_delivery_with_slide_events_uses_replay():
     orch = AsyncMock()
-    agent = PPTXAgent(orch, session_id=uuid.uuid4())
+    session_id = uuid.uuid4()
+    agent = PPTXAgent(orch, session_id=session_id)
     written: list[dict] = []
 
     async def capture_write(fn):
@@ -409,19 +439,31 @@ async def test_analyse_delivery_with_slide_events_uses_replay():
         repo.insert_slide_analyses = AsyncMock(side_effect=lambda items: written.extend(items))
         await fn(repo)
 
+    class _Session:
+        topic = "Auth"
+        topic_context = None
+        slides_raw_text = [{"slide_index": i, "text": f"S{i}"} for i in range(1, 6)]
+
+    mock_repo = AsyncMock()
+    mock_repo.get_session = AsyncMock(return_value=_Session())
+    mock_repo.read_transcript = AsyncMock(return_value=[_StubTranscript(0, 2000, "Intro")])
+
+    class _Ctx:
+        async def __aenter__(self):
+            return object()
+
+        async def __aexit__(self, *args):
+            return None
+
     events = replay_slide_events()
-    with patch.object(agent, "_with_repo", side_effect=capture_write), patch(
+    with patch("agents.pptx_agent.get_session_maker") as mock_maker, patch(
+        "agents.pptx_agent.PostgreSQLRepository", return_value=mock_repo
+    ), patch.object(agent, "_with_repo", side_effect=capture_write), patch(
         "agents.pptx_agent.get_settings"
     ) as mock_settings:
+        mock_maker.return_value = MagicMock(return_value=_Ctx())
         mock_settings.return_value.demo_replay = True
-        await agent.analyse_delivery(
-            uuid.uuid4(),
-            topic="Auth",
-            topic_context=None,
-            slides_raw=[{"slide_index": i, "text": f"S{i}"} for i in range(1, 6)],
-            transcript=[_StubTranscript(0, 2000, "Intro")],
-            slide_events=events,
-        )
+        await agent.analyse_delivery(session_id, slide_events=events)
 
     assert written
     assert all(w["analysis_phase"] == "delivery" for w in written)

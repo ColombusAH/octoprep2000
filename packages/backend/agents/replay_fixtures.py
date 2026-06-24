@@ -101,4 +101,5 @@ def replay_content_analysis(session_id: uuid.UUID, topic: str) -> ContentAnalysi
         topic=topic,
         content_score=float(data.get("content_score", 0)),
         findings=findings,
+        research_status="not_applicable",
     )

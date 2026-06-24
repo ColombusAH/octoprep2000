@@ -51,6 +51,13 @@ class Settings(BaseSettings):
     audio_chunk_seconds: int = 2
     stale_slide_seconds: int = 240
 
+    # Content research (Exa articles + Context7 docs) — post-session technical topics only
+    exa_api_key: str = ""
+    context7_api_key: str = ""
+    content_research_enabled: bool = True
+    content_research_timeout_s: int = 20
+    content_research_retries: int = 1
+
     # Demo insurance
     demo_mode: str = ""  # "replay" → use canned fixtures
 
@@ -75,6 +82,14 @@ class Settings(BaseSettings):
     @property
     def use_direct_providers(self) -> bool:
         return self.provider_mode.lower() == "direct"
+
+    @property
+    def exa_enabled(self) -> bool:
+        return bool(self.exa_api_key)
+
+    @property
+    def context7_enabled(self) -> bool:
+        return bool(self.context7_api_key)
 
 
 @lru_cache(maxsize=1)

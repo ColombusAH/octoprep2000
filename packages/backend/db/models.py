@@ -153,6 +153,7 @@ class Report(Base):
     body_score: Mapped[float | None] = mapped_column(Numeric(5, 2), nullable=True)
     slide_score: Mapped[float | None] = mapped_column(Numeric(5, 2), nullable=True)
     content_score: Mapped[float | None] = mapped_column(Numeric(5, 2), nullable=True)
+    content_research_status: Mapped[str | None] = mapped_column(String(32), nullable=True)
     insights: Mapped[list[dict[str, Any]] | None] = mapped_column(JSONB, nullable=True)
     mentor_unlocked: Mapped[bool] = mapped_column(Boolean, default=False)
     generated_at: Mapped[datetime] = mapped_column(

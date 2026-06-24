@@ -114,6 +114,7 @@ class ContentAnalysisPayload(BaseModel):
     topic: str
     content_score: float = Field(ge=0, le=100)
     findings: list[ContentFinding]
+    research_status: Literal["full", "partial", "skipped", "not_applicable"] = "not_applicable"
 
 
 # ── Report ────────────────────────────────────────────────────────────
@@ -135,6 +136,7 @@ class ReportPayload(BaseModel):
     body_score: float | None = Field(default=None, ge=0, le=100)
     slide_score: float = Field(ge=0, le=100)
     content_score: float = Field(ge=0, le=100)
+    content_research_status: Literal["full", "partial", "skipped", "not_applicable"] = "not_applicable"
     insights: list[Insight]
 
     @property
