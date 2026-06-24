@@ -25,6 +25,7 @@ function SessionPage() {
   const [events, setEvents] = useState<ToastEvent[]>([]);
   const [liveFeedback, setLiveFeedback] = useState(false);
   const [running, setRunning] = useState(false);
+  const [awaitingReport, setAwaitingReport] = useState(false);
   const [previewReady, setPreviewReady] = useState(false);
   const [previewError, setPreviewError] = useState(false);
   const [slideCount, setSlideCount] = useState<number | null>(null);
@@ -170,7 +171,7 @@ function SessionPage() {
   };
 
   const start = async () => {
-    if (running) return;
+    if (running || awaitingReport) return;
     setRunning(true);
     recordingStartedAtRef.current = Date.now();
     setCurrentSlide(1);
@@ -235,13 +236,28 @@ function SessionPage() {
   };
 
   const stop = async () => {
+    if (awaitingReport) return;
     handlesRef.current.video?.stop();
     handlesRef.current.audio?.stop();
     slideWsRef.current?.close();
     slideWsRef.current = null;
     previewStreamRef.current = null;
     setRunning(false);
-    await endSession(id);
+    setAwaitingReport(true);
+    try {
+      await endSession(id);
+    } catch (err) {
+      setAwaitingReport(false);
+      setEvents((es) => [
+        ...es,
+        {
+          id: crypto.randomUUID(),
+          type: "SESSION_END_ERROR",
+          severity: "HIGH",
+          message: err instanceof Error ? err.message : "Could not end session — try again.",
+        },
+      ]);
+    }
   };
 
   const trackerEnabled = slideCount != null && slideCount > 0;
@@ -282,17 +298,21 @@ function SessionPage() {
             )}
           </div>
           <div className="mt-4 flex flex-wrap items-center gap-3">
-            {!running ? (
-              <Button onClick={start} size="lg">
+            {!running && !awaitingReport ? (
+              <Button onClick={start} size="lg" disabled={previewError}>
                 Start Recording
               </Button>
-            ) : (
+            ) : running ? (
               <Button
                 onClick={stop}
                 size="lg"
                 className="bg-red-solid text-white hover:bg-red-solid/85"
               >
                 End Session
+              </Button>
+            ) : (
+              <Button size="lg" disabled aria-busy="true">
+                Generating report…
               </Button>
             )}
             {trackerEnabled && running && (
@@ -327,7 +347,7 @@ function SessionPage() {
                 id="live-feedback"
                 checked={liveFeedback}
                 onCheckedChange={setLiveFeedback}
-                disabled={running}
+                disabled={running || awaitingReport}
               />
               <Label htmlFor="live-feedback" className="text-muted-foreground">
                 Show live feedback during session
