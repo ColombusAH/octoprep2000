@@ -7,7 +7,6 @@ Recurring slide findings on same factor → ONE slide insight with slides[].
 
 from __future__ import annotations
 
-import uuid
 from dataclasses import dataclass
 
 import pytest
@@ -35,6 +34,7 @@ class _FakeVideoEvent:
     timestamp_ms: int
     event_type: str
     severity: str = "MEDIUM"
+    raw_metadata: dict | None = None
 
 
 @dataclass
@@ -90,10 +90,11 @@ def test_body_groups_video_events_by_type():
         _FakeVideoEvent(7000, "EYE_CONTACT_LOST"),
     ]
     insights, score = agent._score_body(events)
-    by_type = {i.message.split(" (")[0]: i for i in insights}
-    assert "Eye Contact Lost" in by_type
-    assert sorted(by_type["Eye Contact Lost"].timestamps) == [1000, 4000, 7000]
-    assert by_type["Eye Contact Lost"].message.endswith("(3x)")
+    eye = next(i for i in insights if i.message.startswith("Eye Contact Lost"))
+    # Recurring same-type events still dedupe to ONE insight with all timestamps.
+    assert sorted(eye.timestamps) == [1000, 4000, 7000]
+    # No duration metadata on these rows ⇒ count-only fallback.
+    assert "(3x)" in eye.message
 
 
 def test_slides_group_by_factor_and_type():
@@ -179,11 +180,54 @@ def test_smile_strong_surfaces_as_strength_not_penalty():
     ]
     insights, score = agent._score_body(events)
     strengths = [i for i in insights if i.type == "STRENGTH"]
-    improvements = [i for i in insights if i.type == "IMPROVEMENT"]
     assert len(strengths) == 1
     assert "smiling" in strengths[0].message.lower()
-    # Only POSTURE_ISSUE counts toward penalty
-    assert score == 98.0  # 100 - 1*2
+    # Only POSTURE_ISSUE counts toward penalty: MEDIUM(2) × duration_factor(1, 0s) = 2
+    assert score == 98.0
+
+
+def test_body_weights_by_severity_and_duration_and_preserves_message():
+    agent = ReportAgent()
+    # A long, HIGH eye-contact loss should cost more than a brief LOW tilt, and the
+    # producer's own coaching message should survive into the insight.
+    events = [
+        _FakeVideoEvent(
+            1000,
+            "EYE_CONTACT_LOST",
+            severity="HIGH",
+            raw_metadata={"duration_ms": 12000, "message": "Look back at the camera.", "count": 5},
+        ),
+        _FakeVideoEvent(
+            20000,
+            "FACE_TILTED",
+            severity="LOW",
+            raw_metadata={"duration_ms": 0, "message": "Straighten your head."},
+        ),
+    ]
+    insights, score = agent._score_body(events)
+
+    eye = next(i for i in insights if i.message.startswith("Eye Contact Lost"))
+    assert "12s" in eye.message  # duration surfaced
+    assert "Look back at the camera." in eye.message  # real message preserved
+    assert eye.timestamps == [1000]
+
+    # HIGH × 12s (factor capped at 3) = 3*3 = 9; LOW × 0s = 1*1 = 1 ⇒ 100 - 10 = 90.
+    assert score == 90.0
+
+
+def test_body_penalty_is_capped_at_floor_50():
+    agent = ReportAgent()
+    events = [
+        _FakeVideoEvent(
+            i * 1000,
+            "OUT_OF_FRAME",
+            severity="HIGH",
+            raw_metadata={"duration_ms": 10000},
+        )
+        for i in range(20)
+    ]
+    _, score = agent._score_body(events)
+    assert score == 50.0
 
 
 if __name__ == "__main__":

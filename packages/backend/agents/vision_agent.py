@@ -19,6 +19,7 @@ import json
 import time
 import uuid
 from collections import deque
+from dataclasses import dataclass, field
 
 from loguru import logger
 
@@ -43,6 +44,40 @@ BATCH_SIZE = 3
 # flush every 1s OR when the buffer reaches N=20.
 VIDEO_BUFFER_MAX = 20
 VIDEO_FLUSH_INTERVAL_S = 1.0
+
+# Span tracking: consecutive same-type detections within this gap are merged into ONE
+# event row that carries a duration, instead of N near-duplicate point events. A live
+# toast still fires the instant a span opens, so real-time coaching latency is unchanged.
+SPAN_GAP_MS = 3000
+_SEVERITY_RANK = {"LOW": 1, "MEDIUM": 2, "HIGH": 3}
+# LLM may only emit these; face/eye types are owned by GCV upstream.
+_LLM_EVENT_TYPES = {"POSTURE_ISSUE", "OUT_OF_FRAME", "GESTURE_CLOSED"}
+# Peak (not last) is the useful summary for these angle metrics over a span.
+_PEAK_ABS_KEYS = ("pan_deg", "tilt_deg", "roll_deg")
+
+
+@dataclass
+class _Span:
+    """An open, ongoing body-language issue, keyed by event_type, accumulating duration."""
+
+    event_type: str
+    severity: str
+    message: str
+    start_ms: int
+    last_ms: int
+    count: int = 1
+    metadata: dict = field(default_factory=dict)
+
+
+def _merge_metadata(base: dict, new: dict | None) -> None:
+    """Fold a new frame's metrics into the span. Head angles keep their peak magnitude
+    (a 45° turn is worse than 16°); everything else takes the latest value."""
+    for k, v in (new or {}).items():
+        if k in _PEAK_ABS_KEYS and isinstance(v, (int, float)) and isinstance(base.get(k), (int, float)):
+            if abs(v) > abs(base[k]):
+                base[k] = v
+        else:
+            base[k] = v
 SYSTEM_PROMPT = """You are a body language coach reviewing a live presenter from camera frames.
 Your job is to detect posture and gesture issues using the Tikal Presentation Skills Playbook as your standard.
 
@@ -85,38 +120,107 @@ class VisionAgent(AgentPersistence):
         self._frame_buf: deque[bytes] = deque(maxlen=BATCH_SIZE)
         self._session_started_ms = int(time.monotonic() * 1000)
         self._timeout_streak = 0
-        self._last_event_type: str | None = None
-        self._last_face_event: str | None = None
         self._timeout_ms = get_settings().vision_timeout_ms
         # GCV rate limit — cap to ~1 fps to keep cost bounded (NFR-004)
         self._gcv_min_interval_ms = 1000
         self._gcv_last_ms = -10_000
+        # Open issue spans, keyed by event_type (types are disjoint across GCV/LLM).
+        # A span accumulates duration until a SPAN_GAP_MS quiet period or session end.
+        self._spans: dict[str, _Span] = {}
+        # True once any caller supplies a media-timeline ts (feature 003 batch path);
+        # in that mode the wall-clock periodic sweep is disabled (it would mis-close spans).
+        self._media_clock = False
         # This agent owns video_events writes (Principle II): buffer + batched flush.
         self._video_buffer: list[dict] = []
         self._flush_task: asyncio.Task = asyncio.create_task(self._periodic_flush())
 
-    # ── video_events: own buffer, batched write, live publish, completion ──
-    async def _emit_event(self, payload: VideoEventPayload) -> None:
+    # ── live feedback (instant) vs. persistence (batched) ────────────
+    async def _publish_live(self, event_type: str, severity: str, message: str, ts: int) -> None:
+        """Real-time coaching toast — fired the instant an issue is first seen."""
+        await broadcaster.publish(
+            self.session_id,
+            {"type": event_type, "severity": severity, "message": message, "timestamp_ms": ts},
+        )
+
+    async def _buffer_row(self, payload: VideoEventPayload) -> None:
+        """Queue one durable video_events row. Duration + message + peak metrics ride in
+        raw_metadata (JSONB) so no schema migration is needed for the richer signal."""
+        meta = dict(payload.raw_metadata or {})
+        meta.setdefault("message", payload.message)
+        meta.setdefault("duration_ms", payload.duration_ms)
+        if payload.end_ms is not None:
+            meta.setdefault("end_ms", payload.end_ms)
         self._video_buffer.append(
             {
                 "session_id": payload.session_id,
                 "timestamp_ms": payload.timestamp_ms,
                 "event_type": payload.event_type,
                 "severity": payload.severity,
-                "raw_metadata": payload.raw_metadata,
+                "raw_metadata": meta,
             }
-        )
-        await broadcaster.publish(
-            payload.session_id,
-            {
-                "type": payload.event_type,
-                "severity": payload.severity,
-                "message": payload.message,
-                "timestamp_ms": payload.timestamp_ms,
-            },
         )
         if len(self._video_buffer) >= VIDEO_BUFFER_MAX:
             await self.flush()
+
+    async def _emit_event(self, payload: VideoEventPayload) -> None:
+        """Back-compat single-shot emit (replay fixtures, direct callers): publish + persist."""
+        await self._publish_live(
+            payload.event_type, payload.severity, payload.message, payload.timestamp_ms
+        )
+        await self._buffer_row(payload)
+
+    # ── span tracking: merge consecutive same-type detections by duration ──
+    async def _observe(
+        self, event_type: str, severity: str, message: str, ts: int, metadata: dict
+    ) -> None:
+        span = self._spans.get(event_type)
+        if span is not None and ts - span.last_ms <= SPAN_GAP_MS:
+            # Same ongoing issue — extend it. Keep the worst-moment severity + message,
+            # and the peak head angles, as the representative summary for the report.
+            span.last_ms = ts
+            span.count += 1
+            if _SEVERITY_RANK.get(severity, 2) > _SEVERITY_RANK.get(span.severity, 2):
+                span.severity = severity
+                span.message = message
+            _merge_metadata(span.metadata, metadata)
+            return
+        if span is not None:
+            await self._close_span(span)  # gap exceeded — close the stale span first
+        self._spans[event_type] = _Span(
+            event_type=event_type,
+            severity=severity,
+            message=message,
+            start_ms=ts,
+            last_ms=ts,
+            metadata=dict(metadata),
+        )
+        # Issue just started → coach immediately; the durable row lands when it ends.
+        await self._publish_live(event_type, severity, message, ts)
+
+    async def _close_span(self, span: _Span) -> None:
+        meta = dict(span.metadata)
+        meta["count"] = span.count
+        try:
+            payload = VideoEventPayload(
+                session_id=self.session_id,
+                timestamp_ms=span.start_ms,
+                end_ms=span.last_ms,
+                event_type=span.event_type,  # type: ignore[arg-type]
+                severity=span.severity,  # type: ignore[arg-type]
+                message=span.message,
+                raw_metadata=meta,
+            )
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("invalid span {} skipped: {}", span.event_type, exc)
+            return
+        await self._buffer_row(payload)
+
+    async def _sweep_spans(self, now_ms: int, *, force: bool = False) -> None:
+        for etype in list(self._spans.keys()):
+            span = self._spans[etype]
+            if force or now_ms - span.last_ms > SPAN_GAP_MS:
+                await self._close_span(span)
+                del self._spans[etype]
 
     async def flush(self) -> None:
         """Persist buffered video events, then signal completion (durability before notify)."""
@@ -134,11 +238,15 @@ class VisionAgent(AgentPersistence):
     async def _periodic_flush(self) -> None:
         while True:
             await asyncio.sleep(VIDEO_FLUSH_INTERVAL_S)
+            # Close spans that went quiet (live mode only — batch uses media time).
+            if not self._media_clock:
+                await self._sweep_spans(self._now_ms())
             await self.flush()
 
     async def aclose(self) -> None:
-        """Cancel the periodic flush and persist any remaining buffered events."""
+        """Cancel the periodic flush, close any open spans, and persist remaining events."""
         self._flush_task.cancel()
+        await self._sweep_spans(0, force=True)
         await self.flush()
 
     async def on_frame_instant(self, frame_bytes: bytes, ts_ms: int | None = None) -> None:
@@ -178,6 +286,8 @@ class VisionAgent(AgentPersistence):
         if metrics is None:
             return
 
+        if ts_ms is not None:
+            self._media_clock = True
         ts = ts_ms if ts_ms is not None else self._now_ms()
 
         if metrics.face_count == 0:
@@ -227,29 +337,20 @@ class VisionAgent(AgentPersistence):
         ts: int,
         metrics: face_detection.FaceMetrics,
     ) -> None:
-        if event_type == self._last_face_event:
-            return  # dedupe consecutive identical face events
-        self._last_face_event = event_type
-        try:
-            payload = VideoEventPayload(
-                session_id=self.session_id,
-                timestamp_ms=ts,
-                event_type=event_type,  # type: ignore[arg-type]
-                severity=severity,  # type: ignore[arg-type]
-                message=message,
-                raw_metadata={
-                    "source": "google_vision",
-                    "pan_deg": metrics.pan_deg,
-                    "tilt_deg": metrics.tilt_deg,
-                    "roll_deg": metrics.roll_deg,
-                    "joy": metrics.joy,
-                    "confidence": metrics.detection_confidence,
-                },
-            )
-        except Exception as exc:  # noqa: BLE001
-            logger.warning("invalid face payload {} skipped: {}", event_type, exc)
-            return
-        await self._emit_event(payload)
+        await self._observe(
+            event_type,
+            severity,
+            message,
+            ts,
+            {
+                "source": "google_vision",
+                "pan_deg": metrics.pan_deg,
+                "tilt_deg": metrics.tilt_deg,
+                "roll_deg": metrics.roll_deg,
+                "joy": metrics.joy,
+                "confidence": metrics.detection_confidence,
+            },
+        )
 
     # ── LLM layer (posture / gestures only) ──────────────────────────
     async def _analyse(self, frames: list[bytes], ts_ms: int | None = None) -> None:
@@ -284,25 +385,21 @@ class VisionAgent(AgentPersistence):
             logger.exception("Vision LLM call failed: {}", exc)
             return
 
+        if ts_ms is not None:
+            self._media_clock = True
         ts = ts_ms if ts_ms is not None else self._now_ms()
         for raw in result.get("events", []):
             event_type = raw.get("type")
-            if event_type == self._last_event_type:
+            if event_type not in _LLM_EVENT_TYPES:
+                logger.warning("LLM emitted unsupported event type {} — skipped", event_type)
                 continue
-            try:
-                payload = VideoEventPayload(
-                    session_id=self.session_id,
-                    timestamp_ms=ts,
-                    event_type=event_type,
-                    severity=raw.get("severity", "MEDIUM"),
-                    message=raw.get("message", ""),
-                    raw_metadata={"source": "gpt4o_vision"},
-                )
-            except Exception as exc:  # noqa: BLE001
-                logger.warning("invalid LLM payload skipped: {} ({})", raw, exc)
-                continue
-            self._last_event_type = event_type
-            await self._emit_event(payload)
+            await self._observe(
+                event_type,
+                raw.get("severity", "MEDIUM"),
+                raw.get("message", ""),
+                ts,
+                {"source": "gpt4o_vision"},
+            )
 
     async def _call_gateway(self, frames: list[bytes]) -> dict:
         s = get_settings()

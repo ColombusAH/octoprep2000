@@ -29,11 +29,18 @@ Severity = Literal["LOW", "MEDIUM", "HIGH"]
 
 class VideoEventPayload(BaseModel):
     session_id: uuid.UUID
-    timestamp_ms: int = Field(ge=0)
+    timestamp_ms: int = Field(ge=0)  # span start (ms since session/media start)
+    end_ms: int | None = Field(default=None, ge=0)  # span end; None ⇒ instantaneous
     event_type: VideoEventType
     severity: Severity
     message: str
     raw_metadata: dict | None = None
+
+    @property
+    def duration_ms(self) -> int:
+        """How long the issue persisted. 0 for an instantaneous event."""
+        end = self.end_ms if self.end_ms is not None else self.timestamp_ms
+        return max(0, end - self.timestamp_ms)
 
 
 # ── Audio ─────────────────────────────────────────────────────────────
