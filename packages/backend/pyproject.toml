@@ -53,3 +53,6 @@ ignore = ["E501"]
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]
+markers = [
+    "live: integration test against live LLM (requires LITELLM_API_KEY, DEMO_MODE unset)",
+]

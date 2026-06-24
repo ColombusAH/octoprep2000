@@ -26,6 +26,13 @@ from db.repository import PostgreSQLRepository
 from db.session import get_session_maker
 
 
+def _format_slide_insight(description: str, suggested_fix: str, finding_type: str) -> str:
+    fix = suggested_fix.strip()
+    if finding_type == "IMPROVEMENT" and fix:
+        return f"{description} Instead: {fix}"
+    return description
+
+
 class ReportAgent(AgentPersistence):
     def __init__(
         self,
@@ -179,16 +186,21 @@ class ReportAgent(AgentPersistence):
     def _score_slides(self, analyses) -> tuple[list[Insight], float]:
         if not analyses:
             return [Insight(category="slide", type="IMPROVEMENT", message="No deck uploaded")], 0.0
-        grouped: dict[tuple[int, str], list[tuple[int, str]]] = defaultdict(list)
+        grouped: dict[tuple[int, str], list[tuple[int, str, str]]] = defaultdict(list)
         for a in analyses:
-            grouped[(a.playbook_factor, a.finding_type)].append((a.slide_index, a.description))
+            fix = getattr(a, "suggested_fix", "") or ""
+            grouped[(a.playbook_factor, a.finding_type)].append((a.slide_index, a.description, fix))
 
         insights: list[Insight] = []
         improvements = 0
         strengths = 0
         for (factor, ftype), items in grouped.items():
-            slides = sorted({s for s, _ in items})
-            msg = items[0][1] if len(items) == 1 else f"Factor #{factor}: {items[0][1]}"
+            slides = sorted({s for s, _, _ in items})
+            desc, fix = items[0][1], items[0][2]
+            if len(items) == 1:
+                msg = _format_slide_insight(desc, fix, ftype)
+            else:
+                msg = _format_slide_insight(f"Factor #{factor}: {desc}", fix, ftype)
             insights.append(
                 Insight(
                     category="slide",

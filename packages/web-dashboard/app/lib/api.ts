@@ -63,6 +63,22 @@ export async function uploadPptx(sessionId: string, file: File): Promise<void> {
   if (!res.ok) throw new Error(`upload failed: ${res.status}`);
 }
 
+/** Poll until PPTX analysis finishes (FR-001 — ≤30s typical). */
+export async function waitForPptxReady(
+  sessionId: string,
+  opts?: { timeoutMs?: number; intervalMs?: number },
+): Promise<void> {
+  const timeoutMs = opts?.timeoutMs ?? 45_000;
+  const intervalMs = opts?.intervalMs ?? 1_000;
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    const session = await getSession(sessionId);
+    if (session.pptx_ready) return;
+    await new Promise((r) => setTimeout(r, intervalMs));
+  }
+  throw new Error("Deck analysis timed out — try again or continue without slide feedback.");
+}
+
 export async function endSession(sessionId: string): Promise<void> {
   const res = await fetch(`${BACKEND_URL}/sessions/${sessionId}/end`, {
     method: "POST",

@@ -115,6 +115,7 @@ class SlideAnalysis(Base):
     playbook_factor: Mapped[int] = mapped_column(Integer, nullable=False)
     finding_type: Mapped[str] = mapped_column(String(16), nullable=False)  # STRENGTH | IMPROVEMENT
     description: Mapped[str] = mapped_column(Text, nullable=False)
+    suggested_fix: Mapped[str] = mapped_column(Text, nullable=False, server_default="")
 
     session: Mapped[Session] = relationship(back_populates="slide_analyses")
 
