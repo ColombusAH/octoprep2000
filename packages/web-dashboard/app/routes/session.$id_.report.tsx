@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
-import { createShareLink, getPublicConfig, getReport, type PublicConfig } from "~/lib/api";
+import { ApiError, createShareLink, getPublicConfig, getReport, type PublicConfig } from "~/lib/api";
 import { ScoreCard, type ReportData } from "~/components/ScoreCard";
 import { ProcessingScreen } from "~/components/ProcessingScreen";
 import { Button } from "~/components/ui/button";
@@ -40,15 +40,25 @@ function ReportPage() {
   useEffect(() => {
     if (mockReport) return;
     let stop = false;
-    Promise.all([getReport(id, share), getPublicConfig()])
-      .then(([r, c]) => {
+
+    const deadline = Date.now() + 60_000;
+    const load = async () => {
+      try {
+        const [r, c] = await Promise.all([getReport(id, share), getPublicConfig()]);
         if (stop) return;
         setReport(r);
         setConfig(c);
-      })
-      .catch((err) => {
-        if (!stop) setError(err instanceof Error ? err.message : String(err));
-      });
+      } catch (err) {
+        if (stop) return;
+        if (err instanceof ApiError && err.status === 404 && Date.now() < deadline) {
+          window.setTimeout(load, 1_000);
+          return;
+        }
+        setError(err instanceof Error ? err.message : String(err));
+      }
+    };
+
+    load();
     return () => {
       stop = true;
     };

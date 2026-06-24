@@ -53,7 +53,13 @@ async def require_report_access(
 
 
 async def validate_ws_token(
-    session_id: uuid.UUID, token: str, repo: PostgreSQLRepository
+    session_id: uuid.UUID,
+    token: str,
+    repo: PostgreSQLRepository,
+    *,
+    require_active: bool = False,
 ) -> bool:
     session = await repo.get_session(session_id)
-    return session is not None and str(session.access_token) == token
+    if not session or str(session.access_token) != token:
+        return False
+    return not require_active or session.status == "ACTIVE"

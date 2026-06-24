@@ -29,12 +29,15 @@ from config import get_settings
 from core.feedback_broadcaster import broadcaster
 from orchestrator.orchestrator import Orchestrator
 
-FILLERS = {"um", "uh", "ah", "hmm", "like", "you know", "kinda", "sorta"}
+FILLERS = {"um", "uh"}
 FILLER_REGEX = re.compile(r"\b(" + "|".join(re.escape(w) for w in FILLERS) + r")\b", re.I)
+AMBIGUOUS_FILLER_REGEX = re.compile(r"\blike\b", re.I)
 
 WPM_HIGH = 160
 WPM_LOW = 90
 WPM_WINDOW_SECONDS = 30
+WPM_MIN_EVIDENCE_SECONDS = 10
+WARNING_DEBOUNCE_MS = 10_000
 
 
 class AudioAgent(AgentPersistence):
@@ -43,9 +46,10 @@ class AudioAgent(AgentPersistence):
         self.orchestrator = orchestrator
         self._session_started_ms = int(time.monotonic() * 1000)
         self._chunk_count = 0
-        # rolling 30s window of (timestamp_s, word_count)
+        # rolling 30s window of (chunk_start_s, word_count)
         self._wpm_window: deque[tuple[float, int]] = deque()
-        self._last_warning_ts = 0
+        self._last_warning_by_type: dict[str, int] = {}
+        self._replay_dispatched = False
 
     # ── This agent owns transcript + audio_warning writes (Principle II) ──
     async def _write_transcript(self, payload: TranscriptPayload) -> None:
@@ -83,6 +87,9 @@ class AudioAgent(AgentPersistence):
 
     async def push_chunk(self, pcm_bytes: bytes) -> None:
         if get_settings().demo_replay:
+            if self._replay_dispatched:
+                return
+            self._replay_dispatched = True
             for ev in replay_audio_events(self.session_id):
                 if isinstance(ev, TranscriptPayload):
                     await self._write_transcript(ev)
@@ -107,7 +114,7 @@ class AudioAgent(AgentPersistence):
 
         logger.info("STT transcribed chunk {}: {!r}", self._chunk_count, text)
 
-        fillers = [m.group(0).lower() for m in FILLER_REGEX.finditer(text)]
+        fillers = _detect_fillers(text)
         await self._write_transcript(
             TranscriptPayload(
                 session_id=self.session_id,
@@ -118,7 +125,7 @@ class AudioAgent(AgentPersistence):
             )
         )
 
-        if fillers:
+        if fillers and self._should_emit_warning("FILLER_WORDS", start_ms):
             await self._write_warning(
                 AudioWarningPayload(
                     session_id=self.session_id,
@@ -134,21 +141,22 @@ class AudioAgent(AgentPersistence):
     async def _update_wpm(self, text: str, ts_ms: int) -> None:
         words = len(text.split())
         now_s = ts_ms / 1000
-        self._wpm_window.append((now_s, words))
+        chunk_start_s = max(0.0, now_s - get_settings().audio_chunk_seconds)
+        self._wpm_window.append((chunk_start_s, words))
         cutoff = now_s - WPM_WINDOW_SECONDS
         while self._wpm_window and self._wpm_window[0][0] < cutoff:
             self._wpm_window.popleft()
         if not self._wpm_window:
             return
+        if now_s < WPM_MIN_EVIDENCE_SECONDS:
+            return
         total_words = sum(w for _, w in self._wpm_window)
         span = max(1.0, now_s - self._wpm_window[0][0])
         wpm = total_words * 60 / span
 
-        if ts_ms - self._last_warning_ts < 10_000:
-            return  # debounce 10s
-
         if wpm > WPM_HIGH:
-            self._last_warning_ts = ts_ms
+            if not self._should_emit_warning("PACING_TOO_FAST", ts_ms):
+                return
             await self._write_warning(
                 AudioWarningPayload(
                     session_id=self.session_id,
@@ -159,7 +167,8 @@ class AudioAgent(AgentPersistence):
                 )
             )
         elif wpm < WPM_LOW:
-            self._last_warning_ts = ts_ms
+            if not self._should_emit_warning("PACING_TOO_SLOW", ts_ms):
+                return
             await self._write_warning(
                 AudioWarningPayload(
                     session_id=self.session_id,
@@ -204,6 +213,13 @@ class AudioAgent(AgentPersistence):
     async def aclose(self) -> None:
         pass
 
+    def _should_emit_warning(self, event_type: str, ts_ms: int) -> bool:
+        last_ts = self._last_warning_by_type.get(event_type)
+        if last_ts is not None and ts_ms - last_ts < WARNING_DEBOUNCE_MS:
+            return False
+        self._last_warning_by_type[event_type] = ts_ms
+        return True
+
 
 def _wrap_pcm_as_wav(
     pcm_bytes: bytes,
@@ -237,3 +253,11 @@ def _wrap_pcm_as_wav(
         subchunk2_size,
     )
     return header + pcm_bytes
+
+
+def _detect_fillers(text: str) -> list[str]:
+    fillers = [m.group(0).lower() for m in FILLER_REGEX.finditer(text)]
+    ambiguous = [m.group(0).lower() for m in AMBIGUOUS_FILLER_REGEX.finditer(text)]
+    if len(ambiguous) > 1:
+        fillers.extend(ambiguous)
+    return fillers

@@ -45,7 +45,8 @@ def replay_audio_events(
     session_id: uuid.UUID,
 ) -> list[TranscriptPayload | AudioWarningPayload]:
     out: list[TranscriptPayload | AudioWarningPayload] = []
-    for raw in _load("audio_events.json") or []:
+    for cached_raw in _load("audio_events.json") or []:
+        raw = dict(cached_raw)
         kind = raw.pop("kind", "transcript")
         try:
             if kind == "transcript":

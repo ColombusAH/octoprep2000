@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
-from loguru import logger
 import uuid
 
 from fastapi import APIRouter, Depends, WebSocket, WebSocketDisconnect
+from loguru import logger
 
 from db.repository import PostgreSQLRepository, get_repo
 from middleware.session_auth import validate_ws_token
@@ -21,7 +21,7 @@ async def audio_stream(
     token: str,
     repo: PostgreSQLRepository = Depends(get_repo),
 ):
-    if not await validate_ws_token(session_id, token, repo):
+    if not await validate_ws_token(session_id, token, repo, require_active=True):
         await ws.close(code=4003)
         return
 
@@ -33,6 +33,9 @@ async def audio_stream(
     try:
         while True:
             chunk = await ws.receive_bytes()
+            if not await repo.is_session_active(session_id):
+                await ws.close(code=4003)
+                return
             chunk_count += 1
             logger.info("audio chunk #{} ({} bytes) for {}", chunk_count, len(chunk), session_id)
             assert rt.aggregator is not None
