@@ -35,8 +35,8 @@ Replaces the single `message: str` field used today:
 |---|---|---|
 | `category` | `"voice" \| "body" \| "slide" \| "content"` | Unchanged. |
 | `type` | `"STRENGTH" \| "IMPROVEMENT"` | Unchanged. |
-| `message_en` | `string` | Always present. For deterministic (voice/body) insights, rendered directly in English. For LLM-derived (content/slide) insights, this is whichever language the LLM call actually produced — i.e. equals the generated text when `speech_language` is `"en"`, or is filled in by the lazy-translate path (Decision 3) once an English view has been requested for a Hebrew-spoken session. |
-| `message_he` | `string \| null` | Same rule, mirrored: present once generated (deterministic, or LLM-generated when `speech_language` is `"he"`) or translated-and-cached; `null` until the Hebrew view has been requested for an insight that originated in English. |
+| `message_en` | `string` | Always present, written once by `ReportAgent.generate()` before its single `insert_report` call (Decision 3, research.md). For deterministic (voice/body, and PPTX-fallback per Decision 2) insights, rendered directly. For LLM-derived (content/slide) insights, this is either the LLM's direct output (when `speech_language` is `"en"`) or the result of `ReportAgent`'s one batched translation call (when `speech_language` is `"he"`). |
+| `message_he` | `string` | Same rule, mirrored — always present at write time, never filled in later. No nullable/pending state: both languages exist from the moment the report row is inserted. |
 | `timestamps` | `list[int]` | Unchanged. |
 | `slides` | `list[int]` | Unchanged. |
 
@@ -46,7 +46,9 @@ short inline language label when the surrounding sentence is in the other langua
 
 This shape is **internal only**. The `GET /sessions/{id}/report` response continues to expose a single
 resolved `message: string` per insight (see `contracts/report-api.md`) — external consumers
-(frontend, `share_token` viewers) never see `message_en`/`message_he` directly.
+(frontend, `share_token` viewers) never see `message_en`/`message_he` directly, and the endpoint never
+writes to this column — it is populated exactly once, by `ReportAgent`, the table's sole writer under
+Constitution v2.0.0 Principle II.
 
 ## Modified Contracts (Pydantic, `packages/backend/agents/schemas.py`)
 
@@ -65,11 +67,22 @@ something discovered mid-session.
 
 ### Insight (Pydantic)
 
-`message: str` → `message_en: str`, `message_he: str | None` (mirrors the internal JSONB shape above).
-`ReportAgent` continues to build these in-memory exactly as it does today for the deterministic
-categories; LLM-derived categories populate only the `speech_language` field at generation time
-(the prompt now explicitly instructs the model to write in that language), leaving the other `None`
-until the lazy-translate path fills it in.
+`message: str` → `message_en: str`, `message_he: str` (mirrors the internal JSONB shape above — both
+required, neither nullable). `ReportAgent.generate()` builds both fields in-memory before its existing
+single `insert_report` write: deterministic categories render both directly; LLM-derived categories
+get the direct LLM output for `speech_language` and the result of one batched translation call for the
+other language. No partial/pending state is ever persisted.
+
+### SlideAnalysisPayload (Pydantic) — no shape change, generation-time behavior change only
+
+`description` and `suggested_fix` (already added by the upstream `suggested_fix` feature) are
+unchanged in shape. What changes is that `PPTXAgent.analyse()` now takes `speech_language` and
+`deck_language` and (a) instructs its LLM prompt to write both fields in `speech_language` with
+`deck_language` as interpretive context, and (b) selects the Hebrew or English variant of
+`_FACTOR_FIX_TEMPLATES`/the `_supplement_from_metadata` f-strings by `speech_language` (Decision 2,
+research.md). No new column on `SlideAnalysis`, no bilingual storage at this layer — by the time
+`ReportAgent._score_slides` reads these rows, they're already in `speech_language`, and `ReportAgent`
+handles translating them into the other language as part of its own bilingual `Insight` assembly.
 
 ## Unaffected Entities / Contracts
 
@@ -78,14 +91,17 @@ until the lazy-translate path fills it in.
 - **TranscriptEntry**: no new column. Per-segment language tagging isn't needed — the speech language
   is a single, presenter-declared, session-level value, and the filler lexicon now branches cleanly on
   it (Decision 2, research.md) rather than needing per-segment disambiguation.
-- **VideoEvent**, **AudioWarning**, **SlideAnalysis**: unchanged. Body/video event types are
-  enum-driven, not freeform text requiring translation.
+- **VideoEvent**, **AudioWarning**: unchanged. Enum-driven event types, not freeform text requiring
+  translation.
 
-## Runtime wiring (`packages/backend/runtime.py`)
+## Runtime wiring
 
-`RuntimeRegistry` loads the session row (already does, to construct per-session agents) and passes
-`speech_language` into the `AudioAgent` constructor, so it's available for both the STT language hint
-and the filler-lexicon selection without `AudioAgent` needing its own DB read.
+- `packages/backend/runtime.py::RuntimeRegistry` loads the session row (already does, to construct
+  per-session agents) and passes `speech_language` into the `AudioAgent` constructor, so it's
+  available for both the STT language hint and the filler-lexicon selection without `AudioAgent`
+  needing its own DB read.
+- `packages/backend/routers/upload.py` (where `PPTXAgent(orch)` is constructed) loads the session row
+  and passes `speech_language`/`deck_language` into `agent.analyse(session_id, pptx_path, ...)`.
 
 ## New Frontend-Facing Shape (`packages/shared-types/src/index.ts::ReportData`)
 

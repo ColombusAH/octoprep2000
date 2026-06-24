@@ -82,22 +82,29 @@ Unchanged fields keep their existing shape exactly (`overall_score`, `voice_scor
 
 ### Behavior
 
+This endpoint performs a pure read — no LLM call, no write, regardless of which language is
+requested. Both `message_en` and `message_he` already exist on every insight by the time the report
+row exists at all (written once by `ReportAgent`, see below).
+
 1. If `lang` is omitted, resolve to `speech_language`.
-2. If `lang` matches a language already cached on every insight (`message_en`/`message_he` populated —
-   see data-model.md), respond immediately from the stored row (no LLM call; <2s, satisfies SC-003).
-3. If `lang` requests the language *other than* `speech_language` and one or more LLM-derived insights
-   are missing that language's text, translate only those findings in a single batched call, persist
-   the result back onto the `reports` row, then respond. This is the one-time cost noted in
-   research.md Decision 3.
-4. If step 3's translation call fails, respond with the original-language text for the affected
-   insights; to avoid mislabeling untranslated text, the endpoint returns `language` equal to whatever
-   language is actually present (i.e., falls back to `speech_language`) rather than claiming the
-   requested language was honored. This is the demo-safe degradation required by CAR-004.
-5. Embedded quotes inside any insight `message` remain in their original spoken/written language with
+2. Pick `message_en` or `message_he` per insight, per the resolved language, and return it as
+   `insights[].message`. <2s always holds (SC-003) — there is no first-request/cache-miss case.
+3. Embedded quotes inside any insight `message` remain in their original spoken/written language with
    a short label, in both `message_en` and `message_he` — never machine-translated (FR-010).
+
+## `POST /sessions/{session_id}/end` — no contract change, behavior change inside `ReportAgent`
+
+The request/response shape is unchanged. What changes is internal to
+`packages/backend/agents/report_agent.py::ReportAgent.generate()`, which this endpoint already calls:
+after assembling insights in `speech_language` (LLM-derived categories) or both languages directly
+(deterministic categories), it makes one additional batched translation call for the LLM-derived
+findings into the *other* language, then writes both `message_en` and `message_he` as part of its
+single existing `insert_report` call (research.md Decision 3). If the translation call fails, it
+writes `message_he = message_en` (or vice versa) with a label rather than failing the whole report —
+report generation still completes (CAR-004).
 
 ## Out of scope for these contracts
 
-- No change to `GET /sessions/{id}`, `POST /sessions/{id}/end`, or `POST /sessions/{id}/report/share`.
+- No change to `GET /sessions/{id}` or `POST /sessions/{id}/report/share`.
 - No new WebSocket message type — `TranscriptPayload` is unchanged (Decision 1, research.md: language
   is declared at session creation, not detected from transcript chunks).

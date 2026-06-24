@@ -30,12 +30,27 @@ additionally improves STT accuracy itself by giving the decoder a language hint 
 - *Auto-detect with manual override available*: Rejected for the same reason — the requirement is for
   explicit selection, not detection-with-an-escape-hatch.
 
-## Decision 2: Hebrew filler/disfluency lexicon — branch cleanly on the declared speech language
+## Decision 2: Deterministic-template localization — branch cleanly on the declared speech language
 
 **Decision**: Add a Hebrew hesitation/filler word set (e.g., "אה", "אהמ", "כאילו", "סתם", "בעצם") to
 `audio_agent.py` as a second `FILLERS_HE` set alongside the existing `FILLERS` (English), and select
 which regex to apply per chunk based on `Session.speech_language` (now known with certainty from
 Decision 1, not inferred) rather than merging both into one always-on regex.
+
+**Update after merging `origin/main`**: the agent-direct-persistence merge brought in a second,
+identically-shaped bug surface — `pptx_agent.py` now has its own deterministic, English-only fallback
+content: `_FACTOR_FIX_TEMPLATES` (12 entries) plus several f-string `description`/`suggested_fix`
+strings inside `_supplement_from_metadata`, used whenever the LLM under-covers a playbook factor or
+leaves `suggested_fix` empty. Exactly like the filler lexicon, this text is written permanently to
+`slide_analyses` at upload time — if left English-only, a Hebrew-spoken session's *default* report
+view would silently mix Hebrew (LLM-written) and English (deterministic-fallback) slide insights.
+This is folded into the same decision: `_FACTOR_FIX_TEMPLATES` and the `_supplement_from_metadata`
+f-strings get a Hebrew variant set, selected by the deck's resolved output language (the same
+`speech_language` the LLM prompt is instructed to write in — see Decision 3), authored once as a
+bounded, finite list (12 factor templates + ~8 deterministic descriptions), the same shape of work as
+the filler lexicon. This guarantees `slide_analyses.description`/`suggested_fix` is always already in
+`speech_language` regardless of whether the LLM or the deterministic fallback produced it, so
+`ReportAgent` never has to detect and re-normalize a stray English string inside a Hebrew report.
 
 **Rationale**: Without this change, Hebrew speech still produces **zero** filler matches (the current
 `FILLERS` set is English-only), which doesn't just under-report — it actively manufactures a false
@@ -58,64 +73,72 @@ coincidentally matching a Hebrew filler token (or vice versa) in a single-langua
 English-calibrated value for both languages. Per-language speech-rate norms are a real refinement but
 out of scope for this feature (see spec Assumptions).
 
-## Decision 3: Bilingual report content — generate once in the declared speech language, translate lazily and cache
+## Decision 3: Bilingual report content — generate in the declared speech language, translate eagerly in the same write
 
-**Decision**: At session end, `ReportAgent` generates insights in the presenter's **declared speech
-language only** — still a single LLM call per agent, but `ContentAnalysisAgent` and `PPTXAgent`'s
-prompts now explicitly instruct the model to write `message`/`description` text in that language
-(rather than always English), and `PPTXAgent`'s prompt is given the deck's declared `deck_language` as
-context so it correctly interprets Hebrew slide text extracted by `python-pptx` (plain Unicode text
-extraction already works for Hebrew with no OCR or Vision change — FR-009's deck-language requirement
-is materially cheaper than it first looked, since slide text comes from the XML, not an image).
-Deterministic, Python-templated insights (voice filler/pacing counts, body-event counts) are cheap to
-render in both languages immediately, since they involve no LLM call. The **first** time
-a report is requested in the non-spoken language, the backend makes one additional, batched LLM call
-that translates only the LLM-derived findings (content + slide descriptions) for that report, and
-persists the result back into the same `reports.insights` JSONB column so every subsequent fetch in
-that language is a pure DB read. Quotes embedded in any finding (`context_quote`) are preserved
-verbatim in their original language with a small label, never machine-translated (FR-010).
+**Decision** (revised after merging `origin/main` — see "Superseded" below): At session end,
+`ReportAgent` generates insights in the presenter's **declared speech language** exactly as before
+(`ContentAnalysisAgent` and `PPTXAgent`'s prompts explicitly instruct the model to write
+`message`/`description`/`suggested_fix` text in that language; `PPTXAgent`'s prompt is given the
+deck's declared `deck_language` as interpretive context — plain Unicode text extraction via
+`python-pptx` already handles Hebrew with no OCR/Vision change, so FR-009's deck-language requirement
+is materially cheaper than it first looked). Deterministic, Python-templated insights (voice
+filler/pacing counts, body-event counts, and — per Decision 2 — the PPTX fallback templates) are
+rendered directly in both languages, since they involve no LLM call. Then, still inside the same
+`ReportAgent.generate()` call, **one additional batched LLM call** translates only the LLM-derived
+findings (content findings + slide descriptions/fixes) into the *other* language, and `ReportAgent`
+writes both `message_en` and `message_he` into `reports.insights` as part of its single, existing
+`insert_report` write (no separate write, no later mutation of the row). Quotes embedded in any
+finding (`context_quote`) are preserved verbatim in their original language with a small label, never
+machine-translated (FR-010). `GET /sessions/{id}/report?lang=` (Decision 4) becomes a pure read — it
+picks `message_en` or `message_he`, nothing is generated or written at request time.
 
-**Rationale**: Report generation has a constitutional ≤60s soft target (Principle IV). Eagerly
-generating both languages for every report — even via a single dual-language LLM call per agent —
-adds output-token latency to the critical path on every session, including the common case where a
-user never toggles away from their spoken language. That cost is not justified by FR-007, which only
-requires that toggling *not* re-record or re-process the rehearsal — a lazy, cached translation read
-satisfies that without paying the cost up front. The one-time cost is paid only on first toggle, is a
-short, low-token batched call (a handful of finding strings, not the full transcript), and a failure
-falls back to showing the original-language text with a label rather than blocking the toggle
-(Principle IV).
+**Rationale**: This decision was originally lazy-and-cached (see "Superseded" below), but merging
+`origin/main`'s Constitution v2.0.0 amendment (Principle II: one writer per role-scoped table) changed
+the calculus. A lazy design has `GET /report` translate-and-write-back on first non-default-language
+view — exactly the "a handler writes a table it doesn't own" pattern the new Principle II forbids;
+`reports` is `ReportAgent`'s table. There's no clean way to route that write back through `ReportAgent`
+from a GET handler without it being worse than just generating both languages at write time. Separately,
+the original ≤60s-budget argument against eager generation overstated the risk: slide findings are
+already generated off the post-session critical path (PPTXAgent runs at *upload* time, not at session
+end), and the deterministic insights are free regardless. The only LLM call already on the 60s path is
+`ContentAnalysisAgent`; adding one more bounded, batched translation call (a handful of short finding
+strings, not the full transcript) to that same path is a small, well-understood cost — and the user has
+asked, more than once, for the report-language choice to be a first-class, always-available decision,
+not a rare edge case optimized away. A failure in the translation call falls back to writing
+`message_he = message_en` (or vice versa) with a label, so report generation still completes
+(Principle IV) — it degrades the *translation*, not the report.
 
 **Alternatives considered**:
-- *Eager dual-language generation at session end (single call per agent, both languages in one
-  schema)*: Rejected as the default — strictly worse than lazy-and-cached for the common path (adds
-  latency to every report, not just the ones a user actually toggles), with no offsetting benefit
-  once caching makes the lazy path's repeat-view cost zero.
+- *Lazy, translate-and-cache on first `GET /report?lang=` request (original decision)*: Superseded —
+  conflicts with the post-merge Principle II ("one writer per table"; a GET handler writing back to
+  `reports` is exactly the pattern that rule exists to prevent), and optimizes for "the user rarely
+  toggles," which this feature's own requirements contradict.
 - *Translate on every toggle, no caching*: Rejected — wastes a full LLM call on every view after the
   first, and risks visible latency/failure on demo day for something that doesn't need to be live.
 
-**Consequence for spec interpretation**: SC-003 ("switch in under 2 seconds") holds for the cached
-path (the common case after a report has been viewed once in each language); the very first toggle
-into the non-spoken language pays one short translation call and should show a brief loading state
-rather than an instant swap. This is a refinement worth flagging back to the spec owner, not a silent
-deviation.
+**Consequence for spec interpretation**: SC-003 ("switch in under 2 seconds") now holds unconditionally
+— there is no first-toggle exception, since both languages exist from the moment the report is
+generated. This is a strict improvement over the superseded lazy design's documented caveat.
 
-## Decision 4: `GET /sessions/{id}/report` contract — single `?lang` query param, server resolves
+## Decision 4: `GET /sessions/{id}/report` contract — single `?lang` query param, pure read
 
 **Decision**: The endpoint gains an optional `lang=en|he` query parameter. The response shape is
 unchanged except for two additions: `language` (the language actually returned) and
-`speech_language` (the session's declared speech language, FR-008) — `insights[].message` remains a
-plain string already resolved to the requested language server-side. The frontend never sees the
-internal bilingual JSONB shape.
+`speech_language` (the session's declared speech language, FR-008) — `insights[].message` is a plain
+string, picked from the already-bilingual `message_en`/`message_he` stored by `ReportAgent` (Decision
+3). The frontend never sees the internal bilingual JSONB shape, and the endpoint performs no write and
+no LLM call — it is a pure read regardless of which language is requested.
 
 **Rationale**: Keeps `packages/shared-types/src/index.ts` and `ScoreCard.tsx` changes minimal — they
 gain a couple of optional top-level fields instead of restructuring `Insight.message` into an object
-that every consumer would need to unwrap. Server-side resolution is also where the lazy-translate-and-
-cache logic from Decision 3 naturally lives (it already owns the DB row).
+that every consumer would need to unwrap. Because Decision 3 now writes both languages at generation
+time, this handler has no persistence concern at all — it cleanly stays a read-only router action
+under any ownership rule.
 
 **Alternatives considered**:
-- *Expose both languages in every response, let the frontend pick*: Rejected — pushes the
-  translation-presence/caching logic onto the client for no benefit, and complicates the `share_token`
-  read path for no reason.
+- *Expose both languages in every response, let the frontend pick*: Rejected — pushes a trivial
+  field-pick onto the client for no benefit, and complicates the `share_token` read path for no
+  reason.
 
 ## Decision 5: RTL layout and Hebrew typography
 

@@ -17,10 +17,10 @@ fixture-based path that doesn't need live API keys — see Path B).
 6. Open the report in the dashboard. **Expect**: the report view renders right-to-left, score cards
    and timestamps remain legible, and status indicators are distinguishable without relying on color
    alone (CAR-005).
-7. Toggle the report language control to English. **Expect**: a brief loading state on this *first*
-   toggle (the one-time translation call, research.md Decision 3), then `language: "en"` with
-   `insights[].message` in English and the layout mirrors back to left-to-right.
-8. Toggle back to Hebrew. **Expect**: this is now instant (<2s, cached — SC-003), no loading state.
+7. Toggle the report language control to English. **Expect**: instant (<2s, no loading state —
+   both languages were already written when the report was generated, research.md Decision 3),
+   `language: "en"` with `insights[].message` in English and the layout mirrors back to left-to-right.
+8. Toggle back to Hebrew. **Expect**: equally instant — there is no first-toggle/cache-miss case.
 9. **Expect**: any transcript-derived quote inside an insight message is unchanged text in both
    languages — it is never machine-translated (FR-010).
 10. Re-run steps 2–5 with **Speech language: English** and **Deck language: English**. **Expect**: no
