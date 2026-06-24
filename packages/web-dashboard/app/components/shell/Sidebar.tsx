@@ -6,9 +6,9 @@ import {
   PlayCircle,
   Settings,
   Trophy,
-  User,
   Wifi,
 } from "lucide-react";
+import naorAvatar from "../../../assets/avatars/naor.png";
 import { cn } from "~/lib/utils";
 import { useWallet } from "~/lib/wallet";
 import octoprepLogo from "./octoprep-logo.png";
@@ -68,17 +68,18 @@ export function Sidebar() {
     <aside className="relative z-10 flex h-screen w-64 shrink-0 flex-col border-r border-sidebar-border bg-sidebar text-sidebar-foreground">
       <div className="flex flex-col gap-4 border-b border-sidebar-border px-5 py-6">
         <div className="flex items-center gap-3">
-          <div
-            className="flex size-11 shrink-0 items-center justify-center rounded-md border border-dashed border-teal/50 bg-teal/10 text-teal"
-            aria-hidden="true"
-          >
-            <User className="size-5" />
-          </div>
+          <img
+            src={naorAvatar}
+            alt="Naor"
+            className="size-11 shrink-0 rounded-md border border-teal/50 object-cover"
+          />
           <div className="flex flex-col">
             <span className="font-display text-sm font-bold tracking-tight text-pearl">
-              LIOR KANFI
+              NAOR
             </span>
-            <span className="font-mono text-[11px] tracking-wide text-ash">FOUNDER & CEO</span>
+            <span className="font-mono text-[11px] tracking-wide text-ash">
+              FULLSTACK DEVELOPER AND LECTURER
+            </span>
           </div>
         </div>
 
