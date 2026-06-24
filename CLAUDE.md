@@ -88,7 +88,8 @@ Copy `.env.example` to `.env` and fill in:
 - [`docs/MASTER-DOCUMENT.md`](docs/MASTER-DOCUMENT.md) — hackathon plan and team composition
 
 <!-- SPECKIT START -->
-**Active feature plan**: [`specs/003-video-upload-analysis/plan.md`](specs/003-video-upload-analysis/plan.md)
-
-For technologies, project structure, shell commands, and implementation context for the current feature, read the plan above and its linked artifacts (`research.md`, `data-model.md`, `contracts/`, `quickstart.md`).
+Active plan: [`specs/20260624-hebrew-rtl-support/plan.md`](specs/20260624-hebrew-rtl-support/plan.md) — Hebrew
+speech support, bilingual session reports, and RTL UI. See also
+[`research.md`](specs/20260624-hebrew-rtl-support/research.md) and
+[`data-model.md`](specs/20260624-hebrew-rtl-support/data-model.md) in the same directory.
 <!-- SPECKIT END -->
