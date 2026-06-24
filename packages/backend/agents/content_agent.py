@@ -1,7 +1,8 @@
 """ContentAnalysisAgent — post-session technical accuracy + coverage gap analysis.
 
-Reads transcript from DB (read-only) + session topic. For technical topics, fetches
-reference material (Context7 docs, Exa articles/improvements) before LLM evaluation.
+Reads transcript from DB (read-only) + session topic. Reference material is gathered and
+persisted during pre-session PPTX prep (feature 002), so this agent reads the saved
+ReferenceBundle from the session row and makes NO live research-provider calls.
 Uses get_session_maker() to own its own AsyncSession (decoupled from request scope).
 """
 
@@ -12,12 +13,10 @@ import uuid
 from agno.agent import Agent
 from loguru import logger
 
-from agents.content_research.classifier import classify_topic
-from agents.content_research.fetcher import fetch_reference_bundle
 from agents.content_research.reference_bundle import (
     ReferenceBundle,
     ResearchStatus,
-    compute_research_status,
+    from_jsonb,
 )
 from agents.llm import (
     call_with_fallback,
@@ -123,23 +122,9 @@ class ContentAnalysisAgent:
 
         slide_text = _format_slides_raw_text(session.slides_raw_text)
 
-        classification = await classify_topic(session.topic, session.topic_context)
-        bundle: ReferenceBundle | None = None
-        research_status: ResearchStatus = "not_applicable"
-
-        if classification.is_technical:
-            bundle = await fetch_reference_bundle(
-                session.topic,
-                classification,
-                include_improvements=True,
-            )
-            research_status = compute_research_status(
-                is_technical=True,
-                attempted=bundle.providers_attempted,
-                succeeded=bundle.providers_succeeded,
-            )
-        else:
-            research_status = "not_applicable"
+        # Reuse the research persisted during pre-session prep — no live provider calls.
+        bundle: ReferenceBundle | None = from_jsonb(session.research_bundle)
+        research_status: ResearchStatus = session.content_research_status or "not_applicable"
 
         prompt = _build_evaluation_prompt(
             topic=session.topic,

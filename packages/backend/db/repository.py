@@ -37,11 +37,21 @@ class PostgreSQLRepository:
             session.status = status
             await self.db.commit()
 
-    async def mark_pptx_ready(self, session_id: uuid.UUID, slides_raw: list[dict[str, Any]]) -> None:
+    async def mark_pptx_ready(
+        self,
+        session_id: uuid.UUID,
+        slides_raw: list[dict[str, Any]],
+        research_bundle: dict[str, Any] | None = None,
+        content_research_status: str | None = None,
+    ) -> None:
         session = await self.get_session(session_id)
         if session:
-            session.pptx_ready = True
+            # Persist research before flipping pptx_ready so the session-start gate
+            # (frontend polls pptx_ready) never observes ready before research is saved.
+            session.research_bundle = research_bundle
+            session.content_research_status = content_research_status
             session.slides_raw_text = slides_raw
+            session.pptx_ready = True
             await self.db.commit()
 
     # ── Transcript ────────────────────────────────────────────────────
