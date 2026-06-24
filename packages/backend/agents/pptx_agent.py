@@ -939,6 +939,34 @@ class PPTXAgent(AgentPersistence):
             )
 
     @staticmethod
+    def _markitdown_texts(path: str) -> dict[int, str]:
+        """Convert PPTX to Markdown via MarkItDown; return {slide_index: md_text}.
+
+        Strips the '### Notes:' section so speaker notes are not duplicated —
+        they are captured separately via python-pptx. Returns {} on any error.
+        """
+        import re
+
+        from markitdown import MarkItDown
+
+        try:
+            result = MarkItDown().convert(path)
+        except Exception:
+            logger.warning("MarkItDown conversion failed for {}; falling back to python-pptx text", path)
+            return {}
+
+        raw = result.text_content or ""
+        parts = re.split(r"<!-- Slide number: (\d+) -->", raw)
+        # parts: ['', '1', '<content>', '2', '<content>', ...]
+        out: dict[int, str] = {}
+        for i in range(1, len(parts) - 1, 2):
+            idx = int(parts[i])
+            body = parts[i + 1]
+            body = re.sub(r"\n### Notes:\n.*", "", body, flags=re.DOTALL)
+            out[idx] = body.strip()
+        return out
+
+    @staticmethod
     def _extract_notes(slide) -> str:
         try:
             if slide.has_notes_slide:
@@ -951,6 +979,7 @@ class PPTXAgent(AgentPersistence):
 
     @staticmethod
     def _extract_text(path: str) -> list[dict]:
+        md_texts = PPTXAgent._markitdown_texts(path)
         deck = Presentation(path)
         out: list[dict] = []
         for idx, slide in enumerate(deck.slides, start=1):
@@ -976,7 +1005,7 @@ class PPTXAgent(AgentPersistence):
             out.append(
                 {
                     "slide_index": idx,
-                    "text": body_text,
+                    "text": md_texts.get(idx, body_text),
                     "shape_count": len(slide.shapes),
                     "image_count": image_count,
                     "font_sizes_pt": font_sizes_pt,

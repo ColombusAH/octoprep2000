@@ -563,6 +563,34 @@ async def test_analyse_delivery_with_slide_events_uses_replay():
     assert all(w["analysis_phase"] == "delivery" for w in written)
 
 
+def test_markitdown_texts_parses_slides():
+    with tempfile.TemporaryDirectory() as tmp:
+        p = Path(tmp) / "deck.pptx"
+        _write_deck(p)
+        result = PPTXAgent._markitdown_texts(str(p))
+    assert 1 in result and 2 in result
+    assert result[1].startswith("#"), "slide 1 text should be Markdown heading"
+    assert "### Notes:" not in result[1], "notes section must be stripped"
+
+
+def test_markitdown_texts_fallback_on_error():
+    with patch("markitdown.MarkItDown.convert", side_effect=RuntimeError("boom")):
+        result = PPTXAgent._markitdown_texts("irrelevant.pptx")
+    assert result == {}
+
+
+def test_extract_text_uses_markitdown_text():
+    with tempfile.TemporaryDirectory() as tmp:
+        p = Path(tmp) / "deck.pptx"
+        _write_deck(p)
+        rows = PPTXAgent._extract_text(str(p))
+    assert rows[0]["text"].startswith("#"), "text field must contain MarkItDown Markdown heading"
+    assert rows[0]["text_line_count"] >= 2, "python-pptx text_line_count must still be populated"
+    assert rows[0]["notes_text"] == "Speaker note for slide 1", "notes_text must still come from python-pptx"
+    assert rows[0]["is_blank"] is False
+    assert rows[1]["is_blank"] is True
+
+
 @pytest.mark.live
 @pytest.mark.skipif(not REAT_DECK.exists(), reason="reat test deck missing")
 @pytest.mark.asyncio
