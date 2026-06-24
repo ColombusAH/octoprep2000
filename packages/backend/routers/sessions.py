@@ -12,6 +12,7 @@ from agents.schemas import CreateSessionBody, CreateSessionResponse
 from core.rate_limit import SESSIONS_LIMIT, limiter
 from db.repository import PostgreSQLRepository, get_repo
 from middleware.session_auth import require_report_access, require_session_owner
+from orchestrator.orchestrator import Orchestrator
 from runtime import build_report_agent, registry
 
 router = APIRouter(prefix="/sessions", tags=["sessions"])
@@ -50,15 +51,17 @@ async def end_session(
 ):
     rt = registry.get(session_id)
     fallback = rt.orchestrator.is_fallback(session_id) if rt else False
+    orch = rt.orchestrator if rt else Orchestrator()
+    # registry.end flushes the VisionAgent's final batch so video_events are durable
+    # before the ReportAgent reads them (agreed-place read; durability before report).
     await registry.end(session_id)
 
-    report_agent = build_report_agent()
-    payload = await report_agent.generate(session_id, fallback_mode=fallback)
+    # ReportAgent reads the agreed tables, writes its own report, signals completion.
+    report_agent = build_report_agent(orch)
+    await report_agent.generate(session_id, fallback_mode=fallback)
 
-    from orchestrator.orchestrator import Orchestrator
-
-    orch = Orchestrator()
-    await orch.on_report(payload)
+    # Lifecycle transition stays with the Orchestrator.
+    await orch.mark_report_ready(session_id)
 
     return {"status": "REPORT_READY", "session_id": str(session_id)}
 

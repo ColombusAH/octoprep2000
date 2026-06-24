@@ -22,9 +22,11 @@ import httpx
 from loguru import logger
 
 from agents.llm import call_with_fallback, get_llm, pick_provider_order
+from agents.persistence import AgentPersistence
 from agents.replay_fixtures import replay_audio_events
 from agents.schemas import AudioWarningPayload, TranscriptPayload
 from config import get_settings
+from core.feedback_broadcaster import broadcaster
 from orchestrator.orchestrator import Orchestrator
 
 FILLERS = {"um", "uh", "ah", "hmm", "like", "you know", "kinda", "sorta"}
@@ -35,7 +37,7 @@ WPM_LOW = 90
 WPM_WINDOW_SECONDS = 30
 
 
-class AudioAgent:
+class AudioAgent(AgentPersistence):
     def __init__(self, session_id: uuid.UUID, orchestrator: Orchestrator) -> None:
         self.session_id = session_id
         self.orchestrator = orchestrator
@@ -45,13 +47,47 @@ class AudioAgent:
         self._wpm_window: deque[tuple[float, int]] = deque()
         self._last_warning_ts = 0
 
+    # ── This agent owns transcript + audio_warning writes (Principle II) ──
+    async def _write_transcript(self, payload: TranscriptPayload) -> None:
+        await self._with_repo(
+            lambda r: r.insert_transcript_entry(
+                session_id=payload.session_id,
+                start_ms=payload.start_ms,
+                end_ms=payload.end_ms,
+                text=payload.text,
+                filler_flags=payload.filler_flags or None,
+            )
+        )
+        await self.orchestrator.notify_complete(self.session_id, "AUDIO")
+
+    async def _write_warning(self, payload: AudioWarningPayload) -> None:
+        await self._with_repo(
+            lambda r: r.insert_audio_warning(
+                session_id=payload.session_id,
+                timestamp_ms=payload.timestamp_ms,
+                event_type=payload.event_type,
+                severity=payload.severity,
+                message=payload.message,
+            )
+        )
+        await broadcaster.publish(
+            payload.session_id,
+            {
+                "type": payload.event_type,
+                "severity": payload.severity,
+                "message": payload.message,
+                "timestamp_ms": payload.timestamp_ms,
+            },
+        )
+        await self.orchestrator.notify_complete(self.session_id, "AUDIO")
+
     async def push_chunk(self, pcm_bytes: bytes) -> None:
         if get_settings().demo_replay:
             for ev in replay_audio_events(self.session_id):
                 if isinstance(ev, TranscriptPayload):
-                    await self.orchestrator.on_transcript(ev)
+                    await self._write_transcript(ev)
                 elif isinstance(ev, AudioWarningPayload):
-                    await self.orchestrator.on_audio_warning(ev)
+                    await self._write_warning(ev)
             return
 
         chunk_dur_ms = get_settings().audio_chunk_seconds * 1000
@@ -72,7 +108,7 @@ class AudioAgent:
         logger.info("STT transcribed chunk {}: {!r}", self._chunk_count, text)
 
         fillers = [m.group(0).lower() for m in FILLER_REGEX.finditer(text)]
-        await self.orchestrator.on_transcript(
+        await self._write_transcript(
             TranscriptPayload(
                 session_id=self.session_id,
                 start_ms=start_ms,
@@ -83,7 +119,7 @@ class AudioAgent:
         )
 
         if fillers:
-            await self.orchestrator.on_audio_warning(
+            await self._write_warning(
                 AudioWarningPayload(
                     session_id=self.session_id,
                     timestamp_ms=start_ms,
@@ -113,7 +149,7 @@ class AudioAgent:
 
         if wpm > WPM_HIGH:
             self._last_warning_ts = ts_ms
-            await self.orchestrator.on_audio_warning(
+            await self._write_warning(
                 AudioWarningPayload(
                     session_id=self.session_id,
                     timestamp_ms=ts_ms,
@@ -124,7 +160,7 @@ class AudioAgent:
             )
         elif wpm < WPM_LOW:
             self._last_warning_ts = ts_ms
-            await self.orchestrator.on_audio_warning(
+            await self._write_warning(
                 AudioWarningPayload(
                     session_id=self.session_id,
                     timestamp_ms=ts_ms,

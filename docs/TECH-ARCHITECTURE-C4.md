@@ -25,7 +25,7 @@
 > **v1.3 changelog (2026-06-17)** — addresses architecture critique:
 > - **Vision API swapped** to GPT-4o Vision via Tikal LiteLLM (Google Cloud Vision dropped — couldn't do posture/body language)
 > - Audio chunk size cut from 5s → 2s to meet NFR-002 (≤1s filler latency)
-> - VideoEvent inserts batched (every 1s or N=20) to avoid Orchestrator write bottleneck
+> - VideoEvent inserts batched (every 1s or N=20) inside the VisionAgent to avoid a write bottleneck
 > - PPTX text persisted to DB on parse (`slides.raw_text`) — survives container restart
 > - `/health` route added; Railway keep-warm pings it
 > - `DEMO_MODE=replay` env flag — replays canned events if external APIs flake during demo
@@ -46,7 +46,7 @@
 | PPTX file storage | **Ephemeral /tmp** | Analyse on upload, discard after. Zero setup cost. Acceptable for demo lifecycle. |
 | Session ownership | **Backend (Orchestrator)** | `POST /sessions` creates the record and returns a UUID. Frontend never forges IDs. |
 | Pub/sub mechanism | **In-process asyncio** | Single process → `asyncio.Queue` + a `dict[session_id → set[WebSocket]]` broadcaster. No Redis needed. |
-| Agent write access | **Orchestrator owns all DB writes** | Agents emit typed Pydantic event payloads upward to the Orchestrator. The Orchestrator validates and persists. Agents never import the repository — they are pure AI logic. Agents may read from DB for context. |
+| Agent write access | **Each agent owns its own role-scoped table** | Every agent writes only its own table(s) directly via the Repository (through the shared `AgentPersistence` helper), then emits a `CompletionSignal` to the Orchestrator (`orchestrator.notify_complete(session_id, kind)`, kind ∈ {VIDEO, AUDIO, PPTX, CONTENT, REPORT}) — signalling only **after** the write commits (durability before notify). One writer per table; no agent writes another's table. The Orchestrator no longer relays raw payloads as a persistence pipe; it owns session lifecycle, cross-agent coordination, fallback, and broadcasts, and assembles the report by reading the agreed tables. Agents may also read from DB for context. |
 | Session isolation | **Session Capability Token** | No user accounts required. `POST /sessions` returns `session_id` + `access_token` (two separate UUIDs). All session operations require both. Report has a separate opt-in `share_token` for read-only sharing. See Section 4.5. |
 | Deployment | **Local only for hackathon** | No Railway deployment required. Everything runs locally. Railway is a Phase 3 bonus if time permits. |
 | Live feedback UI | **Phase 3 bonus** | WebSocket infrastructure (`ws://backend/realtime-feedback`) is built in Phase 1. Live toast UI + user toggle is Phase 3 only. |
@@ -195,25 +195,35 @@ graph TB
     %% Agent pipeline
     FrameSvc --> VisionAgent
 
-    %% Agents → Orchestrator (emit typed event payloads — NO direct DB access)
-    VisionAgent -- "emit(VideoEventPayload)" --> Agno
-    AudioAgent -- "emit(TranscriptPayload\nAudioWarningPayload)" --> Agno
-    PPTXAgent -- "emit(SlideAnalysisPayload[])" --> Agno
-    ContentAgent -- "emit(ContentAnalysisPayload)" --> Agno
-    ReportAgent -- "emit(ReportPayload)" --> Agno
+    %% Agents write their own role-scoped tables, then signal the Orchestrator
+    VisionAgent -- "notify_complete(VIDEO)" --> Agno
+    AudioAgent -- "notify_complete(AUDIO)" --> Agno
+    PPTXAgent -- "notify_complete(PPTX)" --> Agno
+    ContentAgent -- "notify_complete(CONTENT)" --> Agno
+    ReportAgent -- "notify_complete(REPORT)" --> Agno
 
-    %% Orchestrator → Broadcaster (forward warnings to UI)
+    %% Agents → Broadcaster (Vision + Audio publish live feedback themselves)
+    VisionAgent --> Broadcaster
+    AudioAgent --> Broadcaster
+
+    %% Orchestrator → Broadcaster (lifecycle broadcasts: REPORT_READY, FALLBACK_ACTIVATED)
     Agno --> Broadcaster
 
-    %% Orchestrator is the SOLE WRITER to DB (via repo)
-    Agno -- "validate + persist\nall agent payloads" --> Repo
+    %% Each agent writes its OWN role-scoped table via the repo (AgentPersistence)
+    VisionAgent -- "write video_events\n(batched 1s / N=20)" --> Repo
+    AudioAgent -- "write transcript_entries\n+ audio_warnings" --> Repo
+    PPTXAgent -- "write slide_analyses\n+ sessions.slides_raw_text/pptx_ready" --> Repo
+    ReportAgent -- "write reports" --> Repo
+
+    %% Orchestrator reads the agreed tables to drive session lifecycle
+    Agno -. "read (lifecycle / report assembly)" .-> Repo
 
     %% Agents → External APIs (reads only from their domain)
     VisionAgent --> VisionAPI
     AudioAgent --> STT
 
-    %% ReportAgent + ContentAgent read from DB (read-only)
-    ReportAgent -. "read-only\n(aggregate events)" .-> Repo
+    %% ReportAgent + ContentAgent read from DB for aggregation
+    ReportAgent -. "read\n(aggregate events)" .-> Repo
     ContentAgent -. "read-only\n(full transcript)" .-> Repo
 
     %% ContentAgent also calls Vision LLM for content evaluation
@@ -235,14 +245,15 @@ graph TB
 | `FeedbackWS` | FastAPI WebSocket | Clients subscribe by `session_id`; `Broadcaster` pushes events here |
 | `SessionManager` | Service | Generates UUID, creates DB record, manages status state machine |
 | `FeedbackBroadcaster` | Service | `dict[session_id → set[WebSocket]]`; `publish()` sends to all subscribers |
-| `Orchestrator` | Coordinator | Spawns async tasks per session, holds shared state, routes events to Broadcaster. **Sole writer to PostgreSQL** — receives typed payloads from all agents, validates via Pydantic, persists via Repository |
+| `Orchestrator` | Coordinator | Spawns async tasks per session, holds shared state. Owns **session lifecycle** (ACTIVE→ENDED→REPORT_READY via `start_session`/`end_session`/`mark_report_ready`), **cross-agent coordination** (`notify_complete`/`completed`), **audio-only fallback** (`activate_fallback`/`is_fallback`), and the **REPORT_READY / FALLBACK_ACTIVATED** broadcasts. No longer a persistence pipe — agents write their own tables; the Orchestrator **reads** the agreed tables to assemble the report (via ReportAgent) |
 | `FrameService` | Utility (non-agent) — **Dev 1** | Delta algorithm; drops frames below threshold; outputs ≤5fps stream |
-| `VisionAgent` | Agno agent — **Dev 1** | Calls GPT-4o Vision (via LiteLLM) per frame batch (≥3 frames per call to amortise tokens); emits `VideoEventPayload` to Orchestrator. **No DB access.** |
-| `AudioAgent` | Agno agent — **Dev 2** | Calls STT per chunk; detects filler words + WPM; emits `TranscriptPayload` + `AudioWarningPayload` to Orchestrator. **No DB access.** |
-| `PPTXAgent` | Agno agent — **Dev 4** | Runs on upload; evaluates slides against Playbook; emits `SlideAnalysisPayload[]` to Orchestrator. **No DB access.** |
+| `VisionAgent` | Agno agent — **Dev 1** | Calls GPT-4o Vision (via LiteLLM) per frame batch (≥3 frames per call to amortise tokens). **Owns `video_events`** — batches the buffer and flushes (every 1s OR N=20) directly via the Repository, publishes live feedback to the Broadcaster itself, then `notify_complete(VIDEO)`. |
+| `AudioAgent` | Agno agent — **Dev 2** | Calls STT per chunk; detects filler words + WPM. **Owns `transcript_entries` + `audio_warnings`** — writes them directly via the Repository, publishes warnings to the Broadcaster itself, then `notify_complete(AUDIO)`. |
+| `PPTXAgent` | Agno agent — **Dev 4** | Runs on upload; evaluates slides against Playbook. **Owns `slide_analyses` + `sessions.slides_raw_text`/`pptx_ready`** — writes them directly via the Repository, then `notify_complete(PPTX)`. |
 | `ContentAnalysisAgent` | Agno agent — **Dev 3** | Triggered post-session. **Reads** full transcript from DB + session topic. Calls LLM to evaluate factual accuracy and coverage gaps. Emits `ContentAnalysisPayload`. Read-only DB access. |
-| `ReportAgent` | Agno agent — **Dev 5** | Triggered on session end; **reads** all events from DB for aggregation; deduplicates + scores (4 vectors); emits `ReportPayload` to Orchestrator. Read-only DB access. |
-| `PostgreSQLRepository` | Data layer | All SQLAlchemy models and async CRUD operations. Called exclusively by Orchestrator (writes) and ReportAgent (reads). |
+| `ReportAgent` | Agno agent — **Dev 5** | Triggered on session end; **reads** all events from DB for aggregation; deduplicates + scores (4 vectors). **Owns `reports`** — writes the report directly via the Repository, then `notify_complete(REPORT)`. |
+| `AgentPersistence` | Data-access helper — `agents/persistence.py` | Shared helper each agent uses to write its own role-scoped rows via the Repository. Enforces durability: the agent signals the Orchestrator only after its write commits. |
+| `PostgreSQLRepository` | Data layer | All SQLAlchemy models and async CRUD operations. Each agent calls it to write its own role-scoped table(s); ReportAgent, ContentAgent and the Orchestrator call it for reads. |
 
 ---
 
@@ -269,14 +280,15 @@ sequenceDiagram
     Dashboard-->>Presenter: "Analysing your deck…"
 
     PPTXAgent->>PPTXAgent: python-pptx: extract slide content
+    PPTXAgent->>DB: UPDATE Session(slides_raw_text) before LLM call
     PPTXAgent->>PPTXAgent: LLM: evaluate against 12-factor Playbook
-    Note over PPTXAgent: Builds SlideAnalysisPayload[] in memory<br/>Does NOT touch the DB directly
-    PPTXAgent->>Orchestrator: emit(SlideAnalysisPayload[])
-    Note over Orchestrator: Validates each payload via Pydantic<br/>Rejects malformed findings before they reach DB
-    loop Per validated slide finding
-        Orchestrator->>DB: INSERT SlideAnalysis(slide_index, factor, finding)
+    Note over PPTXAgent: PPTXAgent owns slide_analyses + pptx_ready<br/>and writes them itself via the Repository
+    loop Per slide finding
+        PPTXAgent->>DB: INSERT SlideAnalysis(slide_index, factor, finding)
     end
-    Orchestrator->>DB: UPDATE Session(pptx_ready=true)
+    PPTXAgent->>DB: UPDATE Session(pptx_ready=true)
+    Note over PPTXAgent,Orchestrator: Only after the writes commit
+    PPTXAgent->>Orchestrator: notify_complete(session_id, PPTX)
     Dashboard->>Dashboard: Polls GET /sessions/:id until pptx_ready
     Dashboard-->>Presenter: "Deck analysed ✓ — ready to start"
 ```
@@ -328,11 +340,9 @@ sequenceDiagram
             FrameSvc->>VisionAgent: analyse_frame(frame, session_id)
             VisionAgent->>VisionAPI: POST image for analysis
             VisionAPI-->>VisionAgent: { eye_contact, posture, framing }
-            Note over VisionAgent: Builds VideoEventPayload in memory<br/>No DB access from agent
-            VisionAgent->>Orchestrator: emit(VideoEventPayload)
-            Note over Orchestrator: Pydantic validation wall ✓<br/>Rejects invalid type/severity values
-            Orchestrator->>DB: INSERT VideoEvent(type, severity, timestamp_ms)
-            Orchestrator->>Broadcaster: publish(session_id, warning_payload)
+            Note over VisionAgent: VisionAgent owns video_events:<br/>buffers + flushes (every 1s OR N=20) itself
+            VisionAgent->>DB: INSERT VideoEvent(type, severity, timestamp_ms) (batched)
+            VisionAgent->>Broadcaster: publish(session_id, warning_payload)
             Broadcaster->>FeedbackWS: send { type, severity, message, timestamp_ms }
             FeedbackWS-->>Dashboard: warning event
             Dashboard-->>Presenter: 🔴 Toast: "Look at the camera!"
@@ -347,12 +357,11 @@ sequenceDiagram
         AudioAgent->>STT: stream audio chunk
         STT-->>AudioAgent: { text, start_ms, end_ms }
         AudioAgent->>AudioAgent: detect_fillers(text) + calc_wpm(rolling_30s)
-        Note over AudioAgent: Builds TranscriptPayload + optional<br/>AudioWarningPayload in memory. No DB access.
-        AudioAgent->>Orchestrator: emit(TranscriptPayload)
-        Orchestrator->>DB: INSERT TranscriptEntry(text, start_ms, end_ms)
+        Note over AudioAgent: AudioAgent owns transcript_entries + audio_warnings<br/>and writes them itself via the Repository
+        AudioAgent->>DB: INSERT TranscriptEntry(text, start_ms, end_ms)
         alt Filler word or WPM threshold crossed
-            AudioAgent->>Orchestrator: emit(AudioWarningPayload)
-            Orchestrator->>Broadcaster: publish(session_id, warning_payload)
+            AudioAgent->>DB: INSERT AudioWarning(type, severity, timestamp_ms)
+            AudioAgent->>Broadcaster: publish(session_id, warning_payload)
             Broadcaster->>FeedbackWS: send { type, severity, message, timestamp_ms }
             FeedbackWS-->>Dashboard: warning event
             Dashboard-->>Presenter: 🔴 Toast: "Speaking too fast!"
@@ -363,18 +372,20 @@ sequenceDiagram
     Dashboard->>SessionRouter: POST /sessions/:id/end
     SessionRouter->>Orchestrator: end_session(session_id)
     Orchestrator->>Orchestrator: cancel video_task + audio_task
+    Orchestrator->>VisionAgent: flush final video_events batch (durability)
+    VisionAgent->>DB: INSERT remaining VideoEvent rows
     Orchestrator->>DB: UPDATE Session(status=ENDED)
     Orchestrator->>Orchestrator: trigger report_task
 
     Note over Orchestrator,DB: Report generation (async, ≤60s)
     Orchestrator->>ReportAgent: generate(session_id)
     ReportAgent->>DB: READ all VideoEvent, TranscriptEntry, SlideAnalysis
-    Note over ReportAgent: Read-only access — safe.<br/>Builds ReportPayload in memory.
+    Note over ReportAgent: Reads the agreed tables.<br/>ReportAgent owns the reports table.
     ReportAgent->>ReportAgent: deduplicate_events() — group by type, collect timestamps[]
     ReportAgent->>ReportAgent: calculate_scores() — weighted average
-    ReportAgent->>Orchestrator: emit(ReportPayload)
-    Note over Orchestrator: Pydantic validation wall ✓<br/>Validates scores are 0-100, insights non-empty
-    Orchestrator->>DB: INSERT Report(scores, insights, mentor_unlocked)
+    ReportAgent->>DB: INSERT Report(scores, insights, mentor_unlocked)
+    Note over ReportAgent,Orchestrator: Only after the write commits
+    ReportAgent->>Orchestrator: notify_complete(session_id, REPORT)
     Orchestrator->>DB: UPDATE Session(status=REPORT_READY)
     Orchestrator->>Broadcaster: publish(session_id, { type: REPORT_READY })
     Broadcaster->>FeedbackWS: { type: REPORT_READY }
@@ -400,7 +411,7 @@ sequenceDiagram
         VisionAgent--xOrchestrator: timeout
     end
 
-    Orchestrator->>Orchestrator: activate_fallback_mode()
+    Orchestrator->>Orchestrator: activate_fallback() / is_fallback = true
     Orchestrator->>Orchestrator: cancel video_task
     Orchestrator->>Orchestrator: adjust score weights\nVoice 40% + Slides 30% + Content 30%
     Orchestrator->>Broadcaster: publish(session_id,\n{ type: FALLBACK_ACTIVATED })
@@ -600,16 +611,16 @@ navigator.clipboard.writeText(share_url);
 
 ## 5b. Agent Specifications — Memory / Model / Tools
 
-> Each agent has a clear contract. Developers own the implementation — this table defines what goes in and what comes out. Agents never write to the DB directly; they emit a typed payload to the Orchestrator.
+> Each agent has a clear contract. Developers own the implementation — this table defines what goes in and what comes out. Each agent writes its own role-scoped table(s) directly via the Repository (one writer per table), then emits a completion signal to the Orchestrator.
 
-| Agent | Phase | Memory (context it holds) | Model / Service | Tools / Actions | Emits to Orchestrator |
+| Agent | Phase | Memory (context it holds) | Model / Service | Tools / Actions | Writes / signals |
 |---|---|---|---|---|---|
 | **Frame Service** | P1 infra | Last N frames for delta comparison | None (algorithmic) — uses **`imagehash` (dhash)** [`pip install imagehash Pillow`] | `imagehash.dhash(frame)` → compare Hamming distance against threshold (default: 8). Drop frame if distance ≤ threshold. | Filtered frame stream → Vision Agent |
-| **Audio Agent** | P1 | Rolling transcript buffer, WPM window (30s) | ElevenLabs Scribe v1 (STT) | `transcribe(chunk)`, `detect_fillers(text)`, `calc_wpm()` | `TranscriptPayload`, `AudioWarningPayload` |
-| **Vision Agent** | P2 | Session ID, last event type (to avoid duplicate events), rolling buffer of last 3 frames | GPT-4o Vision via Tikal LiteLLM (`https://litelm.tikalk.dev/v1`) — multimodal; evaluates posture, eye contact, framing, gestures from frame batch | `analyse_frames(image[])` — batched call every 600ms (3 frames @ 5fps) | `VideoEventPayload` |
-| **PPTX Agent** | P1 | Slide content extracted from file, Playbook 12 factors | Tikal LiteLLM (`https://litelm.tikalk.dev/v1`) — personal API key per dev | `parse_pptx(file)`, `evaluate_slide(content, factors)` | `SlideAnalysisPayload[]` |
-| **Content Agent** | P2 | Full session transcript, session topic | Tikal LiteLLM (`https://litelm.tikalk.dev/v1`) — personal API key per dev | `read_transcript(session_id)`, `evaluate_accuracy(transcript, topic)` | `ContentAnalysisPayload` |
-| **Report Agent** | P1 basic / P2 full | All events for the session from DB | Tikal LiteLLM (`https://litelm.tikalk.dev/v1`) — personal API key per dev | `read_all_events(session_id)`, `deduplicate()`, `score()` | `ReportPayload` |
+| **Audio Agent** | P1 | Rolling transcript buffer, WPM window (30s) | ElevenLabs Scribe v1 (STT) | `transcribe(chunk)`, `detect_fillers(text)`, `calc_wpm()` | Writes `transcript_entries` + `audio_warnings`; `notify_complete(AUDIO)` |
+| **Vision Agent** | P2 | Session ID, last event type (to avoid duplicate events), rolling buffer of last 3 frames | GPT-4o Vision via Tikal LiteLLM (`https://litelm.tikalk.dev/v1`) — multimodal; evaluates posture, eye contact, framing, gestures from frame batch | `analyse_frames(image[])` — batched call every 600ms (3 frames @ 5fps) | Writes `video_events` (batched 1s / N=20); `notify_complete(VIDEO)` |
+| **PPTX Agent** | P1 | Slide content extracted from file, Playbook 12 factors | Tikal LiteLLM (`https://litelm.tikalk.dev/v1`) — personal API key per dev | `parse_pptx(file)`, `evaluate_slide(content, factors)` | Writes `slide_analyses` + `sessions.slides_raw_text`/`pptx_ready`; `notify_complete(PPTX)` |
+| **Content Agent** | P2 | Full session transcript, session topic | Tikal LiteLLM (`https://litelm.tikalk.dev/v1`) — personal API key per dev | `read_transcript(session_id)`, `evaluate_accuracy(transcript, topic)` | Writes its content-analysis rows; `notify_complete(CONTENT)` |
+| **Report Agent** | P1 basic / P2 full | All events for the session from DB | Tikal LiteLLM (`https://litelm.tikalk.dev/v1`) — personal API key per dev | `read_all_events(session_id)`, `deduplicate()`, `score()` | Writes `reports`; `notify_complete(REPORT)` |
 
 ---
 
@@ -954,7 +965,7 @@ octoprep2000/                     ← pnpm workspace root
 | In-process asyncio pub/sub | Redis pub/sub | No extra Railway service; simpler code | Doesn't scale beyond single instance | Acceptable: hackathon is single-node; pub/sub in `FeedbackBroadcaster` is a clean interface that can be swapped to Redis post-hackathon |
 | Temp file PPTX (/tmp) + raw text persisted to DB | Railway volume / S3 | Zero setup, zero cost | File lost on container restart | **v1.3**: extracted slide text persisted to `sessions.slides_raw_text` JSONB **before** LLM call — restart survives, agent resumes from DB. PPTX binary still discarded after parse. |
 | No auth layer | JWT / session tokens | No user accounts in scope for MVP | Any client with a `session_id` UUID can connect to that session | UUIDs are unpredictable (128-bit entropy); acceptable for a demo |
-| Orchestrator as sole DB writer | Agents write to DB directly | Centralises validation; agents are pure AI logic with no DB coupling | Orchestrator `on_event` becomes a bottleneck if event volume is very high | **v1.3**: Frame service rate-limits to ≤5fps. VideoEvent inserts batched (every 1s OR N=20) — see §10b.5. AudioAgent chunks 2s. Warning broadcast is sync (immediate); DB write is the only batched step. |
+| Each agent writes its own role-scoped table (+ completion signal) | Orchestrator as sole DB writer | No central relay bottleneck; clear table ownership (one writer per table); the Orchestrator stays focused on lifecycle + coordination | Distributed write paths could let two agents touch one table | One-writer-per-table rule + the shared `AgentPersistence` helper enforce ownership; agents signal `notify_complete` only **after** the write commits (durability). VideoEvent inserts batched inside VisionAgent (every 1s OR N=20) — see §10b.5. Warning broadcast is sync (immediate); DB write is the only batched step. |
 | Session capability tokens (no user accounts) | Full JWT auth with user table | No login flow needed, zero friction for demo, full session isolation | Token lives in localStorage — lost if browser data cleared (user must start a new session) | Acceptable for hackathon. Post-hackathon: migrate to proper JWT with refresh tokens. |
 | Report protected by default; opt-in share_token | Report fully public by URL | Prevents one user reading another's scorecard; explicit sharing is opt-in and intentional | Adds one extra API call (`POST .../report/share`) to generate a share link | Simple endpoint, ~30 min to implement. Worth it for data integrity. |
 | Single Railway environment | Dev + Staging + Prod | Reduces ops overhead during hackathon | A bad push to `main` breaks the demo | Keep `main` protected; manual approval for pushes after Sprint 2 integration is working |
@@ -1032,27 +1043,31 @@ async def create_session(...): ...
 
 ### 10b.5 VideoEvent batched inserts
 
-Orchestrator buffers `VideoEvent` payloads and flushes every 1s OR at N=20:
+The **VisionAgent** owns `video_events`: it buffers them and flushes (via the Repository / `AgentPersistence`) every 1s OR at N=20:
 
 ```python
-class Orchestrator:
+class VisionAgent:
     def __init__(self):
         self._video_event_buffer: list[VideoEvent] = []
 
-    async def on_video_event(self, ev: VideoEventPayload):
+    async def on_event(self, ev: VideoEvent):
         self._video_event_buffer.append(ev)
         if len(self._video_event_buffer) >= 20:
             await self._flush_video_events()
 
     async def _flush_video_events(self):
         if not self._video_event_buffer: return
-        await self.repo.bulk_insert_video_events(self._video_event_buffer)
+        await self.persistence.bulk_insert_video_events(self._video_event_buffer)
         self._video_event_buffer.clear()
+        # notify the Orchestrator only after the write commits
+        self.orchestrator.notify_complete(self.session_id, "VIDEO")
 
-    # Background task flushes every 1s in case buffer doesn't fill
+    # Background task flushes every 1s in case buffer doesn't fill.
+    # On session end the runtime flushes the final batch before
+    # the ReportAgent reads video_events (durability).
 ```
 
-Warnings still broadcast to FeedbackWS immediately — only DB write is batched.
+Warnings still broadcast to FeedbackWS immediately (by the VisionAgent itself) — only the DB write is batched.
 
 ### 10b.6 PPTX raw text persisted
 

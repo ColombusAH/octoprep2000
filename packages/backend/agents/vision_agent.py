@@ -31,12 +31,18 @@ from agents.llm import (
     get_llm,
     pick_provider_order,
 )
+from agents.persistence import AgentPersistence
 from agents.replay_fixtures import replay_vision_events
 from agents.schemas import VideoEventPayload
 from config import get_settings
+from core.feedback_broadcaster import broadcaster
 from orchestrator.orchestrator import Orchestrator
 
 BATCH_SIZE = 3
+# Video-event writes are batched by THIS agent (Constitution v2.0.0, §10b.5):
+# flush every 1s OR when the buffer reaches N=20.
+VIDEO_BUFFER_MAX = 20
+VIDEO_FLUSH_INTERVAL_S = 1.0
 SYSTEM_PROMPT = """You are a body language coach reviewing a live presenter from camera frames.
 Your job is to detect posture and gesture issues using the Tikal Presentation Skills Playbook as your standard.
 
@@ -72,7 +78,7 @@ Only emit an event when confident. Empty events list is valid.
  "message": "Presenter is consistently turned sideways — face the camera to face your audience."}"""
 
 
-class VisionAgent:
+class VisionAgent(AgentPersistence):
     def __init__(self, session_id: uuid.UUID, orchestrator: Orchestrator) -> None:
         self.session_id = session_id
         self.orchestrator = orchestrator
@@ -85,6 +91,55 @@ class VisionAgent:
         # GCV rate limit — cap to ~1 fps to keep cost bounded (NFR-004)
         self._gcv_min_interval_ms = 1000
         self._gcv_last_ms = -10_000
+        # This agent owns video_events writes (Principle II): buffer + batched flush.
+        self._video_buffer: list[dict] = []
+        self._flush_task: asyncio.Task = asyncio.create_task(self._periodic_flush())
+
+    # ── video_events: own buffer, batched write, live publish, completion ──
+    async def _emit_event(self, payload: VideoEventPayload) -> None:
+        self._video_buffer.append(
+            {
+                "session_id": payload.session_id,
+                "timestamp_ms": payload.timestamp_ms,
+                "event_type": payload.event_type,
+                "severity": payload.severity,
+                "raw_metadata": payload.raw_metadata,
+            }
+        )
+        await broadcaster.publish(
+            payload.session_id,
+            {
+                "type": payload.event_type,
+                "severity": payload.severity,
+                "message": payload.message,
+                "timestamp_ms": payload.timestamp_ms,
+            },
+        )
+        if len(self._video_buffer) >= VIDEO_BUFFER_MAX:
+            await self.flush()
+
+    async def flush(self) -> None:
+        """Persist buffered video events, then signal completion (durability before notify)."""
+        if not self._video_buffer:
+            return
+        events, self._video_buffer = self._video_buffer, []
+        try:
+            await self._with_repo(lambda r: r.bulk_insert_video_events(events))
+            await self.orchestrator.notify_complete(
+                self.session_id, "VIDEO", {"events_flushed": len(events)}
+            )
+        except Exception as exc:  # noqa: BLE001
+            logger.exception("video_events flush failed: {}", exc)
+
+    async def _periodic_flush(self) -> None:
+        while True:
+            await asyncio.sleep(VIDEO_FLUSH_INTERVAL_S)
+            await self.flush()
+
+    async def aclose(self) -> None:
+        """Cancel the periodic flush and persist any remaining buffered events."""
+        self._flush_task.cancel()
+        await self.flush()
 
     async def push_frame(self, frame_bytes: bytes) -> None:
         # GCV face detection runs at most once per second (cost cap, NFR-004).
@@ -178,13 +233,13 @@ class VisionAgent:
         except Exception as exc:  # noqa: BLE001
             logger.warning("invalid face payload {} skipped: {}", event_type, exc)
             return
-        await self.orchestrator.on_video_event(payload)
+        await self._emit_event(payload)
 
     # ── LLM layer (posture / gestures only) ──────────────────────────
     async def _analyse(self, frames: list[bytes]) -> None:
         if get_settings().demo_replay:
             for ev in replay_vision_events(self.session_id):
-                await self.orchestrator.on_video_event(ev)
+                await self._emit_event(ev)
             return
 
         s = get_settings()
@@ -231,7 +286,7 @@ class VisionAgent:
                 logger.warning("invalid LLM payload skipped: {} ({})", raw, exc)
                 continue
             self._last_event_type = event_type
-            await self.orchestrator.on_video_event(payload)
+            await self._emit_event(payload)
 
     async def _call_gateway(self, frames: list[bytes]) -> dict:
         s = get_settings()

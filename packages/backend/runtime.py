@@ -57,6 +57,10 @@ class RuntimeRegistry:
         if rt is None:
             return
         await rt.orchestrator.end_session(session_id)
+        # Flush the VisionAgent's final batch so video_events are durable before the
+        # ReportAgent reads them (Principle II — durability before report assembly).
+        if rt.vision:
+            await rt.vision.aclose()
         if rt.audio:
             await rt.audio.aclose()
 
@@ -64,5 +68,5 @@ class RuntimeRegistry:
 registry = RuntimeRegistry()
 
 
-def build_report_agent() -> ReportAgent:
-    return ReportAgent(ContentAnalysisAgent())
+def build_report_agent(orchestrator: Orchestrator | None = None) -> ReportAgent:
+    return ReportAgent(ContentAnalysisAgent(), orchestrator=orchestrator)

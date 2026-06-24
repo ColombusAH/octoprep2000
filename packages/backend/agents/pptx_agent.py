@@ -20,9 +20,11 @@ from agents.llm import (
     get_text_model_fallback,
     pick_provider_order,
 )
+from agents.persistence import AgentPersistence
 from agents.replay_fixtures import replay_slide_findings
-from agents.schemas import SlideAnalysisBundle, SlideAnalysisPayload, SlideFindings
+from agents.schemas import SlideAnalysisPayload, SlideFindings
 from config import get_settings
+from db.repository import PostgreSQLRepository
 from orchestrator.orchestrator import Orchestrator
 
 PLAYBOOK_PROMPT = """You are a slide deck reviewer trained on the Tikal Presentation Skills Playbook.
@@ -86,7 +88,7 @@ Cover at least 5 distinct factors across the deck. Both STRENGTH and IMPROVEMENT
  "description": "Slide 8 shows a full 40-line code block. Highlight only the 3 relevant lines; move the rest off screen."}"""
 
 
-class PPTXAgent:
+class PPTXAgent(AgentPersistence):
     def __init__(self, orchestrator: Orchestrator) -> None:
         self.orchestrator = orchestrator
 
@@ -106,13 +108,25 @@ class PPTXAgent:
                 logger.exception("PPTX LLM eval failed: {}", exc)
                 findings = []
 
-        await self.orchestrator.on_slide_analysis(
-            SlideAnalysisBundle(
-                session_id=session_id,
-                findings=findings,
-                slides_raw_text=slides_raw,
+        # This agent owns slide_analyses + sessions(pptx) writes (Principle II).
+        # Order preserved from the prior Orchestrator write: findings, then pptx_ready.
+        async def write(repo: PostgreSQLRepository) -> None:
+            await repo.insert_slide_analyses(
+                [
+                    {
+                        "session_id": session_id,
+                        "slide_index": f.slide_index,
+                        "playbook_factor": f.playbook_factor,
+                        "finding_type": f.finding_type,
+                        "description": f.description,
+                    }
+                    for f in findings
+                ]
             )
-        )
+            await repo.mark_pptx_ready(session_id, slides_raw)
+
+        await self._with_repo(write)
+        await self.orchestrator.notify_complete(session_id, "PPTX")
 
     @staticmethod
     def _extract_text(path: str) -> list[dict]:
