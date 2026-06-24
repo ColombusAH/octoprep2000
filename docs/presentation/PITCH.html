@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Tektur:wght@400;500;700;900&family=Space+Mono:ital,wght@0,400;0,700;1,400&family=Chakra+Petch:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 <!-- Mermaid.js for editable architecture diagrams -->
-<script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
 <style>
 /* ===========================================
    FIXED 16:9 STAGE — MANDATORY BASE (1920×1080)
@@ -250,8 +250,8 @@ img, video, canvas, svg { max-width:100%; max-height:100%; }
 .s5-cols { display:flex; gap:40px; width:1740px; height:780px; }
 .s5-panel { flex:1; display:flex; flex-direction:column; padding:24px; }
 .s5-panel .panel-label { font-family:var(--font-mono); font-size:16px; color:var(--teal); letter-spacing:0.16em; text-transform:uppercase; margin-bottom:16px; text-align:center; }
-.s5-panel .mermaid { flex:1; display:flex; align-items:center; justify-content:center; background:transparent; }
-.s5-panel .mermaid svg { max-height:680px; width:auto; }
+.s5-panel .mermaid { flex:1; display:flex; align-items:center; justify-content:center; background:transparent; overflow:auto; min-height:0; }
+.s5-panel .mermaid svg { max-width:100% !important; max-height:680px !important; width:auto !important; height:auto !important; }
 
 /* ===========================================
    SLIDE 6 — THE SCORECARD
@@ -437,44 +437,96 @@ img, video, canvas, svg { max-width:100%; max-height:100%; }
             <div class="panel-label">System Context · C4 L1</div>
             <!-- EDIT THIS DIAGRAM: change only the text inside this div -->
             <div class="mermaid">
-graph TB
-    Presenter["fa:fa-user Presenter (Browser)"]
-    subgraph OctoPrep["OctoPrep2000"]
-        Core["AI Coaching Engine<br/>FastAPI · Agno · PostgreSQL"]
+graph LR
+    presenter(["👤 Presenter<br/>uploads deck · rehearses live"])
+    subgraph sys["🐙 OctoPrep2000"]
+        core["Analyses voice, body,<br/>slides &amp; content in real time"]
     end
-    VisionAPI["Google Cloud Vision<br/>Face Detection"]
-    STT["ElevenLabs Scribe v1<br/>Speech-to-Text"]
-    Calendly["Mentor Booking<br/>Unlocks at score 80+"]
-    Presenter -- "HTTPS + WSS" --> OctoPrep
-    OctoPrep -- "Frame analysis" --> VisionAPI
-    OctoPrep -- "Audio streaming" --> STT
-    OctoPrep -- "Deep-link" --> Calendly
+    vision(["🤖 GPT-4o Vision + Google Cloud Vision<br/>via Tikal LiteLLM<br/>posture · gestures (GPT-4o)<br/>eye contact · face detect (GCV)"])
+    stt(["🎙️ ElevenLabs Scribe v1<br/>speech-to-text"])
+    cal(["📅 Calendly<br/>deep-link only, read-only<br/>unlocked at score ≥80"])
+    presenter -->|"uploads deck · streams audio/video"| core
+    core -->|"scored, timestamp-anchored report"| presenter
+    core -->|"video frames"| vision
+    vision -->|"posture/gesture findings"| core
+    core -->|"audio chunks"| stt
+    stt -->|"transcript + filler/WPM"| core
+    core -.->|"deep-link redirect"| cal
+    class presenter sky
+    class core green
+    class vision,stt,cal violet
+    style sys fill:#0b1120,stroke:#4ade80,color:#86efac
             </div>
           </div>
           <div class="glass s5-panel reveal reveal-4">
             <div class="panel-label">Internal Agent Pipeline · C4 L3</div>
             <!-- EDIT THIS DIAGRAM: change only the text inside this div -->
             <div class="mermaid">
-graph TB
-    Browser["Browser<br/>Webcam + Mic"]
-    WS["WebSocket Routes<br/>video · audio · feedback"]
-    Orch["AgnoOrchestrator<br/>Central Brain"]
-    subgraph Agents["AI Agents"]
-        Vision["VisionAgent"]
-        Audio["AudioAgent"]
-        PPTX["PPTXAgent"]
-        Content["ContentAgent"]
-        Report["ReportAgent"]
+graph LR
+    subgraph Routes["🌐 Routes"]
+        direction TB
+        SR[SessionRouter]; UR[UploadRouter]; VUR[VideoUploadRouter]; VW[VideoWS]; AW[AudioWS]; FW[FeedbackWS]
     end
-    DB["PostgreSQL"]
-    Browser --> WS --> Orch
-    Orch --> Vision --> Orch
-    Orch --> Audio --> Orch
-    PPTX --> Orch
-    Orch --> Content --> Orch
-    Orch --> Report --> Orch
-    Orch --> DB
-    Orch --> WS
+    subgraph Core["⚙️ Core"]
+        direction TB
+        SM[SessionManager]; BC[Broadcaster]
+    end
+    subgraph Orch["🧠 Orchestrator"]
+        AG[Orchestrator<br/>lifecycle · coordination<br/>reads tables to build report]
+    end
+    subgraph Flows["🔀 agno Workflows · in-process glue · db=None · no writes"]
+        direction TB
+        PWF[PptxPrepWorkflow<br/>extract→review→research→write]
+        LWF[LiveSessionWorkflow<br/>Parallel LiveAnalysisTeam<br/>vision ‖ audio]
+        VWF[VideoAnalysisWorkflow<br/>extract→analyse→report<br/>uploaded video · ffmpeg]
+        RWF[ReportWorkflow<br/>read→content→delivery→score]
+    end
+    subgraph Agents["🤖 Agents · async tasks · own their tables"]
+        direction TB
+        FS[FrameService]; VA[VisionAgent]; AA[AudioAgent]
+        PA[PPTXAgent]; CA[ContentAgent]; RA[ReportAgent]
+    end
+    subgraph Data["💾 Data · one writer per table"]
+        RP[Repository]; DB[(PostgreSQL)]
+    end
+    SR --> SM --> AG
+    UR --> PWF -.->|delegate phases| PA
+    VUR --> VWF
+    VWF -.->|feed frames + audio| VA
+    VWF -.->|feed audio| AA
+    VWF -.->|session end handoff| RWF
+    VW --> LWF
+    AW --> LWF
+    LWF -.->|vision step| VA
+    LWF -.->|audio step| AA
+    AG -->|session end| RWF -.->|delegate phases| RA
+    FW --> BC
+    AG --> FS --> VA
+    VA -->|writes video_events| RP
+    AA -->|writes transcript_entries + audio_warnings| RP
+    PA -->|writes slide_analyses + slides_raw_text| RP
+    CA -->|writes content findings| RP
+    RA -->|writes reports| RP
+    RP --> DB
+    VA -.->|notify_complete| AG
+    AA -.->|notify_complete| AG
+    PA -.->|notify_complete| AG
+    CA -.->|notify_complete| AG
+    AG -.->|read tables to assemble report| RA
+    RA -.->|notify_complete| AG
+    AG --> BC
+    class SR,UR,VUR,VW,AW,FW sky
+    class SM,BC green
+    class AG violet
+    class PWF,LWF,VWF,RWF sky
+    class FS,VA,AA,PA,CA,RA amber
+    class RP,DB violet
+    style Routes fill:#0b1120,stroke:#38bdf8,color:#7dd3fc
+    style Core fill:#0b1120,stroke:#4ade80,color:#86efac
+    style Orch fill:#0b1120,stroke:#a78bfa,color:#c4b5fd
+    style Flows fill:#0b1120,stroke:#38bdf8,color:#7dd3fc
+    style Agents fill:#0b1120,stroke:#fbbf24,color:#fcd34d
+    style Data fill:#0b1120,stroke:#a78bfa,color:#c4b5fd
             </div>
           </div>
         </div>
@@ -593,36 +645,46 @@ graph TB
 <div class="nav-dots" id="nav-dots"></div>
 
 <script>
-/* ============ MERMAID INIT ============ */
+/* ============ MERMAID INIT (identical to Architecture Deck) ============ */
 mermaid.initialize({
-  startOnLoad: true,
-  theme: 'base',
-  themeVariables: {
-    primaryColor: '#0D2742',
-    primaryTextColor: '#E8F4FF',
-    primaryBorderColor: '#4DD4CC',
-    lineColor: '#4DD4CC',
-    secondaryColor: '#0A1E35',
-    tertiaryColor: '#0A1E35',
-    fontFamily: 'Space Mono, monospace',
-    fontSize: '15px'
+  startOnLoad:false,
+  theme:"dark",
+  securityLevel:"loose",
+  themeVariables:{
+    darkMode:true, background:"#0f172a",
+    fontFamily:'-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif',
+    fontSize:"16px",
+    primaryColor:"#1e293b", primaryTextColor:"#e2e8f0", primaryBorderColor:"#38bdf8",
+    lineColor:"#64748b", textColor:"#e2e8f0",
+    clusterBkg:"#0b1120", clusterBorder:"#334155",
+    actorBkg:"#1e293b", actorBorder:"#38bdf8", actorTextColor:"#e2e8f0",
+    signalColor:"#cbd5e1", signalTextColor:"#cbd5e1",
+    labelBoxBkgColor:"#0f172a", labelBoxBorderColor:"#38bdf8", labelTextColor:"#e2e8f0",
+    noteBkgColor:"#312e81", noteBorderColor:"#a78bfa", noteTextColor:"#e2e8f0",
+    mainBkg:"#1e293b", nodeBorder:"#334155",
+    attributeBackgroundColorOdd:"#0f172a", attributeBackgroundColorEven:"#111c33"
   },
-  flowchart: { curve: 'basis', padding: 12 }
+  flowchart:{useMaxWidth:false, htmlLabels:true, curve:"basis", nodeSpacing:55, rankSpacing:65, padding:14, diagramPadding:18},
+  sequence:{useMaxWidth:false, mirrorActors:false, boxMargin:12, messageFontWeight:500, actorMargin:60, noteMargin:14, wrap:true, width:170},
+  er:{useMaxWidth:false, entityPadding:14, fontSize:14},
+  class:{useMaxWidth:false}
 });
-/* After render, paint the Orchestrator nodes orange (central brain) */
-window.addEventListener('load', function(){
-  setTimeout(function(){
-    document.querySelectorAll('.mermaid .node').forEach(function(n){
-      var t = n.textContent || '';
-      if (t.indexOf('AgnoOrchestrator') !== -1 || t.indexOf('AI Coaching Engine') !== -1) {
-        n.querySelectorAll('rect,polygon,path').forEach(function(s){
-          s.style.fill = '#FF7A1A'; s.style.stroke = '#FFA94D';
-        });
-        n.querySelectorAll('.nodeLabel, text, tspan, foreignObject div').forEach(function(l){ l.style.color = '#06121F'; l.style.fill='#06121F'; });
-      }
-    });
-  }, 600);
+
+/* Same classDef palette as the Architecture Deck — appended to every flowchart/graph */
+var PALETTE = `
+    classDef sky fill:#0c4a6e,stroke:#38bdf8,stroke-width:1.5px,color:#e0f2fe;
+    classDef green fill:#14532d,stroke:#4ade80,stroke-width:1.5px,color:#dcfce7;
+    classDef amber fill:#78350f,stroke:#fbbf24,stroke-width:1.5px,color:#fef3c7;
+    classDef violet fill:#3b0764,stroke:#a78bfa,stroke-width:1.5px,color:#ede9fe;
+    classDef red fill:#7f1d1d,stroke:#f87171,stroke-width:1.5px,color:#fee2e2;
+    classDef slate fill:#1e293b,stroke:#64748b,stroke-width:1.5px,color:#e2e8f0;`;
+document.querySelectorAll(".mermaid").forEach(function(el){
+  var src = el.innerHTML.replace(/<br\s*\/?>/gi, "<br/>");
+  var ta = document.createElement("textarea"); ta.innerHTML = src; src = ta.value.trim();
+  if(/^(flowchart|graph)\b/.test(src)) src += "\n" + PALETTE;
+  el.textContent = src;
 });
+mermaid.run({ querySelector:".mermaid", suppressErrors:true });
 
 /* ============ STAGE SCALING ============ */
 function scaleStage() {
