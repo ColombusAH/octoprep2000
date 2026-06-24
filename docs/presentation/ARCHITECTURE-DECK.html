@@ -189,11 +189,12 @@ flowchart LR
     P --> SR(["⏺️ Click 'Start Recording'"])
     SR --> REC["🔴 Recording begins"]
     REC -.->|"stretch goal"| TOGGLE["🔔 Optional toggle: live feedback ON/OFF<br/>body language · pacing · eye contact"]
+    F -.->|"v1.7 · or skip live"| VUP["📼 Upload a recorded video (≤15 min)<br/>batch analysis → same report"]
     class U sky
     class F,P amber
     class GS,SR green
     class REC red
-    class TOGGLE violet
+    class TOGGLE,VUP violet
     </pre></div></div>
   </section>
 
@@ -403,7 +404,7 @@ graph TB
     vision(["🤖 Vision LLM API"])
     stt(["🎙️ STT Provider"])
     user -->|"HTTPS · serves pages"| fe
-    fe -->|"REST · /sessions · /upload"| be
+    fe -->|"REST · /sessions · /upload · /upload-video"| be
     fe -->|"WSS · video + audio in"| be
     fe -->|"WSS · realtime-feedback out"| be
     be -->|"reads/writes"| pg
@@ -423,7 +424,7 @@ graph TB
 graph LR
     subgraph Routes["🌐 Routes"]
         direction TB
-        SR[SessionRouter]; UR[UploadRouter]; VW[VideoWS]; AW[AudioWS]; FW[FeedbackWS]
+        SR[SessionRouter]; UR[UploadRouter]; VUR[VideoUploadRouter]; VW[VideoWS]; AW[AudioWS]; FW[FeedbackWS]
     end
     subgraph Core["⚙️ Core"]
         direction TB
@@ -434,8 +435,9 @@ graph LR
     end
     subgraph Flows["🔀 agno Workflows · in-process glue · db=None · no writes"]
         direction TB
-        PWF[PptxPrepWorkflow<br/>extract→review→write]
+        PWF[PptxPrepWorkflow<br/>extract→review→research→write]
         LWF[LiveSessionWorkflow<br/>Parallel LiveAnalysisTeam<br/>vision ‖ audio]
+        VWF[VideoAnalysisWorkflow<br/>extract→analyse→report<br/>uploaded video · ffmpeg]
         RWF[ReportWorkflow<br/>read→content→delivery→score]
     end
     subgraph Agents["🤖 Agents · async tasks · own their tables"]
@@ -448,6 +450,10 @@ graph LR
     end
     SR --> SM --> AG
     UR --> PWF -.->|delegate phases| PA
+    VUR --> VWF
+    VWF -.->|feed frames + audio| VA
+    VWF -.->|feed audio| AA
+    VWF -.->|session end handoff| RWF
     VW --> LWF
     AW --> LWF
     LWF -.->|vision step| VA
@@ -468,10 +474,10 @@ graph LR
     AG -.->|read tables to assemble report| RA
     RA -.->|notify_complete| AG
     AG --> BC
-    class SR,UR,VW,AW,FW sky
+    class SR,UR,VUR,VW,AW,FW sky
     class SM,BC green
     class AG violet
-    class PWF,LWF,RWF sky
+    class PWF,LWF,VWF,RWF sky
     class FS,VA,AA,PA,CA,RA amber
     class RP,DB violet
     style Routes fill:#0b1120,stroke:#38bdf8,color:#7dd3fc
@@ -663,7 +669,7 @@ flowchart TB
     subgraph Protected["🔴 require access_token"]
         direction LR
         E1["GET /sessions/:id"]; E2["POST /upload"]; E3["POST /end"]
-        E4["WS video · audio · feedback"]
+        E4["WS video · audio · feedback"]; E7["POST /upload-video"]
     end
     subgraph Share["🟢 read-only share_token"]
         direction LR
@@ -673,7 +679,7 @@ flowchart TB
     E6["POST /report/share"] -.->|generates| E5
     class Create sky
     class Pair,LS green
-    class E1,E2,E3,E4 red
+    class E1,E2,E3,E4,E7 red
     class E5,E6 green
     style Protected fill:#450a0a,stroke:#f87171,color:#fecaca
     style Share fill:#052e16,stroke:#4ade80,color:#bbf7d0

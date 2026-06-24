@@ -1,12 +1,23 @@
 # Product Requirements Document
 
 **Product**: OctoPrep2000
-**Version**: 1.6
-**Date**: 2026-06-23
-**Hackathon Date**: 2026-06-24 (1 day away)
+**Version**: 1.7
+**Date**: 2026-06-24
+**Hackathon Date**: 2026-06-24
 **Author**: Tikal Fuse Day Team
-**Status**: Approved — frontend stack sync (v1.6)
+**Status**: Approved — uploaded-video batch analysis + pre-session research persistence (v1.7)
 
+> **v1.7 changelog (2026-06-24)** — two post-MVP features shipped:
+> - **Uploaded-video batch analysis** (US-002c, FR-013 below). A presenter can upload a recorded
+>   rehearsal video (≤15 min) instead of capturing live; the system analyses it in the background
+>   and produces the **same** report (voice/body/slide/content + timestamped insights). Insight
+>   timestamps map to the video's own timeline. No live in-session feedback for uploads (a future
+>   phase). Reuses the existing analysis agents + report; adds `POST /sessions/:id/upload-video`
+>   and an ffmpeg decode step. See `specs/003-video-upload-analysis/`.
+> - **Pre-session research persistence**. Topic research (official docs + articles) now runs and is
+>   saved during pre-session deck prep instead of at report time, so the content score is grounded
+>   without slowing report generation. Transparent to the user. See `specs/002-pre-session-research/`.
+>
 > **v1.6 changelog (2026-06-23)** — frontend stack sync, no functional scope change:
 > - UI component stack added: **shadcn/ui + Radix UI primitives** (Button, Card, Input, Switch, etc.)
 >   styled with Tailwind CSS v4, `class-variance-authority`, `clsx`, `tailwind-merge`,
@@ -151,6 +162,8 @@ OctoPrep2000 closes this gap by acting as an always-available AI co-pilot that w
 - **US-001**: As a presenter, I want to upload my PPTX file before a session so that the system can analyse my slides independently of my live performance.
 - **US-002**: As a presenter, I want to enter my talk topic (e.g. "React 19 new features") when starting a session so that the system can evaluate whether my content is technically accurate and complete.
 - **US-002b**: As a presenter, I want to start a practice session from the web dashboard so that the backend begins capturing my audio and video via my browser.
+
+- **US-002c** `[v1.7]`: As a presenter, I want to upload a pre-recorded rehearsal video (≤15 min) instead of rehearsing live, so that I get the same scored report from an existing recording. Analysis runs in the background; the report becomes available when processing finishes, with timestamps mapped to the video. No live feedback for uploads.
 - **US-003** `[Phase 3]`: As a presenter, I want to toggle live feedback ON or OFF before starting my session so that I can choose whether to be interrupted during my rehearsal or receive all feedback in the final report only.
 
 ### Epic 2: Real-Time Feedback `[Phase 3 — Bonus]`
@@ -341,6 +354,20 @@ OctoPrep2000 closes this gap by acting as an always-available AI co-pilot that w
 - [ ] If Vision Agent fails to respond within threshold for 3 consecutive frames, fallback mode is activated.
 - [ ] UI displays a non-blocking banner: "Video analysis unavailable — continuing with audio coaching."
 - [ ] Report correctly omits the Body Language sub-category score and adjusts weighting: Voice 40%, Slides 30%, Technical Content 30%.
+
+---
+
+### FR-013 `[v1.7]`: Uploaded-Video Batch Analysis
+
+**Description**: A presenter uploads a pre-recorded rehearsal video as an alternative to a live session. The system decodes it, runs the same vision/speech/slide/content analysis in the background, and produces the same report. No live feedback.
+
+**Acceptance Criteria**:
+- [ ] `POST /sessions/:id/upload-video` accepts common consumer formats (mp4/mov/m4v/webm), rejecting other types, files over the size limit, and videos longer than 15 min with specific messages before any analysis.
+- [ ] The video's embedded audio track is the speech source (no separate audio upload); frames are sampled at ≤ 5 fps.
+- [ ] The batch path writes the same `transcript_entries`/`video_events`/`audio_warnings`/slide/content data, so the report is structurally identical to a live session's.
+- [ ] Insight timestamps map to the video's media timeline (time from the start of the recording).
+- [ ] `sessions.status` reflects `PROCESSING` → `REPORT_READY` or `FAILED` (with `status_detail`); the report is gated until processing finishes; every job reaches a terminal state.
+- [ ] Provider/decode failures degrade safely (partial report or explicit failure); `DEMO_MODE=replay` bypasses ffmpeg + live AI/STT; the live capture path is unaffected.
 
 ---
 

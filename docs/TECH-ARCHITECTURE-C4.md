@@ -1,11 +1,36 @@
 # OctoPrep2000 — Technical Architecture (C4)
 
 **System**: OctoPrep2000
-**Version**: 1.6
+**Version**: 1.7
 **Date**: 2026-06-24
 **Architect**: Tikal Fuse Day Team
-**Status**: Approved for implementation — agno-Workflow orchestration layer added (v1.6)
+**Status**: Approved for implementation — pre-session research persistence + uploaded-video batch analysis added (v1.7)
 
+> **v1.7 changelog (2026-06-24)** — two features added (implemented + tested). No change to
+> scoring weights or persistence ownership (Constitution Principle II + V preserved):
+> - **Pre-session research persistence** (`specs/002-pre-session-research/`). Topic research
+>   (Context7 docs + Exa articles) moved OUT of the post-session ContentAgent and INTO the
+>   pre-session **PptxPrepWorkflow**, which is now `extract → review → research → write`. The
+>   PPTXAgent persists the `ReferenceBundle` + status onto the session row in the same write that
+>   marks the deck ready, so research completes before session start (the existing `pptx_ready`
+>   poll already gates it — no new gating). At report time ContentAgent reads the persisted bundle
+>   and makes **zero** live research-provider calls. New `sessions` columns: `research_bundle`
+>   (JSONB), `content_research_status` (varchar).
+> - **Uploaded-video batch analysis** (`specs/003-video-upload-analysis/`). New entry point
+>   `POST /sessions/:id/upload-video`: the presenter uploads a recorded rehearsal (≤15 min) instead
+>   of capturing live. A new **VideoAnalysisWorkflow** (`workflows/video_analysis.py`, agno glue)
+>   decodes the file with **ffmpeg/ffprobe** (system binary — new dependency) into JPEG frames
+>   (≤5 fps) + PCM 16 kHz mono, drives the SAME VisionAgent/AudioAgent (so the same
+>   `transcript_entries`/`video_events`/`audio_warnings` rows are written), then hands off to the
+>   unchanged ReportWorkflow → identical report. Timestamps come from the video media timeline
+>   (VisionAgent gained an additive `ts_ms` override; audio is already chunk-index relative).
+>   Runs as a background job; `sessions.status` carries `PROCESSING`/`REPORT_READY`/`FAILED` with a
+>   new `status_detail` (text) reason. Live capture/real-time path unchanged. `DEMO_MODE=replay`
+>   bypasses ffmpeg + live AI/STT. New env: `VIDEO_MAX_DURATION_S`, `VIDEO_MAX_BYTES`,
+>   `VIDEO_ANALYSIS_FPS`, `VIDEO_POSTURE_STRIDE_S`. ffmpeg installed via
+>   `packages/backend/nixpacks.toml`.
+> - Workflow count is now **four** (PptxPrep, LiveSession, Report, VideoAnalysis).
+>
 > **v1.6 changelog (2026-06-24)** — agno-Workflow orchestration layer (implemented + tested on
 > branch `agno-workflows-flow`). Adds an in-process orchestration substrate; **no change to
 > persistence ownership or the pub/sub model** (Constitution v2.0.0 Principle II + V preserved):
@@ -282,13 +307,15 @@ graph TB
 |---|---|---|
 | `SessionRouter` | FastAPI router | Creates sessions, returns `session_id`, triggers session end |
 | `UploadRouter` | FastAPI router | Accepts PPTX multipart upload, saves to `/tmp`, fires `PPTXAgent` |
+| `VideoUploadRouter` | FastAPI router (`routers/upload_video.py`) | v1.7 — `POST /sessions/:id/upload-video`. Validates format/size/duration (ffprobe), then fires `VideoAnalysisWorkflow` as a background task |
 | `VideoStreamWS` | FastAPI WebSocket | Accepts raw video frames from browser, feeds into `asyncio.Queue` |
 | `AudioStreamWS` | FastAPI WebSocket | Accepts audio PCM chunks from browser, feeds into `asyncio.Queue` |
 | `FeedbackWS` | FastAPI WebSocket | Clients subscribe by `session_id`; `Broadcaster` pushes events here |
 | `SessionManager` | Service | Generates UUID, creates DB record, manages status state machine |
 | `FeedbackBroadcaster` | Service | `dict[session_id → set[WebSocket]]`; `publish()` sends to all subscribers |
 | `Orchestrator` | Coordinator | Spawns async tasks per session, holds shared state. Owns **session lifecycle** (ACTIVE→ENDED→REPORT_READY via `start_session`/`end_session`/`mark_report_ready`), **cross-agent coordination** (`notify_complete`/`completed`), **audio-only fallback** (`activate_fallback`/`is_fallback`), and the **REPORT_READY / FALLBACK_ACTIVATED** broadcasts. No longer a persistence pipe — agents write their own tables; the Orchestrator **reads** the agreed tables to assemble the report (via ReportAgent) |
-| `PptxPrepWorkflow` | agno Workflow (`workflows/pptx_prep.py`) | **In-process glue** (`telemetry=False`, `db=None`, no DB writes, no durable state). Pre-session, one-shot, triggered by the upload background task. Three **sequential** Steps delegating to PPTXAgent phases: `extract` (python-pptx parse) → `review` (12-factor playbook LLM, or replay fixtures) → `write` (persist `slide_analyses` + `mark_pptx_ready` + `notify_complete("PPTX")`). The PPTXAgent — not the workflow — owns the writes and the signal. |
+| `PptxPrepWorkflow` | agno Workflow (`workflows/pptx_prep.py`) | **In-process glue** (`telemetry=False`, `db=None`, no DB writes, no durable state). Pre-session, one-shot, triggered by the upload background task. Four **sequential** Steps delegating to PPTXAgent phases: `extract` (python-pptx parse) → `review` (12-factor playbook LLM, or replay fixtures) → `research` (v1.7 — Context7/Exa topic research for technical topics) → `write` (persist `slide_analyses` + `mark_pptx_ready`, now also `research_bundle`/`content_research_status` on the session, + `notify_complete("PPTX")`). The PPTXAgent — not the workflow — owns the writes and the signal. |
+| `VideoAnalysisWorkflow` | agno Workflow (`workflows/video_analysis.py`) | **In-process glue** (`telemetry=False`, `db=None`). v1.7 — background job for an uploaded rehearsal video. **Sequential** Steps `extract` (ffmpeg/ffprobe → JPEG frames ≤5 fps + PCM 16 kHz mono) → `analyse` (feed the SAME VisionAgent/AudioAgent with media-timeline timestamps; vision posture batches sampled at `VIDEO_POSTURE_STRIDE_S`) → `report` (hand off to ReportWorkflow). Each step self-handles errors → terminal `sessions.status` (`PROCESSING`/`REPORT_READY`/`FAILED` + `status_detail`); temp workspace cleaned in `finally`. Agents own all writes. |
 | `LiveSessionWorkflow` | agno Workflow (`workflows/live_session.py`) | **In-process glue** (`telemetry=False`, `db=None`, no DB writes, no durable state). One run per ~2s capture window. A single agno **`Parallel`** group named **`LiveAnalysisTeam`** with two concurrent steps: `vision` (GPT-4o posture/gesture batch) and `audio` (ElevenLabs STT + filler + WPM). Both steps **delegate** into the long-lived, stateful VisionAgent/AudioAgent on `SessionRuntime` so per-session state (WPM window, dedup, timeout-streak, batch buffer) survives across windows. Uses `Parallel`, **NOT a coordinator `Team`** — the two modalities are fixed/independent and audio is deterministic (no LLM), so a routing leader would be pure latency. Audio-only fallback is enforced at the `vision` step (it checks `orchestrator.is_fallback` and skips). |
 | `LiveWindowAggregator` | Per-session runtime object (`workflows/live_window.py`) | Owned per session by `SessionRuntime`. Buffers deduped frames; each arriving ~2s audio chunk closes a window (frames-since-last-chunk + that chunk) and fires **one** `LiveSessionWorkflow` run as a detached task so the WS receive loop never blocks. A periodic tick flushes vision-only tails. Holds only the in-flight window buffer (transient), not durable session state. |
 | `ReportWorkflow` | agno Workflow (`workflows/report.py`) | **In-process glue** (`telemetry=False`, `db=None`, no DB writes, no durable state). Runs at session end; `ReportAgent.generate` is now a thin wrapper that runs it. A **sequential** pipeline of genuine data dependencies (so a Workflow of Steps, NOT a `Team`): `read` agreed tables → `content` (ContentAgent technical-accuracy/coverage) → `delivery` (PPTX delivery pass that CONSUMES the content findings) → `score` (deterministic pure-Python scoring, UNCHANGED, + the agent-owned `reports` write + `notify_complete("REPORT")`). |
@@ -564,6 +591,7 @@ Every protected operation requires **both**:
 | `POST /sessions` | Create | None | Returns both tokens |
 | `GET /sessions/:id` | Read status | `access_token` | Owner only |
 | `POST /sessions/:id/upload` | Upload PPTX | `access_token` | Owner only |
+| `POST /sessions/:id/upload-video` | Upload recorded rehearsal (batch analysis) | `access_token` | Owner only |
 | `POST /sessions/:id/end` | End session | `access_token` | Owner only |
 | `GET /sessions/:id/report` | View report | `access_token` OR `share_token` | Owner or share recipient |
 | `POST /sessions/:id/report/share` | Generate share link | `access_token` | Owner only |
@@ -645,6 +673,13 @@ CREATE INDEX idx_sessions_token ON sessions(session_id, access_token);
 -- Add share_token to reports table (nullable — only set when owner generates a share link)
 ALTER TABLE reports ADD COLUMN share_token UUID;
 CREATE INDEX idx_reports_share_token ON reports(share_token) WHERE share_token IS NOT NULL;
+
+-- v1.7 — pre-session research persistence (feature 002)
+ALTER TABLE sessions ADD COLUMN research_bundle JSONB;            -- persisted ReferenceBundle
+ALTER TABLE sessions ADD COLUMN content_research_status VARCHAR(32);
+
+-- v1.7 — uploaded-video batch analysis (feature 003)
+ALTER TABLE sessions ADD COLUMN status_detail TEXT;              -- human-readable PROCESSING/FAILED reason
 ```
 
 ### 5.8 Frontend Responsibilities (Dev 6)
