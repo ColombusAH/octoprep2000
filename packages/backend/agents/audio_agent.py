@@ -22,6 +22,7 @@ import httpx
 from loguru import logger
 
 from agents.llm import call_with_fallback, get_llm, pick_provider_order
+from agents.noise_reduction import apply_noise_reduction
 from agents.persistence import AgentPersistence
 from agents.replay_fixtures import replay_audio_events
 from agents.schemas import AudioWarningPayload, TranscriptPayload
@@ -114,6 +115,8 @@ class AudioAgent(AgentPersistence):
                 elif isinstance(ev, AudioWarningPayload):
                     await self._write_warning(ev)
             return
+
+        pcm_bytes = apply_noise_reduction(pcm_bytes)
 
         chunk_dur_ms = get_settings().audio_chunk_seconds * 1000
         start_ms = self._chunk_count * chunk_dur_ms

@@ -64,6 +64,9 @@ class Settings(BaseSettings):
     video_analysis_fps: int = 1  # frame sampling rate (hard-capped to ≤5 at use site)
     video_posture_stride_s: int = 10  # seconds between GPT-4o posture batches (cost bound)
 
+    # Audio noise reduction (spectral gating before STT)
+    noise_reduction_enabled: bool = True
+
     # Demo insurance
     demo_mode: str = ""  # "replay" → use canned fixtures
 

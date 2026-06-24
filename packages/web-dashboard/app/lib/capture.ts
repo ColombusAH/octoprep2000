@@ -51,7 +51,9 @@ export async function startAudioCapture(
   chunkSeconds = 2,
   onDeviceLost?: () => void,
 ): Promise<CaptureHandles> {
-  const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+  const stream = await navigator.mediaDevices
+    .getUserMedia({ audio: { noiseSuppression: true, echoCancellation: true, autoGainControl: true } })
+    .catch(() => navigator.mediaDevices.getUserMedia({ audio: true }));
   if (onDeviceLost) stream.getAudioTracks()[0].onended = onDeviceLost;
   const AudioContextCtor =
     (window as unknown as { AudioContext?: typeof AudioContext; webkitAudioContext?: typeof AudioContext })
