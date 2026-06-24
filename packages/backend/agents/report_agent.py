@@ -17,6 +17,7 @@ from collections import defaultdict
 
 from agents.content_agent import ContentAnalysisAgent
 from agents.persistence import AgentPersistence
+from agents.pptx_agent import PPTXAgent
 from agents.schemas import (
     ContentAnalysisPayload,
     Insight,
@@ -45,12 +46,27 @@ class ReportAgent(AgentPersistence):
     async def generate(self, session_id: uuid.UUID, fallback_mode: bool = False) -> ReportPayload:
         async with get_session_maker()() as db:
             repo = PostgreSQLRepository(db)
+            session = await repo.get_session(session_id)
             transcripts = await repo.read_transcript(session_id)
             video_events = await repo.read_video_events(session_id)
             audio_warnings = await repo.read_audio_warnings(session_id)
-            slide_analyses = await repo.read_slide_analyses(session_id)
 
         content = await self.content_agent.analyse(session_id)
+
+        if session and session.slides_raw_text and transcripts:
+            pptx = PPTXAgent(self.orchestrator)
+            await pptx.analyse_delivery(
+                session_id,
+                topic=session.topic,
+                topic_context=session.topic_context,
+                slides_raw=session.slides_raw_text,
+                transcript=transcripts,
+                content=content,
+            )
+
+        async with get_session_maker()() as db:
+            repo = PostgreSQLRepository(db)
+            slide_analyses = await repo.read_slide_analyses(session_id)
 
         voice_insights, voice_score = self._score_voice(transcripts, audio_warnings)
         body_insights, body_score = self._score_body(video_events) if not fallback_mode else ([], None)
@@ -189,7 +205,11 @@ class ReportAgent(AgentPersistence):
         grouped: dict[tuple[int, str], list[tuple[int, str, str]]] = defaultdict(list)
         for a in analyses:
             fix = getattr(a, "suggested_fix", "") or ""
-            grouped[(a.playbook_factor, a.finding_type)].append((a.slide_index, a.description, fix))
+            phase = getattr(a, "analysis_phase", "static") or "static"
+            desc = a.description
+            if phase == "delivery":
+                desc = f"While presenting: {desc}"
+            grouped[(a.playbook_factor, a.finding_type)].append((a.slide_index, desc, fix))
 
         insights: list[Insight] = []
         improvements = 0

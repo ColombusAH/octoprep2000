@@ -1,0 +1,14 @@
+[
+  {"slide_index": 4, "playbook_factor": 1, "finding_type": "IMPROVEMENT",
+   "description": "You explained the news hook in speech but slide 4 still shows generic intro bullets.",
+   "suggested_fix": "Replace slide 4 with the headline story visual you actually described aloud.",
+   "analysis_phase": "delivery"},
+  {"slide_index": 11, "playbook_factor": 10, "finding_type": "IMPROVEMENT",
+   "description": "You read slide 11 bullet text verbatim instead of paraphrasing.",
+   "suggested_fix": "Leave a ≤5-word headline on slide 11; speak the detail without reading.",
+   "analysis_phase": "delivery"},
+  {"slide_index": 8, "playbook_factor": 1, "finding_type": "STRENGTH",
+   "description": "Slide 8 headline matched your spoken pivot from problem to solution.",
+   "suggested_fix": "Keep pairing a short slide headline with a spoken walk-through.",
+   "analysis_phase": "delivery"}
+]

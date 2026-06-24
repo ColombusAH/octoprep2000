@@ -11,13 +11,17 @@ import pytest
 from pptx import Presentation
 
 from agents.pptx_agent import (
+    MAX_DELIVERY_FINDINGS,
     MIN_DISTINCT_FACTORS,
     PPTXAgent,
     SlideAnalysisPayload,
+    validate_delivery_findings,
     validate_findings,
+    _format_timed_transcript,
     _notes_overlap_body,
     _supplement_from_metadata,
 )
+from agents.replay_fixtures import replay_delivery_findings
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 REAT_DECK = REPO_ROOT / "docs" / "testing" / "reat-19.2-news-example.pptx"
@@ -200,7 +204,100 @@ async def test_analyse_persists_and_notifies():
 
     assert len(written) >= 1
     assert written[0]["suggested_fix"]
+    assert written[0]["analysis_phase"] == "static"
     orch.notify_complete.assert_awaited_once_with(session_id, "PPTX")
+
+
+def test_format_timed_transcript():
+    class _Entry:
+        def __init__(self, start_ms, end_ms, text):
+            self.start_ms = start_ms
+            self.end_ms = end_ms
+            self.text = text
+
+    out = _format_timed_transcript([_Entry(0, 2500, "Hello world"), _Entry(65000, 67000, "Done")])
+    assert "[0:00–0:02] Hello world" in out
+    assert "[1:05–1:07] Done" in out
+
+
+def test_validate_delivery_findings_caps():
+    findings = [
+        SlideAnalysisPayload(
+            slide_index=i + 1,
+            playbook_factor=1,
+            finding_type="IMPROVEMENT",
+            description=f"issue {i}",
+            suggested_fix=f"fix {i}",
+        )
+        for i in range(10)
+    ]
+    kept = validate_delivery_findings(findings)
+    assert len(kept) == MAX_DELIVERY_FINDINGS
+    assert all(f.analysis_phase == "delivery" for f in kept)
+
+
+def test_replay_delivery_findings_have_phase():
+    findings = replay_delivery_findings()
+    assert len(findings) >= 2
+    assert all(f.analysis_phase == "delivery" for f in findings)
+    for f in findings:
+        if f.finding_type == "IMPROVEMENT":
+            assert f.suggested_fix.strip()
+
+
+@pytest.mark.asyncio
+async def test_analyse_delivery_skips_without_transcript():
+    orch = AsyncMock()
+    agent = PPTXAgent(orch)
+    with patch.object(agent, "_with_repo", new=AsyncMock()) as mock_repo:
+        await agent.analyse_delivery(
+            uuid.uuid4(),
+            topic="React 19",
+            topic_context=None,
+            slides_raw=[{"slide_index": 1, "text": "Hi"}],
+            transcript=[],
+        )
+    mock_repo.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_analyse_delivery_persists_delivery_phase():
+    orch = AsyncMock()
+    agent = PPTXAgent(orch)
+    session_id = uuid.uuid4()
+    deleted: list[str] = []
+    written: list[dict] = []
+
+    async def capture_write(fn):
+        repo = AsyncMock()
+        repo.delete_slide_analyses_by_phase = AsyncMock(
+            side_effect=lambda _sid, phase: deleted.append(phase)
+        )
+        repo.insert_slide_analyses = AsyncMock(side_effect=lambda items: written.extend(items))
+        await fn(repo)
+
+    class _Entry:
+        start_ms = 0
+        end_ms = 2000
+        text = "Today we cover authentication flows."
+
+    with patch.object(agent, "_with_repo", side_effect=capture_write), patch(
+        "agents.pptx_agent.get_settings"
+    ) as mock_settings:
+        mock_settings.return_value.demo_replay = True
+        await agent.analyse_delivery(
+            session_id,
+            topic="Auth in React",
+            topic_context="Senior devs",
+            slides_raw=[{"slide_index": 1, "text": "Auth overview"}],
+            transcript=[_Entry()],
+        )
+
+    assert deleted == ["delivery"]
+    assert written
+    assert all(w["analysis_phase"] == "delivery" for w in written)
+    orch.notify_complete.assert_awaited_once()
+    assert orch.notify_complete.await_args.args[1] == "PPTX"
 
 
 @pytest.mark.live

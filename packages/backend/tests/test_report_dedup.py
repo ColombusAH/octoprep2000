@@ -127,6 +127,25 @@ def test_slides_improvement_includes_suggested_fix_in_message():
     assert len(insights) == 1
     assert "Instead:" in insights[0].message
     assert "Keep title" in insights[0].message
+
+
+def test_slides_delivery_prefix_in_message():
+    agent = ReportAgent()
+
+    class _DeliverySlide:
+        slide_index = 4
+        playbook_factor = 1
+        finding_type = "IMPROVEMENT"
+        description = "Speech and slide content mismatched."
+        suggested_fix = "Update slide 4 to match what you said."
+        analysis_phase = "delivery"
+
+    insights, _ = agent._score_slides([_DeliverySlide()])
+    assert "While presenting:" in insights[0].message
+    assert "Instead:" in insights[0].message
+
+
+def test_smile_strong_surfaces_as_strength_not_penalty():
     agent = ReportAgent()
     events = [
         _FakeVideoEvent(1000, "SMILING_STRONG", severity="LOW"),

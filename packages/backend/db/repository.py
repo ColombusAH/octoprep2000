@@ -5,7 +5,7 @@ from collections.abc import Iterable
 from typing import Any
 
 from fastapi import Depends
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from db.models import AudioWarning, Report, Session, SlideAnalysis, TranscriptEntry, VideoEvent
@@ -116,6 +116,17 @@ class PostgreSQLRepository:
     async def insert_slide_analyses(self, items: Iterable[dict[str, Any]]) -> None:
         for it in items:
             self.db.add(SlideAnalysis(**it))
+        await self.db.commit()
+
+    async def delete_slide_analyses_by_phase(
+        self, session_id: uuid.UUID, analysis_phase: str
+    ) -> None:
+        await self.db.execute(
+            delete(SlideAnalysis).where(
+                SlideAnalysis.session_id == session_id,
+                SlideAnalysis.analysis_phase == analysis_phase,
+            )
+        )
         await self.db.commit()
 
     async def read_slide_analyses(self, session_id: uuid.UUID) -> list[SlideAnalysis]:

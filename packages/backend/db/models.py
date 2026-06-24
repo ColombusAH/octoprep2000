@@ -116,6 +116,7 @@ class SlideAnalysis(Base):
     finding_type: Mapped[str] = mapped_column(String(16), nullable=False)  # STRENGTH | IMPROVEMENT
     description: Mapped[str] = mapped_column(Text, nullable=False)
     suggested_fix: Mapped[str] = mapped_column(Text, nullable=False, server_default="")
+    analysis_phase: Mapped[str] = mapped_column(String(16), nullable=False, server_default="static")
 
     session: Mapped[Session] = relationship(back_populates="slide_analyses")
 
