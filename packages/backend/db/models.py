@@ -35,6 +35,7 @@ class Session(Base):
     topic: Mapped[str] = mapped_column(Text, nullable=False)
     topic_context: Mapped[str | None] = mapped_column(Text, nullable=True)
     status: Mapped[str] = mapped_column(String(32), nullable=False, default="ACTIVE")
+    status_detail: Mapped[str | None] = mapped_column(Text, nullable=True)
     pptx_ready: Mapped[bool] = mapped_column(Boolean, default=False)
     slides_raw_text: Mapped[list[dict[str, Any]] | None] = mapped_column(JSONB, nullable=True)
     research_bundle: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)

@@ -31,11 +31,21 @@ class PostgreSQLRepository:
         result = await self.db.execute(select(Session).where(Session.session_id == sid))
         return result.scalar_one_or_none()
 
-    async def set_session_status(self, session_id: uuid.UUID, status: str) -> None:
+    async def set_session_status(
+        self, session_id: uuid.UUID, status: str, detail: str | None = None
+    ) -> None:
         session = await self.get_session(session_id)
         if session:
             session.status = status
+            session.status_detail = detail
             await self.db.commit()
+
+    async def clear_session_derived_rows(self, session_id: uuid.UUID) -> None:
+        """Drop a session's batch-derived analysis rows + any report so a re-upload
+        replaces rather than accumulates (feature 003, FR-014)."""
+        for model in (TranscriptEntry, VideoEvent, AudioWarning, Report):
+            await self.db.execute(delete(model).where(model.session_id == session_id))
+        await self.db.commit()
 
     async def mark_pptx_ready(
         self,
