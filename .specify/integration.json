@@ -25,6 +25,6 @@
       "invoke_separator": "-"
     }
   },
-  "integration": "claude",
-  "default_integration": "claude"
+  "integration": "cursor-agent",
+  "default_integration": "cursor-agent"
 }

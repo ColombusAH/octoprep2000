@@ -1,0 +1,477 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>OctoPrep2000 — Content Agent Research Tools</title>
+  <style>
+    :root {
+      --bg: #0b1120;
+      --panel: #0f172a;
+      --ink: #e2e8f0;
+      --muted: #94a3b8;
+      --sky: #38bdf8;
+      --teal: #2dd4bf;
+      --green: #4ade80;
+      --amber: #fbbf24;
+      --violet: #a78bfa;
+      --red: #f87171;
+      --border: #1e293b;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: var(--bg);
+      color: var(--ink);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      line-height: 1.6;
+      padding: 0 0 80px;
+    }
+    header {
+      padding: 56px 48px 40px;
+      border-bottom: 1px solid var(--border);
+      background: linear-gradient(180deg, #0f172a 0%, var(--bg) 100%);
+    }
+    .kicker {
+      color: var(--teal);
+      font-size: 13px;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      font-weight: 700;
+      margin-bottom: 12px;
+    }
+    h1 {
+      font-size: clamp(2rem, 5vw, 3.2rem);
+      font-weight: 800;
+      letter-spacing: -0.02em;
+      line-height: 1.1;
+    }
+    .lead {
+      color: var(--muted);
+      font-size: 1.15rem;
+      max-width: 72ch;
+      margin-top: 16px;
+    }
+    .meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-top: 24px;
+    }
+    .pill {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      color: var(--sky);
+      padding: 6px 14px;
+      border-radius: 999px;
+      font-size: 13px;
+      font-weight: 600;
+    }
+    main {
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 40px 48px;
+    }
+    section {
+      margin-bottom: 48px;
+    }
+    h2 {
+      font-size: 1.6rem;
+      font-weight: 800;
+      margin-bottom: 16px;
+      color: #fff;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    h2::before {
+      content: "";
+      width: 4px;
+      height: 1.1em;
+      background: var(--teal);
+      border-radius: 2px;
+    }
+    h3 {
+      font-size: 1.1rem;
+      color: var(--sky);
+      margin: 20px 0 10px;
+    }
+    p { margin-bottom: 12px; color: var(--muted); max-width: 75ch; }
+    p strong { color: var(--ink); }
+    ul { list-style: none; margin: 12px 0; }
+    ul li {
+      padding: 8px 0 8px 24px;
+      position: relative;
+      color: var(--muted);
+      font-size: 15px;
+    }
+    ul li::before {
+      content: "▸";
+      color: var(--teal);
+      position: absolute;
+      left: 0;
+      font-weight: 700;
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 20px;
+      margin-top: 16px;
+    }
+    .card {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 22px;
+    }
+    .card h3 { margin-top: 0; color: #fff; font-size: 1rem; }
+    .card p { font-size: 14px; margin: 0; }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 14px;
+      margin-top: 12px;
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      overflow: hidden;
+    }
+    th, td {
+      text-align: left;
+      padding: 11px 16px;
+      border-bottom: 1px solid var(--border);
+      vertical-align: top;
+    }
+    th {
+      color: var(--sky);
+      text-transform: uppercase;
+      font-size: 11px;
+      letter-spacing: 0.1em;
+      background: #0a0f1a;
+    }
+    tr:last-child td { border-bottom: none; }
+    td:first-child { color: #fff; font-weight: 600; font-family: ui-monospace, monospace; font-size: 13px; }
+    code {
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      background: #1e293b;
+      color: var(--amber);
+      padding: 2px 7px;
+      border-radius: 6px;
+      font-size: 0.88em;
+    }
+    pre {
+      background: #020617;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 18px 22px;
+      font-family: ui-monospace, monospace;
+      font-size: 13px;
+      line-height: 1.65;
+      overflow-x: auto;
+      color: var(--ink);
+      margin-top: 12px;
+    }
+    pre .cmt { color: var(--muted); }
+    pre .kw { color: var(--violet); }
+    pre .str { color: var(--green); }
+    pre .fn { color: var(--sky); }
+    .flow {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 24px;
+      margin-top: 16px;
+      font-family: ui-monospace, monospace;
+      font-size: 13px;
+      line-height: 1.8;
+      color: var(--muted);
+      overflow-x: auto;
+    }
+    .flow .step { color: var(--teal); font-weight: 700; }
+    .flow .arrow { color: var(--amber); }
+    .badge {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 6px;
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    .badge-new { background: rgba(74, 222, 128, 0.15); color: var(--green); }
+    .badge-mod { background: rgba(56, 189, 248, 0.15); color: var(--sky); }
+    .status-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 12px;
+      margin-top: 12px;
+    }
+    .status-item {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 14px 16px;
+    }
+    .status-item code { display: block; margin-bottom: 6px; }
+    .status-item span { font-size: 13px; color: var(--muted); }
+    footer {
+      text-align: center;
+      padding: 32px;
+      color: var(--muted);
+      font-size: 13px;
+      border-top: 1px solid var(--border);
+      margin-top: 40px;
+    }
+    @media (max-width: 640px) {
+      header, main { padding-left: 24px; padding-right: 24px; }
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="kicker">Feature · 001-content-agent-research-tools</div>
+  <h1>Content Agent Research Tools</h1>
+  <p class="lead">
+    Post-session technical content analysis now grounds scores in <strong>live reference lookup</strong>
+    — official docs via Context7 and articles/improvement guidance via Exa — before the content LLM evaluates the transcript.
+  </p>
+  <div class="meta">
+    <span class="pill">Branch: content-agent</span>
+    <span class="pill">Spec: specs/001-content-agent-research-tools/</span>
+    <span class="pill">39 tasks completed</span>
+    <span class="pill">13 tests passing</span>
+  </div>
+</header>
+
+<main>
+
+  <section>
+    <h2>Summary</h2>
+    <div class="grid">
+      <div class="card">
+        <h3>Before</h3>
+        <p>Content agent read transcript + topic only. LLM relied on static training data. No external research.</p>
+      </div>
+      <div class="card">
+        <h3>After</h3>
+        <p>Technical topics trigger classify → parallel Context7 + Exa fetch → inject reference blocks into evaluation prompt → scored findings with <code>research_status</code>.</p>
+      </div>
+      <div class="card">
+        <h3>Resilience</h3>
+        <p><code>DEMO_MODE=replay</code> bypasses all research. Missing keys or timeouts degrade to transcript-only with explicit UI/API status — report never blocks.</p>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Pipeline</h2>
+    <div class="flow">
+<span class="step">POST /sessions/:id/end</span>
+  <span class="arrow">→</span> ReportAgent.generate()
+  <span class="arrow">→</span> ContentAnalysisAgent.analyse()
+      <br><br>
+  <span class="cmt">1.</span> Load session, transcript, slide analyses from DB
+  <span class="arrow">→</span> <span class="cmt">replay?</span> fixtures &amp; exit
+      <br>
+  <span class="cmt">2.</span> classify_topic(topic, topic_context) <span class="cmt">// LiteLLM structured output</span>
+      <br>
+  <span class="cmt">3.</span> if technical: fetch_reference_bundle() <span class="cmt">// parallel, 20s budget</span>
+      <span class="arrow">├─</span> Context7: resolve library + query docs
+      <span class="arrow">└─</span> Exa: search_articles + search_improvements
+      <br>
+  <span class="cmt">4.</span> _build_evaluation_prompt(docs + articles + improvements + slides + transcript)
+      <br>
+  <span class="cmt">5.</span> Agno Agent + ContentResult schema <span class="arrow">→</span> ContentAnalysisPayload
+      <br>
+  <span class="arrow">→</span> ReportAgent scores 4 vectors, persists report + content_research_status
+      <br>
+  <span class="arrow">→</span> GET /sessions/:id/report + ScoreCard UI disclaimer
+    </div>
+  </section>
+
+  <section>
+    <h2>Exa integration</h2>
+    <p>Python SDK (<code>exa-py</code>, <code>AsyncExa</code>). Two fixed query templates per session topic:</p>
+    <table>
+      <thead>
+        <tr><th>Function</th><th>Query template</th><th>Purpose</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>search_articles()</td>
+          <td><code>"{topic}" official features documentation overview</code></td>
+          <td>Coverage + factual grounding from expert articles</td>
+        </tr>
+        <tr>
+          <td>search_improvements()</td>
+          <td><code>"{topic}" best practices common mistakes what to cover technical talk</code></td>
+          <td>Actionable improvement insights (pitfalls, audience expectations)</td>
+        </tr>
+      </tbody>
+    </table>
+    <pre><span class="fn">await</span> exa.search(query, num_results=<span class="str">5</span>, contents={<span class="str">"highlights"</span>: <span class="kw">True</span>})</pre>
+  </section>
+
+  <section>
+    <h2>Context7 integration</h2>
+    <p>HTTP via <code>httpx</code> (no MCP subprocess). Uses classifier <code>primary_libraries</code> (max 2).</p>
+    <table>
+      <thead>
+        <tr><th>Endpoint</th><th>Purpose</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>GET /api/v2/libs/search</td>
+          <td>Resolve library name → ID (e.g. <code>/facebook/react</code>)</td>
+        </tr>
+        <tr>
+          <td>GET /api/v2/context</td>
+          <td>Fetch doc snippets for topic query (<code>type=json</code>)</td>
+        </tr>
+      </tbody>
+    </table>
+    <p>Official docs take precedence over Exa articles for factual disputes in the content LLM prompt.</p>
+  </section>
+
+  <section>
+    <h2>research_status</h2>
+    <div class="status-grid">
+      <div class="status-item">
+        <code>full</code>
+        <span>All configured providers returned snippets</span>
+      </div>
+      <div class="status-item">
+        <code>partial</code>
+        <span>Some providers succeeded; insight prepended to report</span>
+      </div>
+      <div class="status-item">
+        <code>skipped</code>
+        <span>Technical topic but no research (keys missing / all failed)</span>
+      </div>
+      <div class="status-item">
+        <code>not_applicable</code>
+        <span>Non-technical topic, empty transcript, or replay mode</span>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>New files</h2>
+    <table>
+      <thead>
+        <tr><th>Path</th><th>Role</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>agents/content_research/__init__.py</td><td>Package exports</td></tr>
+        <tr><td>agents/content_research/errors.py</td><td>ResearchProviderError</td></tr>
+        <tr><td>agents/content_research/reference_bundle.py</td><td>TopicClassification, ReferenceSnippet, caps</td></tr>
+        <tr><td>agents/content_research/classifier.py</td><td>LLM technical vs non-technical</td></tr>
+        <tr><td>agents/content_research/context7_client.py</td><td>Official documentation fetch</td></tr>
+        <tr><td>agents/content_research/exa_client.py</td><td>Article + improvement search</td></tr>
+        <tr><td>agents/content_research/fetcher.py</td><td>Parallel fetch, timeouts, retries</td></tr>
+        <tr><td>tests/test_content_research.py</td><td>Unit tests (13 total with report dedup)</td></tr>
+        <tr><td>migrations/.../a1b2c3d4e5f6_add_content_research_status.py</td><td>DB column on reports</td></tr>
+        <tr><td>specs/001-content-agent-research-tools/*</td><td>Spec, plan, tasks, contracts, quickstart</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section>
+    <h2>Modified files</h2>
+    <table>
+      <thead>
+        <tr><th>Path</th><th>Change</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>agents/content_agent.py <span class="badge badge-mod">mod</span></td><td>Full research pipeline + enriched prompt</td></tr>
+        <tr><td>agents/report_agent.py</td><td>Status insights; persist content_research_status</td></tr>
+        <tr><td>agents/schemas.py</td><td>research_status on payload; content_research_status on report</td></tr>
+        <tr><td>agents/replay_fixtures.py</td><td>research_status: not_applicable in replay</td></tr>
+        <tr><td>config.py + .env.example</td><td>EXA_API_KEY, CONTEXT7_API_KEY, timeouts, kill switch</td></tr>
+        <tr><td>db/models.py</td><td>reports.content_research_status column</td></tr>
+        <tr><td>routers/sessions.py</td><td>GET report returns content_research_status</td></tr>
+        <tr><td>pyproject.toml</td><td>exa-py dependency</td></tr>
+        <tr><td>web-dashboard/.../ScoreCard.tsx</td><td>Conditional disclaimer per status</td></tr>
+        <tr><td>shared-types/src/index.ts</td><td>Report type extension</td></tr>
+        <tr><td>README.md</td><td>Demo-day research env notes</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section>
+    <h2>Environment variables</h2>
+    <table>
+      <thead>
+        <tr><th>Variable</th><th>Required</th><th>Description</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>LITELLM_API_KEY</td><td>Yes</td><td>Topic classifier + content evaluation LLM</td></tr>
+        <tr><td>EXA_API_KEY</td><td>For live articles</td><td>Exa search (Python SDK)</td></tr>
+        <tr><td>CONTEXT7_API_KEY</td><td>Recommended</td><td>Context7 docs API (higher rate limits)</td></tr>
+        <tr><td>CONTENT_RESEARCH_ENABLED</td><td>No (default true)</td><td>Master kill switch</td></tr>
+        <tr><td>CONTENT_RESEARCH_TIMEOUT_S</td><td>No (default 20)</td><td>Per-provider wall clock</td></tr>
+        <tr><td>DEMO_MODE=replay</td><td>Demo day</td><td>Skips all external research</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section>
+    <h2>API response (extended)</h2>
+    <pre>{
+  <span class="str">"content_score"</span>: <span class="kw">72</span>,
+  <span class="str">"content_research_status"</span>: <span class="str">"full"</span>,  <span class="cmt">// full | partial | skipped | not_applicable</span>
+  <span class="str">"insights"</span>: [
+    {
+      <span class="str">"category"</span>: <span class="str">"content"</span>,
+      <span class="str">"type"</span>: <span class="str">"IMPROVEMENT"</span>,
+      <span class="str">"message"</span>: <span class="str">"Coverage gap: React Compiler not mentioned..."</span>
+    }
+  ]
+}</pre>
+  </section>
+
+  <section>
+    <h2>How to test</h2>
+    <h3>Automated</h3>
+    <pre><span class="cmd">make db-migrate</span>
+<span class="cmd">cd packages/backend && uv run pytest tests/test_content_research.py tests/test_report_dedup.py -q</span></pre>
+
+    <h3>Live (UI)</h3>
+    <ul>
+      <li><code>make dev</code> — ensure <code>DEMO_MODE</code> is empty</li>
+      <li>Start session with technical topic (e.g. "React 19 new features")</li>
+      <li>Rehearse with mic so transcript is captured</li>
+      <li>End session → check Technical Content panel + footer disclaimer</li>
+      <li>Look for <code>content_research_status: "full"</code> or <code>"partial"</code> in report JSON</li>
+    </ul>
+
+    <h3>Safe demo</h3>
+    <ul>
+      <li>Set <code>DEMO_MODE=replay</code> — no Exa/Context7 calls, fixture content findings</li>
+    </ul>
+
+    <h3>Degradation</h3>
+    <ul>
+      <li>Clear <code>EXA_API_KEY</code> and <code>CONTEXT7_API_KEY</code> → expect <code>skipped</code> + fallback insight</li>
+    </ul>
+  </section>
+
+  <section>
+    <h2>Constitution alignment</h2>
+    <ul>
+      <li><strong>Demo path preserved</strong> — replay mode unchanged; upload → rehearse → end → report</li>
+      <li><strong>Agent boundaries</strong> — research is read-only; ReportAgent still owns report writes</li>
+      <li><strong>Resilience</strong> — bounded timeouts, partial fallback, no report failure on provider errors</li>
+      <li><strong>Stack simplicity</strong> — one new dep (<code>exa-py</code>); Context7 via existing httpx</li>
+    </ul>
+  </section>
+
+</main>
+
+<footer>
+  OctoPrep2000 · Content Agent Research Tools · Generated 2026-06-24<br>
+  Open this file in a browser: <code>docs/presentation/CONTENT-AGENT-RESEARCH.html</code>
+</footer>
+
+</body>
+</html>
