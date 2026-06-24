@@ -43,6 +43,7 @@ class _FakeSlideAnalysis:
     playbook_factor: int
     finding_type: str
     description: str
+    suggested_fix: str = ""
 
 
 def test_voice_dedupes_fillers_into_single_insight():
@@ -111,7 +112,21 @@ def test_slides_group_by_factor_and_type():
     assert ("STRENGTH", (1,)) in by_factor
 
 
-def test_smile_strong_surfaces_as_strength_not_penalty():
+def test_slides_improvement_includes_suggested_fix_in_message():
+    agent = ReportAgent()
+    items = [
+        _FakeSlideAnalysis(
+            4,
+            5,
+            "IMPROVEMENT",
+            "Slide 4 has 13 objects — above the ≤6 limit.",
+            suggested_fix="Keep title + ≤3 bullets + one chart; delete the rest.",
+        )
+    ]
+    insights, _ = agent._score_slides(items)
+    assert len(insights) == 1
+    assert "Instead:" in insights[0].message
+    assert "Keep title" in insights[0].message
     agent = ReportAgent()
     events = [
         _FakeVideoEvent(1000, "SMILING_STRONG", severity="LOW"),

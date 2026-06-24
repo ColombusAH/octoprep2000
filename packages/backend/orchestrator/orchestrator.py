@@ -137,6 +137,7 @@ class Orchestrator:
                         "playbook_factor": f.playbook_factor,
                         "finding_type": f.finding_type,
                         "description": f.description,
+                        "suggested_fix": f.suggested_fix,
                     }
                     for f in bundle.findings
                 ]

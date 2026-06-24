@@ -69,6 +69,7 @@ class SlideAnalysisPayload(BaseModel):
     playbook_factor: int = Field(ge=1, le=12)
     finding_type: FindingType
     description: str
+    suggested_fix: str = ""
 
 
 class SlideFindings(BaseModel):

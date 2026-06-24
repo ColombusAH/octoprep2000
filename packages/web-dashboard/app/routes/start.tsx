@@ -1,6 +1,6 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
-import { createSession, storeToken, uploadPptx } from "~/lib/api";
+import { createSession, storeToken, uploadPptx, waitForPptxReady } from "~/lib/api";
 import { Button } from "~/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "~/components/ui/card";
 import { Input } from "~/components/ui/input";
@@ -18,6 +18,7 @@ function LandingPage() {
   const [topicContext, setTopicContext] = useState("");
   const [file, setFile] = useState<File | null>(null);
   const [loading, setLoading] = useState(false);
+  const [analysing, setAnalysing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const handleStart = async (e: React.FormEvent) => {
@@ -30,13 +31,18 @@ function LandingPage() {
         topic_context: topicContext || undefined,
       });
       storeToken(session_id, access_token);
-      if (file) await uploadPptx(session_id, file);
+      if (file) {
+        await uploadPptx(session_id, file);
+        setAnalysing(true);
+        await waitForPptxReady(session_id);
+      }
       addPoints(50); // cosmetic — Tape Credits tick on a successful session start
       nav({ to: "/session/$id", params: { id: session_id } });
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
       setLoading(false);
+      setAnalysing(false);
     }
   };
 
@@ -107,8 +113,8 @@ function LandingPage() {
               />
             </div>
 
-            <Button type="submit" disabled={loading} size="lg" className="mt-1">
-              {loading ? "Starting…" : "Start Session →"}
+            <Button type="submit" disabled={loading || analysing} size="lg" className="mt-1">
+              {analysing ? "Analysing your deck…" : loading ? "Starting…" : "Start Session →"}
             </Button>
 
             {error && (
