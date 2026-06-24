@@ -243,8 +243,27 @@ img, video, canvas, svg { max-width:100%; max-height:100%; }
 .step-arrow { font-size:48px; color:var(--teal); margin:0 28px; opacity:0.7; }
 
 /* ===========================================
-   SLIDE 5 — ARCHITECTURE (one Mermaid diagram per slide)
+   SLIDE 5 — TECH STACK
    =========================================== */
+.s-stack-wrap { position:absolute; inset:0; z-index:12; display:flex; flex-direction:column; align-items:center; padding-top:72px; }
+.s-stack-title { font-size:72px; margin-top:8px; margin-bottom:40px; }
+.s-stack-grid { display:grid; grid-template-columns:repeat(3, 540px); grid-template-rows:repeat(2, 280px); gap:24px; }
+.stack-card { padding:28px 32px; display:flex; flex-direction:column; }
+.stack-card .layer { font-family:var(--font-mono); font-size:14px; color:var(--teal); letter-spacing:0.18em; text-transform:uppercase; margin-bottom:10px; }
+.stack-card .name { font-family:var(--font-display); font-size:30px; font-weight:700; color:var(--white); margin-bottom:14px; line-height:1.15; }
+.stack-card .tags { display:flex; flex-wrap:wrap; gap:8px; margin-bottom:auto; }
+.stack-card .tag { font-family:var(--font-mono); font-size:12px; font-weight:700; letter-spacing:0.06em; text-transform:uppercase; padding:6px 12px; border-radius:6px; background:rgba(77,212,204,0.1); border:1px solid rgba(77,212,204,0.35); color:var(--teal); }
+.stack-card .tag.orange { background:rgba(255,122,26,0.12); border-color:rgba(255,122,26,0.45); color:var(--orange); }
+.stack-card .purpose { font-family:var(--font-body); font-size:17px; font-weight:300; color:var(--dim); line-height:1.35; margin-top:14px; }
+.stack-card.highlight { border-color:rgba(255,122,26,0.5); }
+.stack-card.highlight .layer { color:var(--orange); }
+.s-stack-footer { margin-top:28px; display:flex; gap:20px; }
+.s-stack-pill { font-family:var(--font-mono); font-size:14px; color:var(--dim); letter-spacing:0.1em; padding:10px 22px; border-radius:8px; border:1px dashed rgba(232,244,255,0.25); background:rgba(232,244,255,0.04); }
+.s-stack-pill strong { color:var(--orange); font-weight:700; }
+
+/* ===========================================
+   SLIDE 6 — ARCHITECTURE (one Mermaid diagram per slide)
+   ===========================================
 .s5-wrap { position:absolute; inset:0; z-index:12; display:flex; flex-direction:column; align-items:center; padding-top:60px; }
 .s5-title { font-size:58px; margin-top:6px; margin-bottom:18px; }
 .s5-cols { display:flex; gap:40px; width:1800px; height:888px; }
@@ -372,7 +391,7 @@ img, video, canvas, svg { max-width:100%; max-height:100%; }
         </div>
       </div>
       <div class="vhs-ts">SP · 00:00:20</div>
-      <div class="slide-num">02 / 09</div>
+      <div class="slide-num">02 / 10</div>
     </section>
 
     <!-- ===================== SLIDE 3: THE PROBLEM ===================== -->
@@ -394,7 +413,7 @@ img, video, canvas, svg { max-width:100%; max-height:100%; }
         <div class="s3-stat reveal reveal-5">Hours of prep. <span class="hl">No one to rehearse with.</span></div>
       </div>
       <div class="vhs-ts">SP · 00:00:40</div>
-      <div class="slide-num">03 / 09</div>
+      <div class="slide-num">03 / 10</div>
     </section>
 
     <!-- ===================== SLIDE 4: THE SOLUTION ===================== -->
@@ -418,11 +437,73 @@ img, video, canvas, svg { max-width:100%; max-height:100%; }
         </div>
       </div>
       <div class="vhs-ts">SP · 00:01:05</div>
-      <div class="slide-num">04 / 09</div>
+      <div class="slide-num">04 / 10</div>
     </section>
 
-    <!-- ===================== SLIDE 5: ARCHITECTURE ===================== -->
+    <!-- ===================== SLIDE 5: TECH STACK ===================== -->
     <section class="slide" data-slide="5">
+      <div class="slide-bg"></div>
+      <div class="grid-bg"></div>
+      <div class="vignette"></div>
+      <div class="bracket bracket-tl"></div><div class="bracket bracket-tr"></div>
+      <div class="bracket bracket-bl"></div><div class="bracket bracket-br"></div>
+      <div class="hud-tl">TECH STACK</div>
+      <div class="rec-indicator"><div class="rec-dot"></div>REC</div>
+      <div class="s-stack-wrap">
+        <div class="reveal" style="text-align:center">
+          <div class="eyebrow">WHAT WE BUILT WITH</div>
+          <div class="slide-title s-stack-title">Technology Stack</div>
+        </div>
+        <div class="s-stack-grid">
+          <div class="glass stack-card reveal reveal-2">
+            <div class="layer">Frontend</div>
+            <div class="name">TanStack Start · React · TypeScript</div>
+            <div class="tags"><span class="tag">SSR / SPA</span><span class="tag">Webcam + Mic</span><span class="tag orange">Scorecard UI</span></div>
+            <div class="purpose">Live rehearsal capture, real-time feedback, scored report</div>
+          </div>
+          <div class="glass stack-card reveal reveal-3">
+            <div class="layer">Backend</div>
+            <div class="name">FastAPI · Python 3.11+ · async</div>
+            <div class="tags"><span class="tag">REST</span><span class="tag">WebSockets</span><span class="tag orange">Single Process</span></div>
+            <div class="purpose">Session routing, agent orchestration, report delivery</div>
+          </div>
+          <div class="glass stack-card reveal reveal-4">
+            <div class="layer">Data</div>
+            <div class="name">PostgreSQL 15 · SQLAlchemy async</div>
+            <div class="tags"><span class="tag">asyncpg</span><span class="tag">Alembic</span><span class="tag orange">7 Tables</span></div>
+            <div class="purpose">Sessions, transcripts, slide analyses, reports</div>
+          </div>
+          <div class="glass stack-card highlight reveal reveal-5">
+            <div class="layer">Vision AI</div>
+            <div class="name">GPT-4o Vision + Google Cloud Vision</div>
+            <div class="tags"><span class="tag orange">Tikal LiteLLM</span><span class="tag">Posture</span><span class="tag">Eye Contact</span></div>
+            <div class="purpose">Body language analysis via Tikal LiteLLM gateway</div>
+          </div>
+          <div class="glass stack-card highlight reveal reveal-6">
+            <div class="layer">Speech</div>
+            <div class="name">ElevenLabs Scribe v1 · Tikal LiteLLM</div>
+            <div class="tags"><span class="tag orange">STT</span><span class="tag">Filler Detection</span><span class="tag">WPM</span></div>
+            <div class="purpose">Live transcription via gateway; direct ElevenLabs fallback</div>
+          </div>
+          <div class="glass stack-card reveal reveal-7">
+            <div class="layer">Orchestration</div>
+            <div class="name">Agno Workflows · asyncio</div>
+            <div class="tags"><span class="tag">5 Agents</span><span class="tag orange">PPTX Agent</span><span class="tag">Report Agent</span></div>
+            <div class="purpose">Upload, live session, and video analysis pipelines</div>
+          </div>
+        </div>
+        <div class="s-stack-footer reveal reveal-8">
+          <div class="s-stack-pill"><strong>Monorepo</strong> · pnpm workspaces + uv</div>
+          <div class="s-stack-pill"><strong>PPTX</strong> · python-pptx + Tikal 12-Factor Playbook</div>
+          <div class="s-stack-pill"><strong>Demo</strong> · DEMO_MODE=replay for safe demos</div>
+        </div>
+      </div>
+      <div class="vhs-ts">SP · 00:01:15</div>
+      <div class="slide-num">05 / 10</div>
+    </section>
+
+    <!-- ===================== SLIDE 6: ARCHITECTURE ===================== -->
+    <section class="slide" data-slide="6">
       <div class="slide-bg"></div>
       <div class="grid-bg"></div>
       <div class="vignette"></div>
@@ -444,7 +525,7 @@ graph LR
         core["Analyses voice, body,<br/>slides &amp; content"]
     end
     vision(["🤖 GPT-4o Vision<br/>+ Google Cloud Vision<br/>via Tikal LiteLLM"])
-    stt(["🎙️ ElevenLabs Scribe v1<br/>speech-to-text"])
+    stt(["🎙️ ElevenLabs Scribe v1<br/>via Tikal LiteLLM"])
     cal(["📅 Calendly<br/>score ≥80 unlock"])
     presenter -->|"uploads deck · streams A/V"| core
     core -->|"scored report"| presenter
@@ -462,11 +543,11 @@ graph LR
         </div>
       </div>
       <div class="vhs-ts">SP · 00:01:30</div>
-      <div class="slide-num">05 / 09</div>
+      <div class="slide-num">06 / 10</div>
     </section>
 
-    <!-- ===================== SLIDE 5B: ARCHITECTURE — AGENT PIPELINE ===================== -->
-    <section class="slide" data-slide="6">
+    <!-- ===================== SLIDE 7: ARCHITECTURE — AGENT PIPELINE ===================== -->
+    <section class="slide" data-slide="7">
       <div class="slide-bg"></div>
       <div class="grid-bg"></div>
       <div class="vignette"></div>
@@ -552,11 +633,11 @@ graph LR
         </div>
       </div>
       <div class="vhs-ts">SP · 00:01:45</div>
-      <div class="slide-num">06 / 09</div>
+      <div class="slide-num">07 / 10</div>
     </section>
 
-    <!-- ===================== SLIDE 6: THE SCORECARD ===================== -->
-    <section class="slide" data-slide="7">
+    <!-- ===================== SLIDE 8: THE SCORECARD ===================== -->
+    <section class="slide" data-slide="8">
       <div class="slide-bg"></div>
       <div class="grid-bg"></div>
       <div class="vignette"></div>
@@ -589,11 +670,11 @@ graph LR
         overall = voice×0.30 + body×0.30 + slides×0.20 + content×0.20
       </div>
       <div class="vhs-ts">SP · 00:02:10</div>
-      <div class="slide-num">07 / 09</div>
+      <div class="slide-num">08 / 10</div>
     </section>
 
-    <!-- ===================== SLIDE 7: LIVE DEMO ===================== -->
-    <section class="slide" data-slide="8">
+    <!-- ===================== SLIDE 9: LIVE DEMO ===================== -->
+    <section class="slide" data-slide="9">
       <div class="slide-bg"></div>
       <div class="grid-bg"></div>
       <svg class="s7-wave" viewBox="0 0 1920 1080" preserveAspectRatio="none">
@@ -611,11 +692,11 @@ graph LR
         <div class="s7-sub reveal reveal-3">upload → record → score</div>
       </div>
       <div class="vhs-ts">SP · 00:02:35</div>
-      <div class="slide-num">08 / 09</div>
+      <div class="slide-num">09 / 10</div>
     </section>
 
-    <!-- ===================== SLIDE 8: CTA / THANK YOU ===================== -->
-    <section class="slide" data-slide="9">
+    <!-- ===================== SLIDE 10: CTA / THANK YOU ===================== -->
+    <section class="slide" data-slide="10">
       <div class="slide-bg"></div>
       <div class="grid-bg"></div>
       <div class="vignette"></div>
@@ -634,7 +715,7 @@ graph LR
       <div class="s8-footer reveal reveal-4">OctoPrep2000 · Built in 6 hours · Tikal Fuse Day 2026</div>
       <div class="s8-octo-corner">🐙</div>
       <div class="vhs-ts">SP · 00:04:35</div>
-      <div class="slide-num">09 / 09</div>
+      <div class="slide-num">10 / 10</div>
     </section>
 
   </div>
