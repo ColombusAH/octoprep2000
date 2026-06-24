@@ -57,6 +57,12 @@ class Settings(BaseSettings):
     content_research_timeout_s: int = 20
     content_research_retries: int = 1
 
+    # Uploaded video batch analysis (feature 003)
+    video_max_duration_s: int = 900  # 15 minutes
+    video_max_bytes: int = 1_073_741_824  # 1 GB
+    video_analysis_fps: int = 1  # frame sampling rate (hard-capped to ≤5 at use site)
+    video_posture_stride_s: int = 10  # seconds between GPT-4o posture batches (cost bound)
+
     # Demo insurance
     demo_mode: str = ""  # "replay" → use canned fixtures
 
