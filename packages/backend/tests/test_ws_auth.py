@@ -2,14 +2,29 @@
 
 from __future__ import annotations
 
-import asyncio
 import uuid
+from dataclasses import dataclass
 
 import pytest
 from starlette.testclient import TestClient
 from starlette.websockets import WebSocketDisconnect
 
 from main import app
+from middleware.session_auth import validate_ws_token
+
+
+@dataclass
+class _FakeSession:
+    access_token: uuid.UUID
+    status: str
+
+
+class _FakeRepo:
+    def __init__(self, session: _FakeSession | None) -> None:
+        self.session = session
+
+    async def get_session(self, _session_id):
+        return self.session
 
 
 @pytest.fixture(scope="module")
@@ -47,3 +62,17 @@ def test_ws_video_accepts_real_token(client):
 
     with client.websocket_connect(f"/video-stream?session_id={sid}&token={tok}") as ws:
         ws.send_bytes(b"\x00" * 16)
+
+
+async def test_validate_ws_token_rejects_ended_session_when_active_required():
+    token = uuid.uuid4()
+    repo = _FakeRepo(_FakeSession(access_token=token, status="ENDED"))
+
+    assert not await validate_ws_token(uuid.uuid4(), str(token), repo, require_active=True)
+
+
+async def test_validate_ws_token_accepts_active_session_when_active_required():
+    token = uuid.uuid4()
+    repo = _FakeRepo(_FakeSession(access_token=token, status="ACTIVE"))
+
+    assert await validate_ws_token(uuid.uuid4(), str(token), repo, require_active=True)

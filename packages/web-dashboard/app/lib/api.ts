@@ -7,6 +7,15 @@
 export const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || "http://localhost:8000";
 export const WS_URL = import.meta.env.VITE_WS_URL || "ws://localhost:8000";
 
+export class ApiError extends Error {
+  constructor(
+    message: string,
+    readonly status: number,
+  ) {
+    super(message);
+  }
+}
+
 const TOKEN_KEY = (sessionId: string) => `octoprep:token:${sessionId}`;
 
 export function storeToken(sessionId: string, token: string): void {
@@ -133,7 +142,7 @@ export async function getReport(sessionId: string, share?: string) {
   const qs = share ? `?share=${encodeURIComponent(share)}` : "";
   const headers: HeadersInit = share ? {} : authHeaders(sessionId);
   const res = await fetch(`${BACKEND_URL}/sessions/${sessionId}/report${qs}`, { headers });
-  if (!res.ok) throw new Error(`report failed: ${res.status}`);
+  if (!res.ok) throw new ApiError(`report failed: ${res.status}`, res.status);
   return res.json();
 }
 

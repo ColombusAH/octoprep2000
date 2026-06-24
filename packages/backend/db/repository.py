@@ -31,6 +31,10 @@ class PostgreSQLRepository:
         result = await self.db.execute(select(Session).where(Session.session_id == sid))
         return result.scalar_one_or_none()
 
+    async def is_session_active(self, session_id: uuid.UUID | str) -> bool:
+        session = await self.get_session(session_id)
+        return session is not None and session.status == "ACTIVE"
+
     async def set_session_status(
         self, session_id: uuid.UUID, status: str, detail: str | None = None
     ) -> None:
@@ -73,6 +77,17 @@ class PostgreSQLRepository:
         text: str,
         filler_flags: list[str] | None,
     ) -> None:
+        existing = await self.db.execute(
+            select(TranscriptEntry).where(
+                TranscriptEntry.session_id == session_id,
+                TranscriptEntry.start_ms == start_ms,
+                TranscriptEntry.end_ms == end_ms,
+                TranscriptEntry.text == text,
+            )
+        )
+        if existing.scalar_one_or_none():
+            return
+
         entry = TranscriptEntry(
             session_id=session_id,
             start_ms=start_ms,
@@ -100,6 +115,17 @@ class PostgreSQLRepository:
         severity: str,
         message: str,
     ) -> None:
+        existing = await self.db.execute(
+            select(AudioWarning).where(
+                AudioWarning.session_id == session_id,
+                AudioWarning.timestamp_ms == timestamp_ms,
+                AudioWarning.event_type == event_type,
+                AudioWarning.message == message,
+            )
+        )
+        if existing.scalar_one_or_none():
+            return
+
         warning = AudioWarning(
             session_id=session_id,
             timestamp_ms=timestamp_ms,
