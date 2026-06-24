@@ -68,7 +68,7 @@ implementable, testable, and demoable.
 **Independent Test**: Set the interface language to Hebrew in Settings, reload, confirm `<html lang dir>` is correct on first paint with no flash, and that English/LTR is unaffected when left at the default.
 
 - [X] T010 [ASYNC] [US3] Add a persisted interface-language cookie; read it in the root loader so `<html lang dir>` is correct on the very first server-rendered paint. File: `packages/web-dashboard/app/routes/__root.tsx`.
-- [ ] T011 [P] [ASYNC] [US3] Add an interface-language preference row to Settings that writes the cookie. File: `packages/web-dashboard/app/routes/settings.tsx`.
+- [X] T011 [P] [ASYNC] [US3] Add an interface-language preference row to Settings that writes the cookie. File: `packages/web-dashboard/app/routes/settings.tsx`.
 
 **Checkpoint**: All three user stories are independently functional.
 
@@ -76,9 +76,9 @@ implementable, testable, and demoable.
 
 ## Phase 5: Polish & Validation
 
-- [ ] T012 [ASYNC] Add a Hebrew `DEMO_MODE=replay` audio fixture variant so the demo path is rehearsable without live STT (CAR-004). Files: `packages/backend/fixtures/`, `packages/backend/agents/replay_fixtures.py`.
-- [ ] T013 [P] [ASYNC] Add pytest coverage for Hebrew filler-word detection (no cross-language false positives) and for bilingual insight assembly, per the Constitution's automated-test requirement for agent/scoring changes. Files: `packages/backend/tests/test_audio_agent.py` (new), `packages/backend/tests/test_report_dedup.py` (extend).
-- [ ] T014 Run `quickstart.md` end-to-end (Path A live STT, Path B replay, backend contract checks, manual desktop/mobile UI verification) and confirm SC-001 through SC-005.
+- [X] T012 [ASYNC] Add a Hebrew `DEMO_MODE=replay` audio fixture variant so the demo path is rehearsable without live STT (CAR-004). Files: `packages/backend/fixtures/`, `packages/backend/agents/replay_fixtures.py`.
+- [X] T013 [P] [ASYNC] Add pytest coverage for Hebrew filler-word detection (no cross-language false positives) and for bilingual insight assembly, per the Constitution's automated-test requirement for agent/scoring changes. Files: `packages/backend/tests/test_audio_agent.py` (new), `packages/backend/tests/test_report_dedup.py` (extend).
+- [X] T014 Run `quickstart.md` end-to-end (Path A live STT, Path B replay, backend contract checks, manual desktop/mobile UI verification) and confirm SC-001 through SC-005.
 
 ---
 

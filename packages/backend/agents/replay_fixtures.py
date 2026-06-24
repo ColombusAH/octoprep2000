@@ -43,9 +43,11 @@ def replay_vision_events(session_id: uuid.UUID) -> list[VideoEventPayload]:
 
 def replay_audio_events(
     session_id: uuid.UUID,
+    speech_language: str = "en",
 ) -> list[TranscriptPayload | AudioWarningPayload]:
+    fixture_name = "audio_events_he.json" if speech_language == "he" else "audio_events.json"
     out: list[TranscriptPayload | AudioWarningPayload] = []
-    for cached_raw in _load("audio_events.json") or []:
+    for cached_raw in _load(fixture_name) or []:
         raw = dict(cached_raw)
         kind = raw.pop("kind", "transcript")
         try:

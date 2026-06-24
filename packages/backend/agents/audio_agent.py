@@ -108,7 +108,7 @@ class AudioAgent(AgentPersistence):
             if self._replay_dispatched:
                 return
             self._replay_dispatched = True
-            for ev in replay_audio_events(self.session_id):
+            for ev in replay_audio_events(self.session_id, self.speech_language):
                 if isinstance(ev, TranscriptPayload):
                     await self._write_transcript(ev)
                 elif isinstance(ev, AudioWarningPayload):

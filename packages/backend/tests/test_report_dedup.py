@@ -46,6 +46,17 @@ class _FakeSlideAnalysis:
     suggested_fix: str = ""
 
 
+def test_voice_insights_are_bilingual():
+    agent = ReportAgent()
+    entries = [_FakeTranscript(0, 2000, "um yes", ["um"])]
+    insights, _ = agent._score_voice(entries, [])
+    filler = next(i for i in insights if i.type == "IMPROVEMENT")
+    assert filler.message_en
+    assert filler.message_he
+    assert "Filler words" in filler.message_en
+    assert "מילות מילוי" in filler.message_he
+
+
 def test_voice_dedupes_fillers_into_single_insight():
     agent = ReportAgent()
     entries = [
@@ -79,6 +90,14 @@ def test_voice_includes_pacing_warnings():
     assert score < 100
     # No "steady pacing" strength claim when pacing issues were detected
     assert not any(i.type == "STRENGTH" for i in insights)
+
+
+def test_body_insights_are_bilingual():
+    agent = ReportAgent()
+    events = [_FakeVideoEvent(1000, "EYE_CONTACT_LOST")]
+    insights, _ = agent._score_body(events)
+    eye = next(i for i in insights if "Eye Contact" in i.message_en)
+    assert eye.message_he == "אובדן קשר עין (1x)"
 
 
 def test_body_groups_video_events_by_type():
