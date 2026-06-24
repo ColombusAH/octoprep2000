@@ -432,6 +432,12 @@ graph LR
     subgraph Orch["🧠 Orchestrator"]
         AG[Orchestrator<br/>lifecycle · coordination<br/>reads tables to build report]
     end
+    subgraph Flows["🔀 agno Workflows · in-process glue · db=None · no writes"]
+        direction TB
+        PWF[PptxPrepWorkflow<br/>extract→review→write]
+        LWF[LiveSessionWorkflow<br/>Parallel LiveAnalysisTeam<br/>vision ‖ audio]
+        RWF[ReportWorkflow<br/>read→content→delivery→score]
+    end
     subgraph Agents["🤖 Agents · async tasks · own their tables"]
         direction TB
         FS[FrameService]; VA[VisionAgent]; AA[AudioAgent]
@@ -441,9 +447,12 @@ graph LR
         RP[Repository]; DB[(PostgreSQL)]
     end
     SR --> SM --> AG
-    UR --> PA
-    VW --> VA
-    AW --> AA
+    UR --> PWF -.->|delegate phases| PA
+    VW --> LWF
+    AW --> LWF
+    LWF -.->|vision step| VA
+    LWF -.->|audio step| AA
+    AG -->|session end| RWF -.->|delegate phases| RA
     FW --> BC
     AG --> FS --> VA
     VA -->|writes video_events| RP
@@ -462,11 +471,13 @@ graph LR
     class SR,UR,VW,AW,FW sky
     class SM,BC green
     class AG violet
+    class PWF,LWF,RWF sky
     class FS,VA,AA,PA,CA,RA amber
     class RP,DB violet
     style Routes fill:#0b1120,stroke:#38bdf8,color:#7dd3fc
     style Core fill:#0b1120,stroke:#4ade80,color:#86efac
     style Orch fill:#0b1120,stroke:#a78bfa,color:#c4b5fd
+    style Flows fill:#0b1120,stroke:#38bdf8,color:#7dd3fc
     style Agents fill:#0b1120,stroke:#fbbf24,color:#fcd34d
     style Data fill:#0b1120,stroke:#a78bfa,color:#c4b5fd
     </pre></div></div>
@@ -498,6 +509,8 @@ sequenceDiagram
     participant FE as Dashboard
     participant API as SessionRouter
     participant ORC as Orchestrator
+    participant AGG as LiveWindowAggregator
+    participant LWF as LiveSessionWorkflow
     participant VA as VisionAgent
     participant AA as AudioAgent
     participant RA as ReportAgent
@@ -511,31 +524,38 @@ sequenceDiagram
     API-->>FE: { session_id, access_token }
     FE->>ORC: open 3 WS (video · audio · feedback) + token
     Note over FE,ORC: token validated on handshake · invalid → close(4003)
-    ORC->>ORC: spawn video_task + audio_task
+    ORC->>AGG: spawn LiveWindowAggregator (per session) + vision-tail tick
     loop frames ~200ms, post-dhash dedup
         FE->>VA: JPEG frame
-        VA->>VA: GCV face_detection (~1fps cap, NFR-004)
-        VA->>DB: INSERT video_events (batched 1s/N=20)
+        VA->>VA: GCV face_detection (instant, fire-and-forget, OUTSIDE the window)
         VA->>BC: publish live feedback
         BC-->>P: 🔴 Toast "Look at the camera!"
-        opt every 3rd frame
-            VA->>GPT: batch(3 frames) — posture/gestures
-            GPT-->>VA: POSTURE_ISSUE / GESTURE_CLOSED / OUT_OF_FRAME
-            VA->>DB: INSERT video_events
-        end
+        FE->>AGG: add_frame — buffer into open window
     end
-    loop audio ~2s
-        FE->>AA: PCM chunk (16-bit · 16kHz)
-        AA->>STT: transcribe
-        STT-->>AA: text + timestamps
-        AA->>DB: INSERT transcript_entries + audio_warnings
+    loop audio ~2s — chunk CLOSES a window
+        FE->>AGG: add_chunk (PCM 16-bit · 16kHz)
+        AGG->>LWF: run window (detached task — WS never blocks)
+        Note over LWF: agno Parallel "LiveAnalysisTeam"<br/>in-process glue · db=None · no writes<br/>steps delegate into stateful agents
+        par vision ‖ audio
+            LWF->>VA: vision step — feed_frame → _analyse
+            opt not is_fallback
+                VA->>GPT: batch(3 frames) — posture/gestures
+                GPT-->>VA: POSTURE_ISSUE / GESTURE_CLOSED / OUT_OF_FRAME
+                VA->>DB: INSERT video_events (batched 1s/N=20)
+            end
+        and
+            LWF->>AA: audio step — transcribe
+            AA->>STT: transcribe
+            STT-->>AA: text + timestamps
+            AA->>DB: INSERT transcript_entries + audio_warnings
+        end
     end
     P->>FE: Click "End Session"
     FE->>API: POST /sessions/:id/end
     API->>ORC: cancel video/audio tasks
     VA-->>ORC: notify_complete (after final commit)
     AA-->>ORC: notify_complete (after final commit)
-    ORC->>RA: trigger ReportAgent
+    ORC->>RA: trigger ReportAgent (wraps ReportWorkflow — sequential read→content→delivery→score)
     RA->>DB: READ video_events + transcript_entries + slide_analyses
     RA->>DB: INSERT reports
     RA-->>ORC: notify_complete
@@ -543,7 +563,8 @@ sequenceDiagram
     ORC->>BC: REPORT_READY
     BC-->>FE: REPORT_READY → /session/:id/report
     </pre></div></div>
-    <p class="sub">Two vision providers, not one: <b>Google Cloud Vision</b> runs on every kept frame (capped ~1fps for cost, NFR-004) for fast deterministic eye-contact/face signals; <b>GPT-4o Vision</b> only sees a 3-frame batch for the slower semantic posture/gesture call. See <code>agents/vision_agent.py</code>.</p>
+    <p class="sub"><b>Window-based orchestration:</b> the <code>LiveWindowAggregator</code> (one per session) buffers deduped frames; each ~2s audio chunk closes a window and fires <b>one</b> <code>LiveSessionWorkflow</code> run as a detached task. That run is a single agno <b><code>Parallel("LiveAnalysisTeam")</code></b> — vision ‖ audio — deliberately a <code>Parallel</code>, <b>not</b> a coordinator <code>Team</code> (the two modalities are fixed and audio is fully deterministic, so a routing leader would only add latency). The workflow is pure in-process glue (<code>telemetry=False</code>, <code>db=None</code>, no DB writes); its steps delegate into the long-lived stateful agents, so per-session state survives across windows.</p>
+    <p class="sub"><b>Two vision paths:</b> instant <b>Google Cloud Vision</b> face detection stays fire-and-forget on frame ingest (sub-100ms, OUTSIDE the window) for fast eye-contact/face signals; the heavier <b>GPT-4o Vision</b> 3-frame posture/gesture batch runs inside the window's <code>vision</code> step. Audio-only fallback is enforced there too — the step checks <code>is_fallback</code> and skips. See <code>workflows/live_session.py</code> + <code>agents/vision_agent.py</code>.</p>
   </section>
 
   <!-- 18 PPTX UPLOAD SEQUENCE -->
@@ -561,9 +582,10 @@ sequenceDiagram
     FE->>UR: POST /sessions/:id/upload (multipart)
     UR->>UR: save /tmp/{session_id}.pptx
     UR->>PA: analyse_async(path, session_id)
+    Note over PA: Wrapped by PptxPrepWorkflow (agno, in-process glue —<br/>db=None, no writes): sequential extract→review→write,<br/>each step delegates to a PPTXAgent phase
     UR-->>FE: 202 Accepted
     FE-->>P: "Analysing your deck…"
-    PA->>PA: python-pptx extract slide text
+    PA->>PA: extract step — python-pptx extract slide text
     PA->>DB: WRITE slides_raw_text<br/>survives restart
     PA->>PA: LLM eval vs 12-factor Playbook
     loop per finding
@@ -591,8 +613,8 @@ sequenceDiagram
         Note over VA: no response within VISION_TIMEOUT_MS (5000)
         VA--xORC: timeout
     end
-    ORC->>ORC: activate_fallback_mode()
-    ORC->>ORC: cancel video_task
+    ORC->>ORC: activate_fallback_mode() / is_fallback = true
+    Note over ORC,VA: No task cancellation — each LiveSessionWorkflow run<br/>checks is_fallback and SKIPS its vision step (audio keeps running)
     ORC->>ORC: reweight Voice 40% + Slides 30% + Content 30%
     ORC->>FE: publish FALLBACK_ACTIVATED
     FE-->>P: ⚠️ "Video unavailable — continuing with audio coaching"
@@ -837,7 +859,7 @@ graph LR
     <div class="body">
       <table>
         <tr><th>Status</th><th>Pattern</th><th>In our repo</th></tr>
-        <tr><td>✅</td><td>Multi-agent workflow</td><td>5 fixed-role agents · sequential, not reactive</td></tr>
+        <tr><td>✅</td><td>Multi-agent workflow</td><td>5 fixed-role agents orchestrated by 3 agno Workflows (<code>workflows/</code>) — sequential PptxPrep + Report, plus a per-window <code>Parallel("LiveAnalysisTeam")</code> for live. In-process glue only (<code>db=None</code>, no writes); agents still own all tables.</td></tr>
         <tr><td>✅</td><td>Guardrails</td><td>Pydantic schemas at every agent boundary + session auth token (<code>schemas.py</code>, <code>session_auth.py</code>)</td></tr>
         <tr><td>✅</td><td>Optimization</td><td>1fps Vision cap · 3-frame GPT-4o batches · frame dedup (<code>vision_agent.py</code>)</td></tr>
         <tr><td>❓</td><td>Tool calls</td><td>No agent has real tools — worth it for the Content Agent?</td></tr>

@@ -44,15 +44,32 @@ class ReportAgent(AgentPersistence):
         self.orchestrator = orchestrator
 
     async def generate(self, session_id: uuid.UUID, fallback_mode: bool = False) -> ReportPayload:
+        """Run the report as an agno Workflow (read → content → delivery → score+write).
+
+        Thin wrapper so both POST /sessions/:id/end and tests exercise the same
+        ReportWorkflow. The phase methods below are the workflow steps' executors."""
+        from workflows.report import run_report_workflow
+
+        return await run_report_workflow(self, session_id, fallback_mode)
+
+    # ── report phases (each is one ReportWorkflow step) ───────────────
+    async def read_inputs(self, session_id: uuid.UUID) -> dict:
+        """Step 1: read the agreed tables the agents wrote (Principle II read side)."""
         async with get_session_maker()() as db:
             repo = PostgreSQLRepository(db)
-            session = await repo.get_session(session_id)
-            transcripts = await repo.read_transcript(session_id)
-            video_events = await repo.read_video_events(session_id)
-            audio_warnings = await repo.read_audio_warnings(session_id)
+            return {
+                "session": await repo.get_session(session_id),
+                "transcripts": await repo.read_transcript(session_id),
+                "video_events": await repo.read_video_events(session_id),
+                "audio_warnings": await repo.read_audio_warnings(session_id),
+            }
 
-        content = await self.content_agent.analyse(session_id)
-
+    async def run_delivery(
+        self, session_id: uuid.UUID, inputs: dict, content: ContentAnalysisPayload | None
+    ) -> None:
+        """Step 3: PPTX delivery pass — consumes the content findings (real data dependency)."""
+        session = inputs["session"]
+        transcripts = inputs["transcripts"]
         if session and session.slides_raw_text and transcripts:
             pptx = PPTXAgent(self.orchestrator)
             await pptx.analyse_delivery(
@@ -63,6 +80,18 @@ class ReportAgent(AgentPersistence):
                 transcript=transcripts,
                 content=content,
             )
+
+    async def assemble_and_write(
+        self,
+        session_id: uuid.UUID,
+        inputs: dict,
+        content: ContentAnalysisPayload | None,
+        fallback_mode: bool = False,
+    ) -> ReportPayload:
+        """Step 4: deterministic scoring (pure Python) + the agent-owned reports write."""
+        transcripts = inputs["transcripts"]
+        video_events = inputs["video_events"]
+        audio_warnings = inputs["audio_warnings"]
 
         async with get_session_maker()() as db:
             repo = PostgreSQLRepository(db)

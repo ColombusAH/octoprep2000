@@ -141,18 +141,28 @@ class VisionAgent(AgentPersistence):
         self._flush_task.cancel()
         await self.flush()
 
-    async def push_frame(self, frame_bytes: bytes) -> None:
-        # GCV face detection runs at most once per second (cost cap, NFR-004).
+    async def on_frame_instant(self, frame_bytes: bytes) -> None:
+        """Instant deterministic path — runs on frame ingest, NOT inside the agno window,
+        so eye-contact/face cues keep sub-100ms latency. GCV is rate-limited to ~1 fps."""
         now_ms = int(time.monotonic() * 1000)
         if now_ms - self._gcv_last_ms >= self._gcv_min_interval_ms:
             self._gcv_last_ms = now_ms
             asyncio.create_task(self._run_face_detection(frame_bytes))
 
+    async def feed_frame(self, frame_bytes: bytes) -> None:
+        """LLM-batch path — invoked by the LiveSessionWorkflow vision step. Buffers to
+        BATCH_SIZE then runs the GPT-4o posture/gesture pass. Batch/dedup/streak state
+        lives on this long-lived agent, so it survives across windows."""
         self._frame_buf.append(frame_bytes)
         if len(self._frame_buf) >= BATCH_SIZE:
             frames = list(self._frame_buf)
             self._frame_buf.clear()
             await self._analyse(frames)
+
+    async def push_frame(self, frame_bytes: bytes) -> None:
+        """Back-compat: instant GCV + LLM batch in one call (used by direct callers/tests)."""
+        await self.on_frame_instant(frame_bytes)
+        await self.feed_frame(frame_bytes)
 
     # ── GCV layer ────────────────────────────────────────────────────
     async def _run_face_detection(self, frame_bytes: bytes) -> None:

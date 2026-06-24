@@ -8,9 +8,9 @@ from pathlib import Path
 
 from fastapi import APIRouter, BackgroundTasks, Depends, File, HTTPException, UploadFile, status
 
-from agents.pptx_agent import PPTXAgent
 from middleware.session_auth import require_session_owner
 from orchestrator.orchestrator import Orchestrator
+from workflows.pptx_prep import run_pptx_prep_workflow
 
 router = APIRouter(prefix="/sessions", tags=["upload"])
 
@@ -36,9 +36,8 @@ async def upload_pptx(
 
     async def run_agent():
         orch = Orchestrator()
-        agent = PPTXAgent(orch)
         try:
-            await agent.analyse(session_id, str(tmp))
+            await run_pptx_prep_workflow(orch, session_id, str(tmp))
         finally:
             tmp.unlink(missing_ok=True)
 
