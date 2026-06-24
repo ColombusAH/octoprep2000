@@ -1,11 +1,61 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Settings as SettingsIcon } from "lucide-react";
 import { Label } from "~/components/ui/label";
 import { Switch } from "~/components/ui/switch";
 import { Separator } from "~/components/ui/separator";
+import { Button } from "~/components/ui/button";
+import type { Language } from "~/lib/api";
+import { getUiLanguage, setUiLanguage } from "~/lib/i18n";
 
 export const Route = createFileRoute("/settings")({ component: SettingsPage });
+
+function LanguageRow() {
+  const [lang, setLang] = useState<Language>("en");
+  // Cookie isn't available during SSR — read it after mount so this never
+  // mismatches the inline <head> script's already-applied lang/dir.
+  useEffect(() => {
+    setLang(getUiLanguage());
+  }, []);
+
+  const choose = (next: Language) => {
+    setUiLanguage(next);
+    setLang(next);
+  };
+
+  return (
+    <div className="flex items-center justify-between py-4">
+      <div className="flex flex-col gap-1">
+        <Label id="ui-language-label" className="text-sm font-semibold text-pearl">
+          Interface language
+        </Label>
+        <span className="text-sm text-muted-foreground">
+          Switch the dashboard between English and Hebrew (RTL).
+        </span>
+      </div>
+      <div role="group" aria-labelledby="ui-language-label" className="inline-flex gap-1.5">
+        <Button
+          type="button"
+          size="sm"
+          variant={lang === "en" ? "default" : "outline"}
+          aria-pressed={lang === "en"}
+          onClick={() => choose("en")}
+        >
+          English
+        </Button>
+        <Button
+          type="button"
+          size="sm"
+          variant={lang === "he" ? "default" : "outline"}
+          aria-pressed={lang === "he"}
+          onClick={() => choose("he")}
+        >
+          עברית
+        </Button>
+      </div>
+    </div>
+  );
+}
 
 function Row({
   id,
@@ -45,6 +95,8 @@ function SettingsPage() {
       </p>
 
       <div className="mt-8 rounded-xl border border-border bg-card px-6">
+        <LanguageRow />
+        <Separator />
         <Row
           id="live-tips"
           title="Live coaching tips"

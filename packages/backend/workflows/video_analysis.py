@@ -49,6 +49,12 @@ async def _clear_prior(session_id: uuid.UUID) -> None:
         await PostgreSQLRepository(db).clear_session_derived_rows(session_id)
 
 
+async def _get_session_language(session_id: uuid.UUID) -> str:
+    async with get_session_maker()() as db:
+        session = await PostgreSQLRepository(db).get_session(session_id)
+        return session.speech_language if session else "en"
+
+
 def _segment_pcm(pcm: bytes, chunk_seconds: int) -> list[bytes]:
     step = _PCM_SAMPLE_RATE * _PCM_CHANNELS * _PCM_BYTES_PER_SAMPLE * chunk_seconds
     if step <= 0:
@@ -96,8 +102,9 @@ async def run_video_analysis(session_id: uuid.UUID, video_path: str) -> None:
     settings = get_settings()
     orch = Orchestrator()
     await orch.start_session(session_id)
+    speech_language = await _get_session_language(session_id)
     vision = VisionAgent(session_id, orch)
-    audio = AudioAgent(session_id, orch)
+    audio = AudioAgent(session_id, orch, speech_language=speech_language)
     ctx: dict = {}
     workdir = tempfile.mkdtemp(prefix=f"video-{session_id}-")
 
@@ -154,7 +161,7 @@ async def run_video_analysis(session_id: uuid.UUID, video_path: str) -> None:
         if ctx["failed"]:
             return StepOutput(content="skipped (failed)")
         try:
-            await build_report_agent(orch).generate(session_id)
+            await build_report_agent(orch).generate(session_id, speech_language=speech_language)
             await orch.mark_report_ready(session_id)
             return StepOutput(content="report ready")
         except Exception as exc:  # noqa: BLE001

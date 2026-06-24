@@ -18,6 +18,8 @@ from agents.frame_service import FrameService
 from agents.pptx_agent import PPTXAgent
 from agents.report_agent import ReportAgent
 from agents.vision_agent import VisionAgent
+from db.repository import PostgreSQLRepository
+from db.session import get_session_maker
 from orchestrator.orchestrator import Orchestrator
 from workflows.live_window import LiveWindowAggregator
 
@@ -47,6 +49,7 @@ class RuntimeRegistry:
                 return rt
             orch = Orchestrator()
             await orch.start_session(session_id)
+            speech_language = await self._get_speech_language(session_id)
             rt = SessionRuntime(session_id, orch)
             rt.pptx = PPTXAgent(orch, session_id=session_id)
             rt.vision = VisionAgent(session_id, orch)
@@ -54,6 +57,7 @@ class RuntimeRegistry:
                 session_id,
                 orch,
                 slide_state_provider=rt.pptx.get_slide_state,
+                speech_language=speech_language,
             )
             rt.aggregator = LiveWindowAggregator(session_id, rt.vision, rt.audio, orch)
 
@@ -67,6 +71,12 @@ class RuntimeRegistry:
             rt.frame_service = FrameService(on_keep_frame=_on_keep_frame)
             self._runtimes[session_id] = rt
             return rt
+
+    @staticmethod
+    async def _get_speech_language(session_id: uuid.UUID) -> str:
+        async with get_session_maker()() as db:
+            session = await PostgreSQLRepository(db).get_session(session_id)
+            return session.speech_language if session else "en"
 
     def get(self, session_id: uuid.UUID) -> SessionRuntime | None:
         return self._runtimes.get(session_id)

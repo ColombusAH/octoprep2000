@@ -28,6 +28,8 @@ export type ReportData = {
   insights: Insight[];
   mentor_unlocked: boolean;
   topic?: string;
+  language?: "en" | "he";
+  speech_language?: "en" | "he";
 };
 
 function Panel({
@@ -136,7 +138,7 @@ export function ScoreCard({
         <CornerBrackets />
         <ScoreRing score={overall} />
         {unlocked ? (
-          <div className="flex flex-col items-center gap-2 text-center sm:items-start sm:text-left">
+          <div className="flex flex-col items-center gap-2 text-center sm:items-start sm:text-start">
             <div className="flex items-center gap-2">
               <LockOpen className="size-4" style={{ color: "var(--green)" }} aria-hidden="true" />
               <h2 className="font-display text-lg font-bold text-pearl">Mentor unlocked</h2>
@@ -151,7 +153,7 @@ export function ScoreCard({
             </a>
           </div>
         ) : (
-          <div className="flex flex-col items-center gap-2 text-center sm:items-start sm:text-left">
+          <div className="flex flex-col items-center gap-2 text-center sm:items-start sm:text-start">
             <div className="flex items-center gap-2">
               <Lock className="size-4 text-muted-foreground" aria-hidden="true" />
               <h2 className="font-display text-lg font-bold text-pearl">Mentor locked</h2>

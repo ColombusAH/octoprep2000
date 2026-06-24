@@ -33,6 +33,12 @@ FILLERS = {"um", "uh"}
 FILLER_REGEX = re.compile(r"\b(" + "|".join(re.escape(w) for w in FILLERS) + r")\b", re.I)
 AMBIGUOUS_FILLER_REGEX = re.compile(r"\blike\b", re.I)
 
+# Common Hebrew hesitation/filler words. Best-effort lexicon, not a linguistic
+# reference — selected by Session.speech_language (FR-013), never merged with
+# FILLERS, so a declared-English session can't false-positive on Hebrew tokens.
+FILLERS_HE = {"אה", "אהמ", "כאילו", "סתם", "בעצם"}
+FILLER_REGEX_HE = re.compile(r"\b(" + "|".join(re.escape(w) for w in FILLERS_HE) + r")\b")
+
 WPM_HIGH = 160
 WPM_LOW = 90
 WPM_WINDOW_SECONDS = 30
@@ -47,10 +53,13 @@ class AudioAgent(AgentPersistence):
         orchestrator: Orchestrator,
         *,
         slide_state_provider=None,
+        speech_language: str = "en",
     ) -> None:
         self.session_id = session_id
         self.orchestrator = orchestrator
         self._slide_state_provider = slide_state_provider
+        self.speech_language = speech_language
+        self._filler_regex = FILLER_REGEX_HE if speech_language == "he" else FILLER_REGEX
         self._session_started_ms = int(time.monotonic() * 1000)
         self._chunk_count = 0
         # rolling 30s window of (chunk_start_s, word_count)
@@ -123,7 +132,7 @@ class AudioAgent(AgentPersistence):
 
         logger.info("STT transcribed chunk {}: {!r}", self._chunk_count, text)
 
-        fillers = _detect_fillers(text)
+        fillers = _detect_fillers(text, self.speech_language)
         await self._write_transcript(
             TranscriptPayload(
                 session_id=self.session_id,
@@ -232,6 +241,7 @@ class AudioAgent(AgentPersistence):
             resp = await client.audio.transcriptions.create(
                 model=s.litellm_stt_model,
                 file=("chunk.wav", wav_bytes, "audio/wav"),
+                language=self.speech_language,
             )
             return resp.text or ""
 
@@ -248,7 +258,7 @@ class AudioAgent(AgentPersistence):
             resp = await client.post(
                 "https://api.elevenlabs.io/v1/speech-to-text",
                 headers={"xi-api-key": s.elevenlabs_api_key},
-                data={"model_id": "scribe_v1"},
+                data={"model_id": "scribe_v1", "language_code": self.speech_language},
                 files={"file": ("chunk.wav", wav_bytes, "audio/wav")},
             )
         resp.raise_for_status()
@@ -299,7 +309,10 @@ def _wrap_pcm_as_wav(
     return header + pcm_bytes
 
 
-def _detect_fillers(text: str) -> list[str]:
+def _detect_fillers(text: str, speech_language: str = "en") -> list[str]:
+    if speech_language == "he":
+        return [m.group(0).lower() for m in FILLER_REGEX_HE.finditer(text)]
+
     fillers = [m.group(0).lower() for m in FILLER_REGEX.finditer(text)]
     ambiguous = [m.group(0).lower() for m in AMBIGUOUS_FILLER_REGEX.finditer(text)]
     if len(ambiguous) > 1:

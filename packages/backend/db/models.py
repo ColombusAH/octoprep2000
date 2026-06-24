@@ -34,6 +34,8 @@ class Session(Base):
     )
     topic: Mapped[str] = mapped_column(Text, nullable=False)
     topic_context: Mapped[str | None] = mapped_column(Text, nullable=True)
+    speech_language: Mapped[str] = mapped_column(String(8), nullable=False, default="en")
+    deck_language: Mapped[str] = mapped_column(String(8), nullable=False, default="en")
     status: Mapped[str] = mapped_column(String(32), nullable=False, default="ACTIVE")
     status_detail: Mapped[str | None] = mapped_column(Text, nullable=True)
     pptx_ready: Mapped[bool] = mapped_column(Boolean, default=False)

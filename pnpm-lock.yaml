@@ -53,6 +53,9 @@ importers:
       '@fontsource-variable/geist-mono':
         specifier: ^5.2.8
         version: 5.2.8
+      '@fontsource-variable/noto-sans-hebrew':
+        specifier: ^5.2.8
+        version: 5.2.8
       '@fontsource/chakra-petch':
         specifier: ^5.2.7
         version: 5.2.7
@@ -1068,6 +1071,9 @@ packages:
 
   '@fontsource-variable/geist@5.2.9':
     resolution: {integrity: sha512-TP+QSBG3wxKGPE33CbMy/L0Nu3qvJ6Fy81Yc4LnQ95xH+i+cfEp8fyU8/kfV14YwszxIFPhnoMTbjL71waVpyQ==}
+
+  '@fontsource-variable/noto-sans-hebrew@5.2.8':
+    resolution: {integrity: sha512-km22GjnWdDcHExbnbzVQWsgwWWFglny2TPHAm9SITmW3lYhDPFumnbZxAfSFmRZafuXkm0NCcLfaxQG1koB2tw==}
 
   '@fontsource/chakra-petch@5.2.7':
     resolution: {integrity: sha512-GLbun5WZJNAEc8FtWxwcgo+4Kurqdwejvf671l+YfIjyQgPvTjyxXYP7Ffg2HAY89NGnp3oOvKQjRzfm/fBECw==}
@@ -5971,6 +5977,8 @@ snapshots:
   '@fontsource-variable/geist-mono@5.2.8': {}
 
   '@fontsource-variable/geist@5.2.9': {}
+
+  '@fontsource-variable/noto-sans-hebrew@5.2.8': {}
 
   '@fontsource/chakra-petch@5.2.7': {}
 

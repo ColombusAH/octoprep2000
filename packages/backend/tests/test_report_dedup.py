@@ -56,8 +56,8 @@ def test_voice_dedupes_fillers_into_single_insight():
     insights, score = agent._score_voice(entries, [])
     improvements = [i for i in insights if i.type == "IMPROVEMENT"]
     assert len(improvements) == 1
-    assert "'um' (2x)" in improvements[0].message
-    assert "'like' (1x)" in improvements[0].message
+    assert "'um' (2x)" in improvements[0].message_en
+    assert "'like' (1x)" in improvements[0].message_en
     assert sorted(improvements[0].timestamps) == [0, 2000, 4000, 4000]
     assert score < 100
 
@@ -72,8 +72,8 @@ def test_voice_includes_pacing_warnings():
     ]
     insights, score = agent._score_voice(entries, warnings)
     improvements = [i for i in insights if i.type == "IMPROVEMENT"]
-    fast = next(i for i in improvements if "too fast" in i.message.lower())
-    slow = next(i for i in improvements if "too slowly" in i.message.lower())
+    fast = next(i for i in improvements if "too fast" in i.message_en.lower())
+    slow = next(i for i in improvements if "too slowly" in i.message_en.lower())
     assert sorted(fast.timestamps) == [1000, 3000]
     assert slow.timestamps == [5000]
     assert score < 100
@@ -90,11 +90,11 @@ def test_body_groups_video_events_by_type():
         _FakeVideoEvent(7000, "EYE_CONTACT_LOST"),
     ]
     insights, score = agent._score_body(events)
-    eye = next(i for i in insights if i.message.startswith("Eye Contact Lost"))
+    eye = next(i for i in insights if i.message_en.startswith("Eye Contact Lost"))
     # Recurring same-type events still dedupe to ONE insight with all timestamps.
     assert sorted(eye.timestamps) == [1000, 4000, 7000]
     # No duration metadata on these rows ⇒ count-only fallback.
-    assert "(3x)" in eye.message
+    assert "(3x)" in eye.message_en
 
 
 def test_slides_group_by_factor_and_type():
@@ -126,8 +126,8 @@ def test_slides_improvement_includes_suggested_fix_in_message():
     ]
     insights, _ = agent._score_slides(items)
     assert len(insights) == 1
-    assert "Instead:" in insights[0].message
-    assert "Keep title" in insights[0].message
+    assert "Instead:" in insights[0].message_en
+    assert "Keep title" in insights[0].message_en
 
 
 def test_slides_delivery_prefix_in_message():
@@ -142,8 +142,8 @@ def test_slides_delivery_prefix_in_message():
         analysis_phase = "delivery"
 
     insights, _ = agent._score_slides([_DeliverySlide()])
-    assert "While presenting:" in insights[0].message
-    assert "Instead:" in insights[0].message
+    assert "While presenting:" in insights[0].message_en
+    assert "Instead:" in insights[0].message_en
 
 
 def test_slides_static_and_delivery_same_factor_not_merged():
@@ -167,7 +167,7 @@ def test_slides_static_and_delivery_same_factor_not_merged():
 
     insights, _ = agent._score_slides([_Static(), _Delivery()])
     assert len(insights) == 2
-    messages = {i.message for i in insights}
+    messages = {i.message_en for i in insights}
     assert any("While presenting:" in m for m in messages)
     assert any("While presenting:" not in m for m in messages)
 
@@ -181,7 +181,7 @@ def test_smile_strong_surfaces_as_strength_not_penalty():
     insights, score = agent._score_body(events)
     strengths = [i for i in insights if i.type == "STRENGTH"]
     assert len(strengths) == 1
-    assert "smiling" in strengths[0].message.lower()
+    assert "smiling" in strengths[0].message_en.lower()
     # Only POSTURE_ISSUE counts toward penalty: MEDIUM(2) × duration_factor(1, 0s) = 2
     assert score == 98.0
 
@@ -206,9 +206,9 @@ def test_body_weights_by_severity_and_duration_and_preserves_message():
     ]
     insights, score = agent._score_body(events)
 
-    eye = next(i for i in insights if i.message.startswith("Eye Contact Lost"))
-    assert "12s" in eye.message  # duration surfaced
-    assert "Look back at the camera." in eye.message  # real message preserved
+    eye = next(i for i in insights if i.message_en.startswith("Eye Contact Lost"))
+    assert "12s" in eye.message_en  # duration surfaced
+    assert "Look back at the camera." in eye.message_en  # real message preserved
     assert eye.timestamps == [1000]
 
     # HIGH × 12s (factor capped at 3) = 3*3 = 9; LOW × 0s = 1*1 = 1 ⇒ 100 - 10 = 90.

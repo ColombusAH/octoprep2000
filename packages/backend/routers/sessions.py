@@ -25,7 +25,12 @@ async def create_session(
     body: CreateSessionBody,
     repo: PostgreSQLRepository = Depends(get_repo),
 ):
-    session = await repo.create_session(topic=body.topic, topic_context=body.topic_context)
+    session = await repo.create_session(
+        topic=body.topic,
+        topic_context=body.topic_context,
+        speech_language=body.speech_language,
+        deck_language=body.deck_language,
+    )
     return CreateSessionResponse(session_id=session.session_id, access_token=session.access_token)
 
 
@@ -60,7 +65,7 @@ async def end_session(
 
     # ReportAgent reads the agreed tables, writes its own report, signals completion.
     report_agent = build_report_agent(orch)
-    await report_agent.generate(session_id, fallback_mode=fallback)
+    await report_agent.generate(session_id, fallback_mode=fallback, speech_language=session.speech_language)
 
     # Lifecycle transition stays with the Orchestrator.
     await orch.mark_report_ready(session_id)
@@ -71,12 +76,31 @@ async def end_session(
 @router.get("/{session_id}/report")
 async def get_report(
     session_id: uuid.UUID,
+    lang: str | None = None,
     _=Depends(require_report_access),
     repo: PostgreSQLRepository = Depends(get_repo),
 ):
     report = await repo.get_report_by_session(session_id)
     if not report:
         raise HTTPException(status_code=404, detail="Report not ready")
+
+    session = await repo.get_session(session_id)
+    speech_language = session.speech_language if session else "en"
+    language = lang if lang in ("en", "he") else speech_language
+
+    insights = report.insights or []
+    field = f"message_{language}"
+    resolved_insights = [
+        {
+            "category": i.get("category"),
+            "type": i.get("type"),
+            "message": i.get(field, ""),
+            "timestamps": i.get("timestamps", []),
+            "slides": i.get("slides", []),
+        }
+        for i in insights
+    ]
+
     return {
         "session_id": report.session_id,
         "overall_score": float(report.overall_score or 0),
@@ -85,9 +109,12 @@ async def get_report(
         "slide_score": float(report.slide_score or 0),
         "content_score": float(report.content_score or 0),
         "content_research_status": report.content_research_status or "not_applicable",
-        "insights": report.insights or [],
+        "insights": resolved_insights,
         "mentor_unlocked": report.mentor_unlocked,
         "generated_at": report.generated_at,
+        "topic": session.topic if session else None,
+        "language": language,
+        "speech_language": speech_language,
     }
 
 

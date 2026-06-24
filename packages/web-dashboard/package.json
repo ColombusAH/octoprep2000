@@ -13,6 +13,7 @@
   "dependencies": {
     "@fontsource-variable/geist": "^5.2.9",
     "@fontsource-variable/geist-mono": "^5.2.8",
+    "@fontsource-variable/noto-sans-hebrew": "^5.2.8",
     "@fontsource/chakra-petch": "^5.2.7",
     "@fontsource/space-mono": "^5.2.9",
     "@fontsource/tektur": "^5.2.7",
