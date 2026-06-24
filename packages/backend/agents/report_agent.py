@@ -36,6 +36,24 @@ def _format_slide_insight(description: str, suggested_fix: str, finding_type: st
     return description
 
 
+# Body scoring: a HIGH, sustained issue should cost more than a LOW, momentary one.
+_BODY_SEVERITY_WEIGHT = {"LOW": 1.0, "MEDIUM": 2.0, "HIGH": 3.0}
+# Fallback coaching line when the producer didn't attach a message (e.g. legacy rows).
+_BODY_DEFAULT_MSG = {
+    "EYE_CONTACT_LOST": "Look back at the camera to hold the room.",
+    "FACE_NOT_DETECTED": "Stay centered and visible in frame.",
+    "FACE_TILTED": "Keep your head level.",
+    "POSTURE_ISSUE": "Open your posture toward the audience.",
+    "OUT_OF_FRAME": "Face the camera so you face your audience.",
+    "GESTURE_CLOSED": "Unfold your arms and use open gestures.",
+}
+
+
+def _fmt_secs(ms: int) -> str:
+    secs = ms / 1000
+    return f"{secs:.1f}s" if secs < 10 else f"{round(secs)}s"
+
+
 class ReportAgent(AgentPersistence):
     def __init__(
         self,
@@ -202,38 +220,77 @@ class ReportAgent(AgentPersistence):
         return insights, score
 
     def _score_body(self, events) -> tuple[list[Insight], float]:
+        """Weight each issue by severity × how long it persisted, and surface the
+        producer's own coaching message + total duration instead of a bare count.
+
+        Duration/message/severity ride in raw_metadata (written by VisionAgent spans);
+        rows without it (legacy / fixtures) degrade gracefully to count-only behaviour.
+        """
         if not events:
             return [], 70.0  # neutral default if no events captured
-        grouped: dict[str, list[int]] = defaultdict(list)
+
         strengths: list[Insight] = []
+        groups: dict[str, dict] = {}
+        total_penalty = 0.0
         for e in events:
+            meta = getattr(e, "raw_metadata", None) or {}
+            dur_ms = int(meta.get("duration_ms", 0) or 0)
+            severity = getattr(e, "severity", "MEDIUM") or "MEDIUM"
+            msg = meta.get("message")
+
             if e.event_type == "SMILING_STRONG":
-                # Positive signal from GCV face_detection — surface as a Strength
+                # Positive signal from GCV face_detection — surface as a Strength (no penalty).
+                label = (
+                    f"Engaging, smiling delivery ({_fmt_secs(dur_ms)})."
+                    if dur_ms
+                    else "Engaging, smiling delivery."
+                )
                 strengths.append(
                     Insight(
                         category="body",
                         type="STRENGTH",
-                        message="Engaging, smiling delivery.",
+                        message=label,
                         timestamps=[e.timestamp_ms],
                     )
                 )
                 continue
-            grouped[e.event_type].append(e.timestamp_ms)
+
+            # 0s ⇒ ×1, ≥8s ⇒ ×3 — a sustained issue costs more than a momentary one.
+            duration_factor = 1.0 + min(2.0, dur_ms / 4000)
+            total_penalty += _BODY_SEVERITY_WEIGHT.get(severity, 2.0) * duration_factor
+
+            g = groups.setdefault(
+                e.event_type,
+                {"timestamps": [], "dur_ms": 0, "count": 0, "severity": "LOW", "message": None},
+            )
+            g["timestamps"].append(e.timestamp_ms)
+            g["dur_ms"] += dur_ms
+            g["count"] += 1
+            # Keep the worst-moment severity, and prefer that occurrence's message.
+            if _BODY_SEVERITY_WEIGHT.get(severity, 2.0) >= _BODY_SEVERITY_WEIGHT.get(g["severity"], 0.0):
+                g["severity"] = severity
+                if msg:
+                    g["message"] = msg
 
         insights: list[Insight] = list(strengths)
-        for etype, ts in grouped.items():
+        for etype, g in groups.items():
+            title = etype.replace("_", " ").title()
+            coaching = g["message"] or _BODY_DEFAULT_MSG.get(etype, "")
+            if g["dur_ms"] > 0:
+                header = f"{title} — {_fmt_secs(g['dur_ms'])} across {g['count']} moment(s)"
+            else:
+                header = f"{title} ({g['count']}x)"
+            message = f"{header}: {coaching}" if coaching else header
             insights.append(
                 Insight(
                     category="body",
                     type="IMPROVEMENT",
-                    message=f"{etype.replace('_', ' ').title()} ({len(ts)}x)",
-                    timestamps=sorted(ts),
+                    message=message,
+                    timestamps=sorted(g["timestamps"]),
                 )
             )
-        # Score by improvements only — smiles are bonus, don't penalise their absence
-        improvement_count = sum(len(ts) for ts in grouped.values())
-        penalty = min(40, improvement_count * 2)
-        score = max(0.0, 100.0 - penalty)
+        # Cap so a rough patch can't zero the vector; floor of 50.
+        score = max(0.0, 100.0 - min(50.0, total_penalty))
         return insights, score
 
     def _score_slides(self, analyses) -> tuple[list[Insight], float]:
