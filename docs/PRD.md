@@ -38,7 +38,7 @@
 > - DEMO_MODE replay path added as demo-day insurance
 > - `/health` endpoint added; rate limit on `POST /sessions` (5/min/IP)
 > - WS browser auto-reconnect with exponential backoff
-> - VideoEvent inserts batched in Orchestrator
+> - VideoEvent inserts batched in the VisionAgent (which now owns the `video_events` table)
 
 ---
 
@@ -227,7 +227,7 @@ OctoPrep2000 closes this gap by acting as an always-available AI co-pilot that w
 
 ### FR-004 `[Phase 1]`: Audio Analysis & Transcription
 
-**Description**: The Audio & Transcription Agent processes live audio chunks through a low-latency STT model, commits timestamped transcripts to the DB, and streams text to the Orchestrator.
+**Description**: The Audio & Transcription Agent processes live audio chunks through a low-latency STT model and writes timestamped transcripts (and audio warnings) directly to its own tables in the DB, then signals the Orchestrator on completion.
 
 **Acceptance Criteria**:
 - [ ] Audio is segmented into **2-second chunks** for STT processing (v1.4 — was 5s, cut to meet NFR-002).
@@ -280,7 +280,7 @@ OctoPrep2000 closes this gap by acting as an always-available AI co-pilot that w
 - [ ] Agent produces a `content_score` (0–100) based on: accuracy of claims made + coverage of expected sub-topics for the stated subject.
 - [ ] Agent produces at least: factual errors flagged (if any), coverage gaps (important sub-topics not mentioned), and strong correct explanations highlighted as strengths.
 - [ ] Each finding includes a `context_quote` — a verbatim phrase from the transcript that triggered it.
-- [ ] Analysis completes and emits `ContentAnalysisPayload` to Orchestrator within 60 seconds of session end.
+- [ ] Analysis completes, the agent writes its own content-analysis rows to the DB, and it signals the Orchestrator (`notify_complete(CONTENT)`) within 60 seconds of session end.
 - [ ] A disclaimer is rendered in the UI beneath the content panel: *"Content accuracy powered by AI training data. May not reflect features released after the model's training cutoff."*
 
 ---

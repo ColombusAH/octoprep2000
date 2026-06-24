@@ -20,9 +20,11 @@ from agents.llm import (
     get_text_model_fallback,
     pick_provider_order,
 )
+from agents.persistence import AgentPersistence
 from agents.replay_fixtures import replay_slide_findings
-from agents.schemas import SlideAnalysisBundle, SlideAnalysisPayload, SlideFindings
+from agents.schemas import SlideAnalysisPayload, SlideFindings
 from config import get_settings
+from db.repository import PostgreSQLRepository
 from orchestrator.orchestrator import Orchestrator
 
 PLAYBOOK_PROMPT = """You are a slide deck reviewer trained on the Tikal Presentation Skills Playbook.
@@ -381,7 +383,7 @@ def _supplement_from_metadata(
     return validate_findings(merged, slides_raw=None)
 
 
-class PPTXAgent:
+class PPTXAgent(AgentPersistence):
     def __init__(self, orchestrator: Orchestrator) -> None:
         self.orchestrator = orchestrator
 
@@ -403,13 +405,26 @@ class PPTXAgent:
 
         findings = validate_findings(findings, slides_raw)
 
-        await self.orchestrator.on_slide_analysis(
-            SlideAnalysisBundle(
-                session_id=session_id,
-                findings=findings,
-                slides_raw_text=slides_raw,
+        # This agent owns slide_analyses + sessions(pptx) writes (Principle II).
+        # Order preserved from the prior Orchestrator write: findings, then pptx_ready.
+        async def write(repo: PostgreSQLRepository) -> None:
+            await repo.insert_slide_analyses(
+                [
+                    {
+                        "session_id": session_id,
+                        "slide_index": f.slide_index,
+                        "playbook_factor": f.playbook_factor,
+                        "finding_type": f.finding_type,
+                        "description": f.description,
+                        "suggested_fix": f.suggested_fix,
+                    }
+                    for f in findings
+                ]
             )
-        )
+            await repo.mark_pptx_ready(session_id, slides_raw)
+
+        await self._with_repo(write)
+        await self.orchestrator.notify_complete(session_id, "PPTX")
 
     @staticmethod
     def _extract_notes(slide) -> str:

@@ -1,8 +1,10 @@
-"""Typed Pydantic payloads — only contract agents expose to the Orchestrator.
+"""Typed Pydantic payloads — the contract agents build and validate.
 
-Agents NEVER write to the DB directly. They build one of these models in memory and
-emit it upward via `Orchestrator.on_*`. The Orchestrator validates here and persists
-via the Repository.
+Each agent constructs one of these models, writes its own role-scoped rows to PostgreSQL
+through the Repository (see agents/persistence.py), then emits a CompletionSignal to the
+Orchestrator. The Orchestrator coordinates lifecycle and assembles the report by reading
+the agreed tables — it no longer relays raw payloads as a persistence pipe.
+(Constitution v2.0.0, Principle II — Contracted Agent Boundaries.)
 """
 
 from __future__ import annotations
@@ -132,6 +134,22 @@ class ReportPayload(BaseModel):
         if not v:
             raise ValueError("Report must contain at least one insight")
         return v
+
+
+# ── Completion signal (agent → Orchestrator) ──────────────────────────
+CompletionKind = Literal["VIDEO", "AUDIO", "PPTX", "CONTENT", "REPORT"]
+
+
+class CompletionSignal(BaseModel):
+    """Emitted by an agent AFTER its write commits (durability before notify).
+
+    Advisory coordination only — the data already lives in the agreed tables; the
+    Orchestrator reads the tables, not this payload.
+    """
+
+    session_id: uuid.UUID
+    kind: CompletionKind
+    meta: dict | None = None
 
 
 # ── Request bodies ────────────────────────────────────────────────────

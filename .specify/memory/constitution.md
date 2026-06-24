@@ -1,7 +1,13 @@
 <!--
 Sync Impact Report
-Version change: template -> 1.0.0
+Version change: 1.0.0 -> 2.0.0 (MAJOR — Principle II redefined: agent-owned, role-scoped
+writes + completion signals replace Orchestrator-as-sole-writer)
+Amendment driver: feature 001-agent-direct-persistence (specs/001-agent-direct-persistence/)
 Modified principles:
+- II. Contracted Agent Boundaries — redefined (was: Orchestrator owns ALL DB writes;
+  now: each agent writes only its own role-scoped table + emits a completion signal;
+  Orchestrator coordinates lifecycle and assembles report by reading the agreed tables)
+Modified principles (prior, template -> 1.0.0):
 - Template Principle 1 -> I. Demo-First Vertical Slices
 - Template Principle 2 -> II. Contracted Agent Boundaries
 - Template Principle 3 -> III. Session Isolation and Explicit Sharing
@@ -44,15 +50,20 @@ beats a broader feature set that cannot be shown live.
 
 ### II. Contracted Agent Boundaries
 
-Agents MUST communicate through typed payload contracts and the Orchestrator. The
-Orchestrator MUST own all writes to PostgreSQL after validating payloads. Agents MAY
-read narrowly scoped context when their role requires it, but they MUST NOT bypass the
-Orchestrator for writes or couple directly to unrelated agents. Shared WebSocket payload
-types MUST remain explicit and versionable.
+Agents MUST communicate through typed payload contracts. Each agent MAY write only the
+rows for its own role through the typed Repository, and MUST emit a completion signal to
+the Orchestrator after its write commits (durability before notify). One writer per
+role-scoped table — no agent MUST write another agent's table. The Orchestrator owns
+session lifecycle, cross-agent coordination, and report assembly by reading the agreed
+tables; it MUST NOT relay raw input payloads as a persistence pipe. Agents MAY read
+narrowly scoped context when their role requires it, but they MUST NOT couple directly to
+unrelated agents. Shared WebSocket payload types MUST remain explicit and versionable.
 
-Rationale: single-process async architecture only stays debuggable if ownership and
-data flow are strict. Direct agent-to-agent or agent-to-database writes create hidden
-race conditions and make report generation unreliable.
+Rationale: single-process async architecture only stays debuggable if ownership and data
+flow are strict. Role-scoped writes (one writer per table) plus explicit completion
+signals keep ownership clear without funnelling every write through one bottleneck;
+allowing an agent to write another agent's tables or couple directly to unrelated agents
+would reintroduce hidden race conditions and make report generation unreliable.
 
 ### III. Session Isolation and Explicit Sharing
 
@@ -144,4 +155,4 @@ MUST treat unaddressed constitution violations as blockers unless the plan recor
 explicit, time-boxed exception with owner and follow-up. Exceptions expire after the
 hackathon demo and MUST NOT become default practice without a constitution amendment.
 
-**Version**: 1.0.0 | **Ratified**: 2026-06-23 | **Last Amended**: 2026-06-23
+**Version**: 2.0.0 | **Ratified**: 2026-06-23 | **Last Amended**: 2026-06-24

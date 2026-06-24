@@ -12,11 +12,11 @@ Owns its own AsyncSession via get_session_maker() (independent of request scope)
 
 from __future__ import annotations
 
-from loguru import logger
 import uuid
 from collections import defaultdict
 
 from agents.content_agent import ContentAnalysisAgent
+from agents.persistence import AgentPersistence
 from agents.schemas import (
     ContentAnalysisPayload,
     Insight,
@@ -33,9 +33,14 @@ def _format_slide_insight(description: str, suggested_fix: str, finding_type: st
     return description
 
 
-class ReportAgent:
-    def __init__(self, content_agent: ContentAnalysisAgent | None = None) -> None:
+class ReportAgent(AgentPersistence):
+    def __init__(
+        self,
+        content_agent: ContentAnalysisAgent | None = None,
+        orchestrator=None,
+    ) -> None:
         self.content_agent = content_agent or ContentAnalysisAgent()
+        self.orchestrator = orchestrator
 
     async def generate(self, session_id: uuid.UUID, fallback_mode: bool = False) -> ReportPayload:
         async with get_session_maker()() as db:
@@ -62,7 +67,7 @@ class ReportAgent:
                 + content_score * 0.20
             )
 
-        return ReportPayload(
+        payload = ReportPayload(
             session_id=session_id,
             overall_score=round(overall, 2),
             voice_score=round(voice_score, 2),
@@ -71,6 +76,25 @@ class ReportAgent:
             content_score=round(content_score, 2),
             insights=voice_insights + body_insights + slide_insights + content_insights,
         )
+
+        # This agent owns the reports write (Principle II); durability before notify.
+        await self._with_repo(
+            lambda r: r.insert_report(
+                {
+                    "session_id": payload.session_id,
+                    "overall_score": payload.overall_score,
+                    "voice_score": payload.voice_score,
+                    "body_score": payload.body_score,
+                    "slide_score": payload.slide_score,
+                    "content_score": payload.content_score,
+                    "insights": [i.model_dump() for i in payload.insights],
+                    "mentor_unlocked": payload.mentor_unlocked,
+                }
+            )
+        )
+        if self.orchestrator is not None:
+            await self.orchestrator.notify_complete(session_id, "REPORT")
+        return payload
 
     # ── per-vector scoring + deduplication ───────────────────────────
     def _score_voice(self, entries, warnings) -> tuple[list[Insight], float]:

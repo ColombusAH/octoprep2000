@@ -155,9 +155,10 @@ def test_build_deck_dump_reat():
 
 
 @pytest.mark.asyncio
-async def test_analyse_persists_via_orchestrator():
+async def test_analyse_persists_and_notifies():
     orch = AsyncMock()
     agent = PPTXAgent(orch)
+    session_id = uuid.UUID("00000000-0000-0000-0000-000000000001")
     slides_raw = [
         {
             "slide_index": 1,
@@ -177,18 +178,29 @@ async def test_analyse_persists_via_orchestrator():
             playbook_factor=3,
             finding_type="IMPROVEMENT",
             description="Slide 1 needs a visual anchor.",
+            suggested_fix="Replace text with one headline + diagram.",
         )
     ]
+    written: list[dict] = []
+
+    async def capture_write(fn):
+        repo = AsyncMock()
+        repo.insert_slide_analyses = AsyncMock(side_effect=lambda items: written.extend(items))
+        repo.mark_pptx_ready = AsyncMock()
+        await fn(repo)
+        return None
 
     with patch.object(agent, "_extract_text", return_value=slides_raw), patch.object(
         agent, "_evaluate", new=AsyncMock(return_value=mock_findings)
-    ), patch("agents.pptx_agent.get_settings") as mock_settings:
+    ), patch.object(agent, "_with_repo", side_effect=capture_write), patch(
+        "agents.pptx_agent.get_settings"
+    ) as mock_settings:
         mock_settings.return_value.demo_replay = False
-        await agent.analyse(uuid.UUID("00000000-0000-0000-0000-000000000001"), "/tmp/x.pptx")
+        await agent.analyse(session_id, "/tmp/x.pptx")
 
-    orch.on_slide_analysis.assert_awaited_once()
-    bundle = orch.on_slide_analysis.await_args.args[0]
-    assert len(bundle.findings) >= 1
+    assert len(written) >= 1
+    assert written[0]["suggested_fix"]
+    orch.notify_complete.assert_awaited_once_with(session_id, "PPTX")
 
 
 @pytest.mark.live
