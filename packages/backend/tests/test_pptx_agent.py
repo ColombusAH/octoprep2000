@@ -15,13 +15,16 @@ from agents.pptx_agent import (
     MIN_DISTINCT_FACTORS,
     PPTXAgent,
     SlideAnalysisPayload,
+    build_slide_timeline,
+    format_time_aligned_transcript,
     validate_delivery_findings,
     validate_findings,
     _format_timed_transcript,
     _notes_overlap_body,
     _supplement_from_metadata,
 )
-from agents.replay_fixtures import replay_delivery_findings
+from agents.replay_fixtures import replay_delivery_findings, replay_slide_events
+from agents.schemas import SlideEventPayload
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 REAT_DECK = REPO_ROOT / "docs" / "testing" / "reat-19.2-news-example.pptx"
@@ -298,6 +301,130 @@ async def test_analyse_delivery_persists_delivery_phase():
     assert all(w["analysis_phase"] == "delivery" for w in written)
     orch.notify_complete.assert_awaited_once()
     assert orch.notify_complete.await_args.args[1] == "PPTX"
+
+
+class _StubEvent:
+    def __init__(self, slide_index: int, timestamp_ms: int):
+        self.slide_index = slide_index
+        self.timestamp_ms = timestamp_ms
+
+
+class _StubTranscript:
+    def __init__(self, start_ms: int, end_ms: int, text: str):
+        self.start_ms = start_ms
+        self.end_ms = end_ms
+        self.text = text
+
+
+def test_build_slide_timeline_segments():
+    events = [_StubEvent(1, 0), _StubEvent(3, 45000), _StubEvent(2, 90000)]
+    timeline = build_slide_timeline(events, slide_count=5, session_end_ms=120000)
+    assert len(timeline) == 3
+    assert timeline[0] == {"slide_index": 1, "start_ms": 0, "end_ms": 45000}
+    assert timeline[1] == {"slide_index": 3, "start_ms": 45000, "end_ms": 90000}
+    assert timeline[2] == {"slide_index": 2, "start_ms": 90000, "end_ms": 120000}
+
+
+def test_format_time_aligned_transcript_buckets_speech():
+    timeline = [{"slide_index": 1, "start_ms": 0, "end_ms": 5000}]
+    transcript = [
+        _StubTranscript(0, 2000, "Opening"),
+        _StubTranscript(6000, 8000, "Later"),
+    ]
+    aligned = format_time_aligned_transcript(transcript, timeline)
+    assert "Opening" in aligned
+    assert "Later" not in aligned
+    assert "Slide 1" in aligned
+
+
+def test_build_delivery_dump_uses_timeline_when_provided():
+    timeline = [{"slide_index": 1, "start_ms": 0, "end_ms": 5000}]
+    transcript = [_StubTranscript(0, 2000, "Hello")]
+    dump = PPTXAgent.build_delivery_dump(
+        topic="Test",
+        topic_context=None,
+        slides_raw=[
+            {
+                "slide_index": 1,
+                "text": "Title",
+                "shape_count": 2,
+                "image_count": 0,
+                "text_line_count": 1,
+                "notes_text": "",
+                "notes_overlap_body": False,
+                "is_blank": False,
+            }
+        ],
+        transcript_text="unused",
+        content=None,
+        timeline=timeline,
+        transcript=transcript,
+    )
+    assert "Slide timeline" in dump
+    assert "Speech aligned to active slide" in dump
+    assert "infer slide mapping" not in dump
+
+
+@pytest.mark.asyncio
+async def test_record_slide_event_updates_state_and_persists():
+    orch = AsyncMock()
+    agent = PPTXAgent(orch, session_id=uuid.uuid4())
+    written: list[dict] = []
+
+    async def capture_write(fn):
+        repo = AsyncMock()
+        repo.insert_slide_event = AsyncMock(side_effect=lambda **kw: written.append(kw))
+        await fn(repo)
+
+    with patch.object(agent, "_with_repo", side_effect=capture_write):
+        ok = await agent.record_slide_event(
+            SlideEventPayload(slide_index=2, timestamp_ms=1000), slide_count=10
+        )
+        assert ok is True
+        rejected = await agent.record_slide_event(
+            SlideEventPayload(slide_index=1, timestamp_ms=500), slide_count=10
+        )
+        assert rejected is False
+
+    assert written[0]["slide_index"] == 2
+    state = agent.get_slide_state(5000)
+    assert state == {"slide_index": 2, "since_ms": 1000, "dwell_ms": 4000}
+
+
+def test_replay_slide_events_fixture():
+    events = replay_slide_events()
+    assert len(events) >= 2
+    assert _StubEvent(1, 0).slide_index == events[0].slide_index
+
+
+@pytest.mark.asyncio
+async def test_analyse_delivery_with_slide_events_uses_replay():
+    orch = AsyncMock()
+    agent = PPTXAgent(orch, session_id=uuid.uuid4())
+    written: list[dict] = []
+
+    async def capture_write(fn):
+        repo = AsyncMock()
+        repo.delete_slide_analyses_by_phase = AsyncMock()
+        repo.insert_slide_analyses = AsyncMock(side_effect=lambda items: written.extend(items))
+        await fn(repo)
+
+    events = replay_slide_events()
+    with patch.object(agent, "_with_repo", side_effect=capture_write), patch(
+        "agents.pptx_agent.get_settings"
+    ) as mock_settings:
+        mock_settings.return_value.demo_replay = True
+        await agent.analyse_delivery(
+            uuid.uuid4(),
+            topic="Auth",
+            topic_context=None,
+            slides_raw=[{"slide_index": i, "text": f"S{i}"} for i in range(1, 6)],
+            transcript=[_StubTranscript(0, 2000, "Intro")],
+            slide_events=events,
+        )
+
+    assert written
+    assert all(w["analysis_phase"] == "delivery" for w in written)
 
 
 @pytest.mark.live

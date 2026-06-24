@@ -39,6 +39,7 @@ async def get_session(
         "status": session.status,
         "topic": session.topic,
         "pptx_ready": session.pptx_ready,
+        "slide_count": len(session.slides_raw_text) if session.slides_raw_text else None,
         "started_at": session.started_at,
         "ended_at": session.ended_at,
     }

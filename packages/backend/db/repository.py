@@ -8,7 +8,7 @@ from fastapi import Depends
 from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from db.models import AudioWarning, Report, Session, SlideAnalysis, TranscriptEntry, VideoEvent
+from db.models import AudioWarning, Report, Session, SlideAnalysis, SlideEvent, TranscriptEntry, VideoEvent
 from db.session import get_db
 
 
@@ -134,6 +134,32 @@ class PostgreSQLRepository:
             select(SlideAnalysis)
             .where(SlideAnalysis.session_id == session_id)
             .order_by(SlideAnalysis.slide_index)
+        )
+        return list(result.scalars().all())
+
+    # ── Slide Events (manual tracker timeline) ────────────────────────
+    async def insert_slide_event(
+        self,
+        session_id: uuid.UUID,
+        slide_index: int,
+        timestamp_ms: int,
+        source: str = "manual",
+    ) -> None:
+        self.db.add(
+            SlideEvent(
+                session_id=session_id,
+                slide_index=slide_index,
+                timestamp_ms=timestamp_ms,
+                source=source,
+            )
+        )
+        await self.db.commit()
+
+    async def read_slide_events(self, session_id: uuid.UUID) -> list[SlideEvent]:
+        result = await self.db.execute(
+            select(SlideEvent)
+            .where(SlideEvent.session_id == session_id)
+            .order_by(SlideEvent.timestamp_ms)
         )
         return list(result.scalars().all())
 

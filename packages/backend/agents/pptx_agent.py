@@ -22,7 +22,12 @@ from agents.llm import (
 )
 from agents.persistence import AgentPersistence
 from agents.replay_fixtures import replay_delivery_findings, replay_slide_findings
-from agents.schemas import ContentAnalysisPayload, SlideAnalysisPayload, SlideFindings
+from agents.schemas import (
+    ContentAnalysisPayload,
+    SlideAnalysisPayload,
+    SlideEventPayload,
+    SlideFindings,
+)
 from config import get_settings
 from db.repository import PostgreSQLRepository
 from orchestrator.orchestrator import Orchestrator
@@ -164,6 +169,44 @@ Return 3–8 findings total. Every IMPROVEMENT must have a non-empty suggested_f
  "description": "Slide 8 headline matched your spoken example — good slide support.",
  "suggested_fix": "Keep pairing a short slide headline with a spoken walk-through."}"""
 
+DELIVERY_TIMELINE_PROMPT = """You are a presentation coach reviewing how well SLIDES supported what the speaker ACTUALLY SAID.
+You receive a TIMED slide timeline plus transcript segments bucketed under each slide. Use the timestamps — do not guess.
+
+## Focus (Tikal Playbook — delivery lens)
+  1  Slides support the talk — flag when speech on slide N mismatches slide N's content, or when the speaker is ahead/behind slides.
+  8  Story structure — speech and slide sequence should feel like one narrative across time.
+ 10  Speaker notes belong off-slide — flag reading slide text verbatim during a segment.
+ 12  From subject to story — flag wandering speech while a slide stays on unrelated facts.
+
+Also cross-check the optional Content Analysis block for factual errors vs visible slides.
+
+## What NOT to do
+- Do not repeat static deck-design issues unless they caused a delivery problem during a timed segment.
+- Do not invent transcript quotes — only reference speech in the aligned segments.
+- Do not emit more than 2 findings per slide.
+- Cite approximate timestamps in descriptions (e.g. "At 2:15…") when the mismatch is time-specific.
+
+## Output format
+Return JSON only:
+{"findings": [{
+  "slide_index": int (1-based),
+  "playbook_factor": int (1, 8, 10, or 12 preferred),
+  "finding_type": "STRENGTH" | "IMPROVEMENT",
+  "description": string (≤120 chars),
+  "suggested_fix": string (≤160 chars)
+}]}
+
+Return 3–8 findings. Flag ahead/behind slide sync, long dwell with off-topic speech, and strong alignment.
+
+## Examples
+{"slide_index": 4, "playbook_factor": 1, "finding_type": "IMPROVEMENT",
+ "description": "At 2:15 on slide 4 you explained JWT refresh but the slide still shows generic auth bullets.",
+ "suggested_fix": "Replace slide 4 with a refresh-token flow diagram matching what you said."}
+
+{"slide_index": 7, "playbook_factor": 1, "finding_type": "IMPROVEMENT",
+ "description": "At 4:30 you were still on slide 3 while describing slide 7's architecture.",
+ "suggested_fix": "Advance to slide 7 before diving into its architecture, or pause until you catch up."}"""
+
 
 MAX_FINDINGS_PER_SLIDE = 3
 MAX_DELIVERY_FINDINGS = 8
@@ -254,6 +297,62 @@ def _format_timed_transcript(entries) -> str:
         end = getattr(e, "end_ms", start)
         lines.append(f"[{_format_ms(start)}–{_format_ms(end)}] {text}")
     return "\n".join(lines)
+
+
+def _event_timestamp_ms(event) -> int:
+    return int(getattr(event, "timestamp_ms", 0))
+
+
+def _event_slide_index(event) -> int:
+    return int(getattr(event, "slide_index", 0))
+
+
+def build_slide_timeline(
+    events,
+    slide_count: int,
+    session_end_ms: int | None = None,
+) -> list[dict[str, int]]:
+    """Normalize slide change events into contiguous segments."""
+    if not events:
+        return []
+
+    sorted_events = sorted(events, key=_event_timestamp_ms)
+    segments: list[dict[str, int]] = []
+    for i, ev in enumerate(sorted_events):
+        idx = _event_slide_index(ev)
+        if not (1 <= idx <= slide_count):
+            continue
+        start = _event_timestamp_ms(ev)
+        if i + 1 < len(sorted_events):
+            end = _event_timestamp_ms(sorted_events[i + 1])
+        elif session_end_ms is not None:
+            end = max(start, session_end_ms)
+        else:
+            end = start + 60_000
+        segments.append({"slide_index": idx, "start_ms": start, "end_ms": end})
+    return segments
+
+
+def format_time_aligned_transcript(transcript, timeline: list[dict[str, int]]) -> str:
+    """Bucket transcript lines under the slide active during each segment."""
+    parts: list[str] = []
+    for seg in timeline:
+        idx = seg["slide_index"]
+        start = seg["start_ms"]
+        end = seg["end_ms"]
+        lines: list[str] = []
+        for e in transcript:
+            e_start = getattr(e, "start_ms", 0)
+            e_end = getattr(e, "end_ms", e_start)
+            if e_end <= start or e_start >= end:
+                continue
+            text = (getattr(e, "text", "") or "").strip()
+            if text:
+                lines.append(f"[{_format_ms(e_start)}–{_format_ms(e_end)}] {text}")
+        header = f"=== Slide {idx} ({_format_ms(start)}–{_format_ms(end)}) ==="
+        body = "\n".join(lines) if lines else "(no speech during this segment)"
+        parts.append(f"{header}\n{body}")
+    return "\n\n".join(parts)
 
 
 def _format_content_context(content: ContentAnalysisPayload | None) -> str:
@@ -477,8 +576,55 @@ def _supplement_from_metadata(
 
 
 class PPTXAgent(AgentPersistence):
-    def __init__(self, orchestrator: Orchestrator) -> None:
+    def __init__(self, orchestrator: Orchestrator, *, session_id: uuid.UUID | None = None) -> None:
         self.orchestrator = orchestrator
+        self.session_id = session_id
+        self._active_slide_index: int | None = None
+        self._active_slide_since_ms: int | None = None
+        self._last_event_ts: int = -1
+
+    def get_slide_state(self, now_ms: int) -> dict[str, int] | None:
+        """In-memory active slide for live STALE_SLIDE checks (Or Yam / AudioAgent)."""
+        if self._active_slide_index is None or self._active_slide_since_ms is None:
+            return None
+        return {
+            "slide_index": self._active_slide_index,
+            "since_ms": self._active_slide_since_ms,
+            "dwell_ms": max(0, now_ms - self._active_slide_since_ms),
+        }
+
+    async def record_slide_event(
+        self, payload: SlideEventPayload, *, slide_count: int
+    ) -> bool:
+        """Persist a slide change and update in-memory state. Returns False if rejected."""
+        sid = self.session_id
+        if sid is None:
+            logger.warning("record_slide_event called without session_id")
+            return False
+        if payload.timestamp_ms < self._last_event_ts:
+            logger.warning(
+                "reject out-of-order slide event ts={} last={}",
+                payload.timestamp_ms,
+                self._last_event_ts,
+            )
+            return False
+        if not (1 <= payload.slide_index <= slide_count):
+            return False
+
+        self._active_slide_index = payload.slide_index
+        self._active_slide_since_ms = payload.timestamp_ms
+        self._last_event_ts = payload.timestamp_ms
+
+        async def write(repo: PostgreSQLRepository) -> None:
+            await repo.insert_slide_event(
+                session_id=sid,
+                slide_index=payload.slide_index,
+                timestamp_ms=payload.timestamp_ms,
+                source=payload.source,
+            )
+
+        await self._with_repo(write)
+        return True
 
     async def analyse(self, session_id: uuid.UUID, pptx_path: str) -> None:
         try:
@@ -529,6 +675,7 @@ class PPTXAgent(AgentPersistence):
         slides_raw: list[dict],
         transcript,
         content: ContentAnalysisPayload | None = None,
+        slide_events=None,
     ) -> None:
         """Post-session pass: compare timed speech + slide text (+ content findings)."""
         if not slides_raw:
@@ -536,6 +683,18 @@ class PPTXAgent(AgentPersistence):
         transcript_text = _format_timed_transcript(transcript)
         if not transcript_text.strip():
             return
+
+        slide_count = len(slides_raw)
+        session_end_ms = max(
+            (getattr(e, "end_ms", 0) for e in transcript),
+            default=0,
+        )
+        timeline = (
+            build_slide_timeline(slide_events, slide_count, session_end_ms=session_end_ms)
+            if slide_events
+            else []
+        )
+        use_timeline = bool(timeline)
 
         if get_settings().demo_replay:
             findings = replay_delivery_findings()
@@ -547,6 +706,8 @@ class PPTXAgent(AgentPersistence):
                     slides_raw=slides_raw,
                     transcript_text=transcript_text,
                     content=content,
+                    timeline=timeline if use_timeline else None,
+                    transcript=transcript if use_timeline else None,
                 )
             except Exception as exc:  # noqa: BLE001
                 logger.exception("PPTX delivery LLM eval failed: {}", exc)
@@ -691,17 +852,23 @@ class PPTXAgent(AgentPersistence):
         slides_raw: list[dict],
         transcript_text: str,
         content: ContentAnalysisPayload | None,
+        timeline: list[dict[str, int]] | None = None,
+        transcript=None,
     ) -> list[SlideAnalysisPayload]:
+        use_timeline = bool(timeline)
         dump = self.build_delivery_dump(
             topic=topic,
             topic_context=topic_context,
             slides_raw=slides_raw,
             transcript_text=transcript_text,
             content=content,
+            timeline=timeline,
+            transcript=transcript if use_timeline else None,
         )
+        prompt = DELIVERY_TIMELINE_PROMPT if use_timeline else DELIVERY_PROMPT
         agent = Agent(
             model=get_text_model(),
-            instructions=DELIVERY_PROMPT,
+            instructions=prompt,
             output_schema=SlideFindings,
         )
 
@@ -711,7 +878,7 @@ class PPTXAgent(AgentPersistence):
         fb = get_text_model_fallback()
 
         async def _claude():
-            return await Agent(model=fb, instructions=DELIVERY_PROMPT, output_schema=SlideFindings).arun(
+            return await Agent(model=fb, instructions=prompt, output_schema=SlideFindings).arun(
                 dump
             )
 
@@ -719,7 +886,11 @@ class PPTXAgent(AgentPersistence):
         primary, secondary = pick_provider_order(claude_fn, _gateway)
         result = await call_with_fallback(primary, secondary)
         raw = result.content.findings
-        logger.info("PPTX delivery LLM result: {} findings", len(raw))
+        logger.info(
+            "PPTX delivery LLM result: {} findings (timeline={})",
+            len(raw),
+            use_timeline,
+        )
         return raw
 
     @staticmethod
@@ -730,16 +901,37 @@ class PPTXAgent(AgentPersistence):
         slides_raw: list[dict],
         transcript_text: str,
         content: ContentAnalysisPayload | None,
+        timeline: list[dict[str, int]] | None = None,
+        transcript=None,
     ) -> str:
         audience = topic_context.strip() if topic_context else "not specified"
-        parts = [
-            f"=== Session topic ===\n{topic}\nAudience context: {audience}",
-            "=== Timed transcript (infer slide mapping from semantic overlap) ===",
-            transcript_text[:12000],
-            "=== Content analysis (cross-check speech accuracy vs slides) ===",
-            _format_content_context(content),
-            PPTXAgent.build_deck_dump(slides_raw),
-        ]
+        if timeline and transcript is not None:
+            aligned = format_time_aligned_transcript(transcript, timeline)
+            timeline_note = (
+                "=== Slide timeline (manual tracker — use these timestamps) ===\n"
+                + "\n".join(
+                    f"Slide {s['slide_index']}: {_format_ms(s['start_ms'])}–{_format_ms(s['end_ms'])}"
+                    for s in timeline
+                )
+            )
+            parts = [
+                f"=== Session topic ===\n{topic}\nAudience context: {audience}",
+                timeline_note,
+                "=== Speech aligned to active slide ===",
+                aligned,
+                "=== Content analysis (cross-check speech accuracy vs slides) ===",
+                _format_content_context(content),
+                PPTXAgent.build_deck_dump(slides_raw),
+            ]
+        else:
+            parts = [
+                f"=== Session topic ===\n{topic}\nAudience context: {audience}",
+                "=== Timed transcript (infer slide mapping from semantic overlap) ===",
+                transcript_text[:12000],
+                "=== Content analysis (cross-check speech accuracy vs slides) ===",
+                _format_content_context(content),
+                PPTXAgent.build_deck_dump(slides_raw),
+            ]
         return "\n\n".join(parts)
 
     @staticmethod

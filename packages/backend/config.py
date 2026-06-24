@@ -49,6 +49,7 @@ class Settings(BaseSettings):
     rate_limit_sessions_per_min: int = 5
     frame_dedup_hamming_threshold: int = 8
     audio_chunk_seconds: int = 2
+    stale_slide_seconds: int = 240
 
     # Demo insurance
     demo_mode: str = ""  # "replay" → use canned fixtures

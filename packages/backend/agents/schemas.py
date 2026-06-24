@@ -86,6 +86,17 @@ class SlideAnalysisBundle(BaseModel):
     slides_raw_text: list[dict]  # [{"slide_index": int, "text": str}]
 
 
+SlideEventSource = Literal["manual", "keyboard"]
+
+
+class SlideEventPayload(BaseModel):
+    """Client → /slide-stream JSON frame. timestamp_ms is ms since recording start."""
+
+    slide_index: int = Field(ge=1)
+    timestamp_ms: int = Field(ge=0)
+    source: SlideEventSource = "manual"
+
+
 # ── Content ───────────────────────────────────────────────────────────
 class ContentFinding(BaseModel):
     type: Literal["FACTUAL_ERROR", "COVERAGE_GAP", "STRENGTH"]
