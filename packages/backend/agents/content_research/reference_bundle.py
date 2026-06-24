@@ -43,6 +43,9 @@ class ReferenceBundle(BaseModel):
             excerpt=snippet.excerpt[:cap],
             provider=snippet.provider,
         )
+        key = _dedupe_key(trimmed)
+        if any(_dedupe_key(s) == key for s in self.snippets):
+            return
         current = sum(len(s.excerpt) for s in self.snippets)
         if current + len(trimmed.excerpt) > MAX_TOTAL_CHARS:
             return
@@ -57,6 +60,13 @@ class ReferenceBundle(BaseModel):
             _format_block(articles, "No articles retrieved."),
             _format_block(improvements, "No improvement guidance retrieved."),
         )
+
+
+def _dedupe_key(snippet: ReferenceSnippet) -> str:
+    if snippet.url:
+        return f"{snippet.provider}:{snippet.url}"
+    prefix = snippet.excerpt[:120].strip().lower()
+    return f"{snippet.provider}:{snippet.source}:{snippet.title.strip().lower()}:{prefix}"
 
 
 def _format_block(snippets: list[ReferenceSnippet], empty_msg: str) -> str:

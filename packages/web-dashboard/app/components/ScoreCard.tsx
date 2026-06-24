@@ -189,7 +189,7 @@ export function ScoreCard({
 
       <p className="px-1 text-xs text-muted-foreground">
         {report.content_research_status === "full"
-          ? "Technical content evaluated with live reference lookup (official docs and articles) plus AI analysis."
+          ? "Technical content evaluated with all configured reference sources that were attempted for this session."
           : report.content_research_status === "partial"
             ? "Reference lookup partially available — some external sources could not be reached."
             : report.content_research_status === "skipped"

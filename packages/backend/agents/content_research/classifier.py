@@ -27,6 +27,77 @@ Return JSON with:
 
 CONFIDENCE_THRESHOLD = 0.6
 
+# Heuristic fallback when the LLM classifier is unavailable (research.md).
+_TECHNICAL_KEYWORDS = frozenset(
+    {
+        "api",
+        "aws",
+        "azure",
+        "database",
+        "docker",
+        "gcp",
+        "graphql",
+        "java",
+        "javascript",
+        "kubernetes",
+        "linux",
+        "llm",
+        "microservice",
+        "node",
+        "postgresql",
+        "python",
+        "react",
+        "rust",
+        "server",
+        "sql",
+        "terraform",
+        "typescript",
+        "vue",
+        "angular",
+    }
+)
+
+_LIBRARY_HINTS: tuple[tuple[str, str], ...] = (
+    ("react", "react"),
+    ("react native", "react"),
+    ("next.js", "nextjs"),
+    ("nextjs", "nextjs"),
+    ("kubernetes", "kubernetes"),
+    ("k8s", "kubernetes"),
+    ("docker", "docker"),
+    ("python", "python"),
+    ("typescript", "typescript"),
+    ("javascript", "javascript"),
+    ("node.js", "nodejs"),
+    ("nodejs", "nodejs"),
+    ("postgresql", "postgresql"),
+    ("postgres", "postgresql"),
+    ("graphql", "graphql"),
+    ("terraform", "terraform"),
+    ("aws", "aws"),
+    ("gcp", "gcp"),
+    ("azure", "azure"),
+    ("rust", "rust"),
+    ("golang", "go"),
+    ("go lang", "go"),
+)
+
+
+def _heuristic_classify(topic: str, topic_context: str | None = None) -> TopicClassification:
+    text = f"{topic} {topic_context or ''}".lower()
+    libraries: list[str] = []
+    for hint, lib in _LIBRARY_HINTS:
+        if hint in text and lib not in libraries:
+            libraries.append(lib)
+    keyword_hit = any(kw in text for kw in _TECHNICAL_KEYWORDS)
+    is_technical = bool(libraries) or keyword_hit
+    return TopicClassification(
+        is_technical=is_technical,
+        primary_libraries=libraries[:2] if is_technical else [],
+        confidence=0.5 if is_technical else 0.0,
+        rationale="heuristic fallback (classifier unavailable)",
+    )
+
 
 class _ClassificationResult(BaseModel):
     is_technical: bool
@@ -67,10 +138,5 @@ async def classify_topic(topic: str, topic_context: str | None = None) -> TopicC
             rationale=cr.rationale,
         )
     except Exception as exc:  # noqa: BLE001
-        logger.warning("Topic classifier failed, defaulting non-technical: {}", exc)
-        return TopicClassification(
-            is_technical=False,
-            primary_libraries=[],
-            confidence=0.0,
-            rationale="classification failed",
-        )
+        logger.warning("Topic classifier failed, using heuristic fallback: {}", exc)
+        return _heuristic_classify(topic, topic_context)

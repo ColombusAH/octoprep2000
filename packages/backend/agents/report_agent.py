@@ -68,18 +68,8 @@ class ReportAgent(AgentPersistence):
         self, session_id: uuid.UUID, inputs: dict, content: ContentAnalysisPayload | None
     ) -> None:
         """Step 3: PPTX delivery pass — consumes the content findings (real data dependency)."""
-        session = inputs["session"]
-        transcripts = inputs["transcripts"]
-        if session and session.slides_raw_text and transcripts:
-            pptx = PPTXAgent(self.orchestrator)
-            await pptx.analyse_delivery(
-                session_id,
-                topic=session.topic,
-                topic_context=session.topic_context,
-                slides_raw=session.slides_raw_text,
-                transcript=transcripts,
-                content=content,
-            )
+        pptx = PPTXAgent(self.orchestrator)
+        await pptx.analyse_delivery(session_id, content=content)
 
     async def assemble_and_write(
         self,

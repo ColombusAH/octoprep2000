@@ -35,19 +35,29 @@ async def fetch_reference_bundle(
         bundle.fetch_errors.append("No research providers configured (EXA_API_KEY / CONTEXT7_API_KEY)")
         return bundle
 
-    for name, task in tasks:
-        bundle.providers_attempted.append(name)
+    task_to_name = {task: name for name, task in tasks}
+    bundle.providers_attempted = [name for name, _ in tasks]
+
+    done, pending = await asyncio.wait(
+        [task for _, task in tasks],
+        timeout=settings.content_research_timeout_s,
+    )
+
+    for task in pending:
+        task.cancel()
+        name = task_to_name[task]
+        bundle.fetch_errors.append(f"{name}: timed out after {settings.content_research_timeout_s}s")
+
+    for task in done:
+        name = task_to_name[task]
         try:
-            snippets = await asyncio.wait_for(task, timeout=settings.content_research_timeout_s)
+            snippets = task.result()
             if snippets:
                 bundle.providers_succeeded.append(name)
                 for snippet in snippets:
                     bundle.add_snippet(snippet)
             else:
                 bundle.fetch_errors.append(f"{name}: no results")
-        except TimeoutError:
-            bundle.fetch_errors.append(f"{name}: timed out after {settings.content_research_timeout_s}s")
-            task.cancel()
         except ResearchProviderError as exc:
             bundle.fetch_errors.append(f"{name}: {exc}")
         except Exception as exc:  # noqa: BLE001
@@ -82,7 +92,6 @@ async def _fetch_context7(topic: str, classification: TopicClassification) -> li
 
 
 async def _fetch_exa(topic: str, include_improvements: bool) -> list:
-    snippets: list = []
     retries = get_settings().content_research_retries
 
     async def _with_retry(coro_fn):
@@ -98,9 +107,11 @@ async def _fetch_exa(topic: str, include_improvements: bool) -> list:
             raise last
         return []
 
-    articles = await _with_retry(lambda: exa_client.search_articles(topic))
-    snippets.extend(articles)
+    article_coro = _with_retry(lambda: exa_client.search_articles(topic))
     if include_improvements:
-        improvements = await _with_retry(lambda: exa_client.search_improvements(topic))
-        snippets.extend(improvements)
-    return snippets
+        articles, improvements = await asyncio.gather(
+            article_coro,
+            _with_retry(lambda: exa_client.search_improvements(topic)),
+        )
+        return list(articles) + list(improvements)
+    return await article_coro
