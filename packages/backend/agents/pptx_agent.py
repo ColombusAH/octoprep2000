@@ -20,6 +20,14 @@ from agents.llm import (
     get_text_model_fallback,
     pick_provider_order,
 )
+from agents.content_research.classifier import classify_topic
+from agents.content_research.fetcher import fetch_reference_bundle
+from agents.content_research.reference_bundle import (
+    ReferenceBundle,
+    ResearchStatus,
+    compute_research_status,
+    to_jsonb,
+)
 from agents.persistence import AgentPersistence
 from agents.replay_fixtures import replay_delivery_findings, replay_slide_findings
 from agents.schemas import ContentAnalysisPayload, SlideAnalysisPayload, SlideFindings
@@ -509,11 +517,51 @@ class PPTXAgent(AgentPersistence):
                 findings = []
         return validate_findings(findings, slides_raw)
 
+    async def research(
+        self, topic: str, topic_context: str | None
+    ) -> tuple[ReferenceBundle | None, ResearchStatus]:
+        """Pre-session phase: gather topic reference material before the rehearsal.
+
+        Moved here from ContentAnalysisAgent (feature 002) so the result is persisted
+        and reused at report time without live provider calls. Never raises — provider
+        failures are contained inside fetch_reference_bundle and surface as a status.
+        """
+        if get_settings().demo_replay:
+            return None, "not_applicable"
+
+        if not topic or not topic.strip():
+            return None, "not_applicable"
+
+        classification = await classify_topic(topic, topic_context)
+        if not classification.is_technical:
+            return None, "not_applicable"
+
+        bundle = await fetch_reference_bundle(
+            topic, classification, include_improvements=True
+        )
+        status = compute_research_status(
+            is_technical=True,
+            attempted=bundle.providers_attempted,
+            succeeded=bundle.providers_succeeded,
+        )
+        logger.info(
+            "PPTX pre-session research: status={} snippets={}",
+            status,
+            len(bundle.snippets),
+        )
+        return bundle, status
+
     async def persist(
-        self, session_id: uuid.UUID, slides_raw: list[dict], findings: list[SlideAnalysisPayload]
+        self,
+        session_id: uuid.UUID,
+        slides_raw: list[dict],
+        findings: list[SlideAnalysisPayload],
+        bundle: ReferenceBundle | None = None,
+        research_status: ResearchStatus = "not_applicable",
     ) -> None:
         """Phase 3: this agent owns slide_analyses + sessions(pptx) writes (Principle II).
-        Order preserved from the prior Orchestrator write: findings, then pptx_ready."""
+        Order preserved from the prior Orchestrator write: findings, then pptx_ready.
+        Persisted research rides along on the same session write (feature 002)."""
 
         async def write(repo: PostgreSQLRepository) -> None:
             await repo.insert_slide_analyses(
@@ -530,7 +578,12 @@ class PPTXAgent(AgentPersistence):
                     for f in findings
                 ]
             )
-            await repo.mark_pptx_ready(session_id, slides_raw)
+            await repo.mark_pptx_ready(
+                session_id,
+                slides_raw,
+                research_bundle=to_jsonb(bundle),
+                content_research_status=research_status,
+            )
 
         await self._with_repo(write)
         await self.orchestrator.notify_complete(session_id, "PPTX")

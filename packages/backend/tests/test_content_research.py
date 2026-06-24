@@ -20,9 +20,11 @@ from agents.content_research.reference_bundle import (
     ReferenceSnippet,
     TopicClassification,
     compute_research_status,
+    from_jsonb,
+    to_jsonb,
 )
 from agents.report_agent import ReportAgent
-from agents.schemas import ContentAnalysisPayload, ContentFinding
+from agents.schemas import ContentAnalysisPayload, ContentFinding, ContentResult
 
 
 def test_format_slides_raw_text_uses_deck_body_not_analyses():
@@ -242,6 +244,88 @@ def test_report_content_breakdown_skipped_status_insight():
     )
     insights, _ = agent._content_breakdown(content)
     assert any("Reference lookup unavailable" in i.message for i in insights)
+
+
+# ── Persisted-research reuse (feature 002) ────────────────────────────
+
+
+def test_bundle_jsonb_roundtrip():
+    bundle = ReferenceBundle(
+        topic="React 19",
+        snippets=[ReferenceSnippet(source="official_docs", title="Hooks", excerpt="useState", provider="context7")],
+        providers_attempted=["context7"],
+        providers_succeeded=["context7"],
+    )
+    data = to_jsonb(bundle)
+    restored = from_jsonb(data)
+    assert restored is not None
+    assert restored.snippets[0].title == "Hooks"
+    assert to_jsonb(None) is None
+    assert from_jsonb(None) is None
+    assert from_jsonb({"not": "a bundle", "snippets": "bad"}) is None
+
+
+@pytest.mark.asyncio
+async def test_content_agent_reuses_persisted_bundle_no_live_calls():
+    """SC-001: report-time content analysis makes ZERO live research-provider calls."""
+    from agents import content_agent as ca
+    from agents.content_research import context7_client, exa_client
+
+    persisted = to_jsonb(
+        ReferenceBundle(
+            topic="React 19",
+            snippets=[ReferenceSnippet(source="official_docs", title="Hooks", excerpt="useState manages state", provider="context7")],
+            providers_attempted=["context7"],
+            providers_succeeded=["context7"],
+        )
+    )
+
+    class _Session:
+        topic = "React 19"
+        topic_context = None
+        slides_raw_text = [{"slide_index": 1, "text": "React"}]
+        research_bundle = persisted
+        content_research_status = "full"
+
+    class _Entry:
+        text = "We use hooks for local state."
+
+    mock_repo = AsyncMock()
+    mock_repo.get_session = AsyncMock(return_value=_Session())
+    mock_repo.read_transcript = AsyncMock(return_value=[_Entry()])
+
+    class _Ctx:
+        async def __aenter__(self):
+            return object()
+
+        async def __aexit__(self, *a):
+            return None
+
+    fake_result = MagicMock()
+    fake_result.content = ContentResult(
+        content_score=82,
+        findings=[ContentFinding(type="STRENGTH", message="Solid hooks coverage", context_quote="hooks")],
+    )
+
+    async def boom(*_a, **_k):
+        raise AssertionError("live research provider called at report time")
+
+    with patch("agents.content_agent.get_session_maker") as mock_maker, patch(
+        "agents.content_agent.PostgreSQLRepository", return_value=mock_repo
+    ), patch("agents.content_agent.get_settings") as ms, patch(
+        "agents.content_agent.Agent"
+    ), patch(
+        "agents.content_agent.call_with_fallback", new=AsyncMock(return_value=fake_result)
+    ), patch.object(context7_client, "resolve_library", side_effect=boom), patch.object(
+        exa_client, "search_articles", side_effect=boom
+    ):
+        ms.return_value.demo_replay = False
+        mock_maker.return_value = MagicMock(return_value=_Ctx())
+        payload = await ca.ContentAnalysisAgent().analyse(uuid.uuid4())
+
+    assert payload is not None
+    assert payload.research_status == "full"
+    assert payload.content_score == 82
 
 
 @pytest.mark.asyncio

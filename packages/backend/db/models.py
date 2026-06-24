@@ -37,6 +37,8 @@ class Session(Base):
     status: Mapped[str] = mapped_column(String(32), nullable=False, default="ACTIVE")
     pptx_ready: Mapped[bool] = mapped_column(Boolean, default=False)
     slides_raw_text: Mapped[list[dict[str, Any]] | None] = mapped_column(JSONB, nullable=True)
+    research_bundle: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
+    content_research_status: Mapped[str | None] = mapped_column(String(32), nullable=True)
     started_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
     )

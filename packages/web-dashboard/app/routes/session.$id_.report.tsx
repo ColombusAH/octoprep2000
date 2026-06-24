@@ -1,10 +1,13 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
+import { Download } from "lucide-react";
 import { ApiError, createShareLink, getPublicConfig, getReport, type PublicConfig } from "~/lib/api";
 import { ScoreCard, type ReportData } from "~/components/ScoreCard";
 import { ProcessingScreen } from "~/components/ProcessingScreen";
 import { Button } from "~/components/ui/button";
 import { MOCK_REPORTS, MOCK_CONFIG } from "~/lib/mockReportData";
+
+type PdfExportStatus = "idle" | "generating" | "error";
 
 export const Route = createFileRoute("/session/$id_/report")({
   component: ReportPage,
@@ -30,6 +33,8 @@ function ReportPage() {
   // Hold the report-ready transition for one "complete" beat on ProcessingScreen
   // before swapping to ScoreCard, so the wait pays off instead of cutting away.
   const [revealReport, setRevealReport] = useState(false);
+  const [pdfStatus, setPdfStatus] = useState<PdfExportStatus>("idle");
+  const [pdfError, setPdfError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!report || !config) return;
@@ -74,6 +79,24 @@ function ReportPage() {
     }
   };
 
+  const handleDownloadPdf = async () => {
+    if (!report || !config || pdfStatus === "generating") return;
+    setPdfStatus("generating");
+    setPdfError(null);
+    try {
+      const { exportReportPdf } = await import("../lib/exportReportPdf");
+      await exportReportPdf({
+        sessionId: id,
+        report,
+        mentorBookingUrl: config.mentor_booking_url,
+      });
+      setPdfStatus("idle");
+    } catch (err) {
+      setPdfStatus("error");
+      setPdfError(err instanceof Error ? err.message : "Could not generate PDF — try again");
+    }
+  };
+
   if (error) {
     return (
       <main className="mx-auto max-w-3xl px-8 py-10">
@@ -99,14 +122,32 @@ function ReportPage() {
 
   return (
     <main className="mx-auto max-w-5xl px-8 py-10">
-      <header className="mb-6 flex items-center justify-between">
+      <header className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <h1 className="font-display text-2xl font-bold tracking-tight text-pearl">
           Session Report
         </h1>
         {!share && (
-          <Button variant="outline" onClick={handleShare}>
-            {shareUrl ? "Link copied ✓" : "Copy share link"}
-          </Button>
+          <div className="flex flex-col items-stretch gap-2 sm:items-end">
+            <div className="flex flex-wrap gap-2">
+              <Button
+                variant="outline"
+                onClick={handleDownloadPdf}
+                disabled={pdfStatus === "generating"}
+                aria-busy={pdfStatus === "generating"}
+              >
+                <Download className="size-4" aria-hidden="true" />
+                {pdfStatus === "generating" ? "Generating…" : "Download PDF"}
+              </Button>
+              <Button variant="outline" onClick={handleShare}>
+                {shareUrl ? "Link copied ✓" : "Copy share link"}
+              </Button>
+            </div>
+            {pdfError && (
+              <p className="text-sm text-destructive" role="alert">
+                {pdfError}
+              </p>
+            )}
+          </div>
         )}
       </header>
       <ScoreCard report={report} mentorBookingUrl={config.mentor_booking_url} />

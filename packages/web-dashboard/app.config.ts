@@ -8,5 +8,11 @@ export default defineConfig({
   },
   vite: {
     plugins: [tsConfigPaths(), tailwindcss()],
+    ssr: {
+      external: ["@react-pdf/renderer"],
+    },
+    optimizeDeps: {
+      include: ["@react-pdf/renderer"],
+    },
   },
 });

@@ -72,12 +72,12 @@ export async function uploadPptx(sessionId: string, file: File): Promise<void> {
   if (!res.ok) throw new Error(`upload failed: ${res.status}`);
 }
 
-/** Poll until PPTX analysis finishes (FR-001 — ≤30s typical). */
+/** Poll until PPTX prep finishes (deck analysis + pre-session topic research). */
 export async function waitForPptxReady(
   sessionId: string,
   opts?: { timeoutMs?: number; intervalMs?: number },
 ): Promise<void> {
-  const timeoutMs = opts?.timeoutMs ?? 45_000;
+  const timeoutMs = opts?.timeoutMs ?? 60_000;
   const intervalMs = opts?.intervalMs ?? 1_000;
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
