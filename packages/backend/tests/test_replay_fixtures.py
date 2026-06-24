@@ -13,6 +13,6 @@ def test_replay_audio_events_do_not_mutate_cached_fixture_rows():
     second = replay_audio_events(session_id)
 
     assert sum(isinstance(ev, TranscriptPayload) for ev in first) == 4
-    assert sum(isinstance(ev, AudioWarningPayload) for ev in first) == 2
+    assert sum(isinstance(ev, AudioWarningPayload) for ev in first) == 3
     assert sum(isinstance(ev, TranscriptPayload) for ev in second) == 4
-    assert sum(isinstance(ev, AudioWarningPayload) for ev in second) == 2
+    assert sum(isinstance(ev, AudioWarningPayload) for ev in second) == 3

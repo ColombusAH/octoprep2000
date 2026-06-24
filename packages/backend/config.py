@@ -49,6 +49,7 @@ class Settings(BaseSettings):
     rate_limit_sessions_per_min: int = 5
     frame_dedup_hamming_threshold: int = 8
     audio_chunk_seconds: int = 2
+    stale_slide_seconds: int = 240
 
     # Content research (Exa articles + Context7 docs) — post-session technical topics only
     exa_api_key: str = ""
@@ -56,6 +57,12 @@ class Settings(BaseSettings):
     content_research_enabled: bool = True
     content_research_timeout_s: int = 20
     content_research_retries: int = 1
+
+    # Uploaded video batch analysis (feature 003)
+    video_max_duration_s: int = 900  # 15 minutes
+    video_max_bytes: int = 1_073_741_824  # 1 GB
+    video_analysis_fps: int = 1  # frame sampling rate (hard-capped to ≤5 at use site)
+    video_posture_stride_s: int = 10  # seconds between GPT-4o posture batches (cost bound)
 
     # Demo insurance
     demo_mode: str = ""  # "replay" → use canned fixtures

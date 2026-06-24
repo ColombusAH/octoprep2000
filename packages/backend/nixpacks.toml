@@ -1,0 +1,5 @@
+# Railway / Nixpacks build config.
+# ffmpeg + ffprobe are required at runtime for uploaded-video batch analysis
+# (feature 003 — POST /sessions/:id/upload-video). The live rehearsal path does not need it.
+[phases.setup]
+aptPkgs = ["ffmpeg"]

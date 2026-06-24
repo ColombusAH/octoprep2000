@@ -41,15 +41,24 @@ WARNING_DEBOUNCE_MS = 10_000
 
 
 class AudioAgent(AgentPersistence):
-    def __init__(self, session_id: uuid.UUID, orchestrator: Orchestrator) -> None:
+    def __init__(
+        self,
+        session_id: uuid.UUID,
+        orchestrator: Orchestrator,
+        *,
+        slide_state_provider=None,
+    ) -> None:
         self.session_id = session_id
         self.orchestrator = orchestrator
+        self._slide_state_provider = slide_state_provider
         self._session_started_ms = int(time.monotonic() * 1000)
         self._chunk_count = 0
         # rolling 30s window of (chunk_start_s, word_count)
         self._wpm_window: deque[tuple[float, int]] = deque()
         self._last_warning_by_type: dict[str, int] = {}
         self._replay_dispatched = False
+        self._last_warning_ts = 0
+        self._last_stale_slide_index: int | None = None
 
     # ── This agent owns transcript + audio_warning writes (Principle II) ──
     async def _write_transcript(self, payload: TranscriptPayload) -> None:
@@ -137,6 +146,41 @@ class AudioAgent(AgentPersistence):
             )
 
         await self._update_wpm(text, end_ms)
+        await self._check_stale_slide(end_ms)
+
+    async def _check_stale_slide(self, ts_ms: int) -> None:
+        if not self._slide_state_provider:
+            return
+        state = self._slide_state_provider(ts_ms)
+        if not state:
+            return
+
+        threshold_ms = get_settings().stale_slide_seconds * 1000
+        if state["dwell_ms"] < threshold_ms:
+            return
+
+        slide_index = state["slide_index"]
+        if self._last_stale_slide_index == slide_index and ts_ms - self._last_warning_ts < threshold_ms:
+            return
+        if ts_ms - self._last_warning_ts < 60_000:
+            return
+
+        self._last_warning_ts = ts_ms
+        self._last_stale_slide_index = slide_index
+        minutes = max(1, state["dwell_ms"] // 60_000)
+        await self._write_warning(
+            AudioWarningPayload(
+                session_id=self.session_id,
+                timestamp_ms=ts_ms,
+                event_type="STALE_SLIDE",
+                severity="MEDIUM",
+                message=(
+                    f"You've been on slide {slide_index} for over {minutes} minute"
+                    f"{'' if minutes == 1 else 's'} — consider advancing or wrapping up."
+                ),
+                metadata={"slide_index": slide_index, "dwell_ms": state["dwell_ms"]},
+            )
+        )
 
     async def _update_wpm(self, text: str, ts_ms: int) -> None:
         words = len(text.split())

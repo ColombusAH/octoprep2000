@@ -29,6 +29,14 @@ packages/
 docs/                 # PRD, C4, Playbook, 12-factors
 ```
 
+## Prerequisites
+
+`ffmpeg` (with `ffprobe`) must be on `PATH` for uploaded-video batch analysis
+(`POST /sessions/:id/upload-video`). Dev: `brew install ffmpeg` (macOS) /
+`apt-get install ffmpeg` (Linux). Deploy: installed via `packages/backend/nixpacks.toml`
+(`aptPkgs = ["ffmpeg"]`). Without it, video upload fails fast with a clear error; the live
+rehearsal path is unaffected.
+
 ## Quick Start
 
 ```bash

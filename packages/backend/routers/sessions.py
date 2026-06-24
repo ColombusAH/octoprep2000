@@ -37,8 +37,10 @@ async def get_session(
     return {
         "session_id": session.session_id,
         "status": session.status,
+        "status_detail": session.status_detail,
         "topic": session.topic,
         "pptx_ready": session.pptx_ready,
+        "slide_count": len(session.slides_raw_text) if session.slides_raw_text else None,
         "started_at": session.started_at,
         "ended_at": session.ended_at,
     }

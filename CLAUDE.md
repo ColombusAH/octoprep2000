@@ -88,7 +88,7 @@ Copy `.env.example` to `.env` and fill in:
 - [`docs/MASTER-DOCUMENT.md`](docs/MASTER-DOCUMENT.md) — hackathon plan and team composition
 
 <!-- SPECKIT START -->
-**Active feature plan**: [`specs/002-pre-session-research/plan.md`](specs/002-pre-session-research/plan.md)
+**Active feature plan**: [`specs/003-video-upload-analysis/plan.md`](specs/003-video-upload-analysis/plan.md)
 
 For technologies, project structure, shell commands, and implementation context for the current feature, read the plan above and its linked artifacts (`research.md`, `data-model.md`, `contracts/`, `quickstart.md`).
 <!-- SPECKIT END -->

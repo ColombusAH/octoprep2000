@@ -1,6 +1,13 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
-import { createSession, storeToken, uploadPptx, waitForPptxReady } from "~/lib/api";
+import {
+  createSession,
+  storeToken,
+  uploadPptx,
+  uploadVideo,
+  waitForPptxReady,
+  waitForVideoReady,
+} from "~/lib/api";
 import { Button } from "~/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "~/components/ui/card";
 import { Input } from "~/components/ui/input";
@@ -17,8 +24,10 @@ function LandingPage() {
   const [topic, setTopic] = useState("");
   const [topicContext, setTopicContext] = useState("");
   const [file, setFile] = useState<File | null>(null);
+  const [video, setVideo] = useState<File | null>(null);
   const [loading, setLoading] = useState(false);
   const [analysing, setAnalysing] = useState(false);
+  const [processingVideo, setProcessingVideo] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const handleStart = async (e: React.FormEvent) => {
@@ -35,14 +44,24 @@ function LandingPage() {
         await uploadPptx(session_id, file);
         setAnalysing(true);
         await waitForPptxReady(session_id);
+        setAnalysing(false);
       }
       addPoints(50); // cosmetic — Tape Credits tick on a successful session start
+      if (video) {
+        // Uploaded-video path: batch analysis instead of a live rehearsal (feature 003).
+        setProcessingVideo(true);
+        await uploadVideo(session_id, video);
+        await waitForVideoReady(session_id);
+        nav({ to: "/session/$id/report", params: { id: session_id } });
+        return;
+      }
       nav({ to: "/session/$id", params: { id: session_id } });
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
       setLoading(false);
       setAnalysing(false);
+      setProcessingVideo(false);
     }
   };
 
@@ -113,8 +132,36 @@ function LandingPage() {
               />
             </div>
 
-            <Button type="submit" disabled={loading || analysing} size="lg" className="mt-1">
-              {analysing ? "Analysing your deck…" : loading ? "Starting…" : "Start Session →"}
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="video">
+                Recorded rehearsal{" "}
+                <span className="text-muted-foreground">
+                  — .mp4/.mov/.webm, optional. Upload instead of rehearsing live (max 15 min).
+                </span>
+              </Label>
+              <Input
+                id="video"
+                type="file"
+                accept="video/mp4,video/quicktime,video/webm,.mp4,.mov,.m4v,.webm"
+                onChange={(e) => setVideo(e.target.files?.[0] ?? null)}
+              />
+            </div>
+
+            <Button
+              type="submit"
+              disabled={loading || analysing || processingVideo}
+              size="lg"
+              className="mt-1"
+            >
+              {processingVideo
+                ? "Analysing your video…"
+                : analysing
+                  ? "Analysing your deck…"
+                  : loading
+                    ? "Starting…"
+                    : video
+                      ? "Upload & Analyze →"
+                      : "Start Session →"}
             </Button>
 
             {error && (

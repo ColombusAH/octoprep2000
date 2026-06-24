@@ -1,14 +1,20 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useEffect, useRef, useState } from "react";
-import { Camera, VideoOff } from "lucide-react";
-import { endSession } from "~/lib/api";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { Camera, ChevronLeft, ChevronRight, VideoOff } from "lucide-react";
+import { endSession, getSession } from "~/lib/api";
 import { getCameraPreview, startAudioCapture, startVideoCapture, type CaptureHandles } from "~/lib/capture";
-import { connectAudio, connectFeedback, connectVideo } from "~/lib/ws";
+import { connectAudio, connectFeedback, connectSlide, connectVideo, type WSHandle } from "~/lib/ws";
 import { ToastStack, type ToastEvent } from "~/components/Toast";
 import { Button } from "~/components/ui/button";
 import { Switch } from "~/components/ui/switch";
 import { Label } from "~/components/ui/label";
 import { CornerBrackets } from "~/components/chrome/CornerBrackets";
+
+type SlideEventMessage = {
+  slide_index: number;
+  timestamp_ms: number;
+  source?: "manual" | "keyboard";
+};
 
 export const Route = createFileRoute("/session/$id")({ component: SessionPage });
 
@@ -17,16 +23,29 @@ function SessionPage() {
   const nav = useNavigate();
   const videoRef = useRef<HTMLVideoElement>(null);
   const [events, setEvents] = useState<ToastEvent[]>([]);
-  const [liveFeedback, setLiveFeedback] = useState(false); // Phase 3 toggle
+  const [liveFeedback, setLiveFeedback] = useState(false);
   const [running, setRunning] = useState(false);
   const [previewReady, setPreviewReady] = useState(false);
   const [previewError, setPreviewError] = useState(false);
+  const [slideCount, setSlideCount] = useState<number | null>(null);
+  const [currentSlide, setCurrentSlide] = useState(1);
   const previewStreamRef = useRef<MediaStream | null>(null);
   const handlesRef = useRef<{ video?: CaptureHandles; audio?: CaptureHandles }>({});
+  const slideWsRef = useRef<WSHandle | null>(null);
+  const recordingStartedAtRef = useRef<number>(0);
 
-  // Show the presenter their own camera as soon as the page loads, before they
-  // hit Start Recording — avoids requesting the camera (and the multi-second
-  // permission/device-init delay) only at recording time.
+  useEffect(() => {
+    getSession(id)
+      .then((session) => {
+        if (session.pptx_ready && session.slide_count != null) {
+          setSlideCount(session.slide_count);
+        }
+      })
+      .catch(() => {
+        /* session metadata optional for slide tracker */
+      });
+  }, [id]);
+
   useEffect(() => {
     let stopped = false;
     getCameraPreview(videoRef.current!)
@@ -58,7 +77,6 @@ function SessionPage() {
             return;
           }
           if (data.type === "FALLBACK_ACTIVATED") {
-            // banner toast
             setEvents((es) => [
               ...es,
               { id: crypto.randomUUID(), type: data.type, message: data.message, severity: "MEDIUM" },
@@ -85,6 +103,52 @@ function SessionPage() {
     return () => fb.close();
   }, [id, liveFeedback, nav]);
 
+  const sendSlideEvent = useCallback(
+    (slideIndex: number, source: SlideEventMessage["source"] = "manual") => {
+      if (!slideWsRef.current || slideCount == null) return;
+      const payload: SlideEventMessage = {
+        slide_index: slideIndex,
+        timestamp_ms: Math.max(0, Date.now() - recordingStartedAtRef.current),
+        source,
+      };
+      slideWsRef.current.send(JSON.stringify(payload));
+    },
+    [slideCount],
+  );
+
+  const goToSlide = useCallback(
+    (next: number, source: SlideEventMessage["source"] = "manual") => {
+      if (slideCount == null || next < 1 || next > slideCount || next === currentSlide) return;
+      setCurrentSlide(next);
+      sendSlideEvent(next, source);
+    },
+    [slideCount, currentSlide, sendSlideEvent],
+  );
+
+  useEffect(() => {
+    if (!running || slideCount == null) return;
+
+    const onKeyDown = (ev: KeyboardEvent) => {
+      if (ev.target instanceof HTMLInputElement || ev.target instanceof HTMLTextAreaElement) return;
+      if (ev.key === "ArrowLeft") {
+        ev.preventDefault();
+        goToSlide(currentSlide - 1, "keyboard");
+      } else if (ev.key === "ArrowRight") {
+        ev.preventDefault();
+        goToSlide(currentSlide + 1, "keyboard");
+      } else if (ev.key >= "1" && ev.key <= "9") {
+        const n = Number(ev.key);
+        if (n <= slideCount) {
+          ev.preventDefault();
+          goToSlide(n, "keyboard");
+        }
+      }
+    };
+
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [running, slideCount, currentSlide, goToSlide]);
+
   const reportDeviceLost = (label: string) => {
     setEvents((es) => [
       ...es,
@@ -108,8 +172,21 @@ function SessionPage() {
   const start = async () => {
     if (running) return;
     setRunning(true);
+    recordingStartedAtRef.current = Date.now();
+    setCurrentSlide(1);
+
     const video = connectVideo(id);
     const audio = connectAudio(id);
+    if (slideCount != null) {
+      slideWsRef.current = connectSlide(id);
+      slideWsRef.current.send(
+        JSON.stringify({
+          slide_index: 1,
+          timestamp_ms: 0,
+          source: "manual",
+        } satisfies SlideEventMessage),
+      );
+    }
 
     const [videoResult, audioResult] = await Promise.allSettled([
       acquireVideoStream().then((stream) =>
@@ -151,6 +228,8 @@ function SessionPage() {
     if (videoResult.status === "rejected" && audioResult.status === "rejected") {
       video.close();
       audio.close();
+      slideWsRef.current?.close();
+      slideWsRef.current = null;
       setRunning(false);
     }
   };
@@ -158,11 +237,14 @@ function SessionPage() {
   const stop = async () => {
     handlesRef.current.video?.stop();
     handlesRef.current.audio?.stop();
-    previewStreamRef.current = null; // its tracks were just stopped above
+    slideWsRef.current?.close();
+    slideWsRef.current = null;
+    previewStreamRef.current = null;
     setRunning(false);
     await endSession(id);
-    // server emits REPORT_READY → nav happens via feedback WS handler
   };
+
+  const trackerEnabled = slideCount != null && slideCount > 0;
 
   return (
     <main className="mx-auto w-full max-w-5xl px-8 py-10">
@@ -199,7 +281,7 @@ function SessionPage() {
               </div>
             )}
           </div>
-          <div className="mt-4 flex items-center gap-3">
+          <div className="mt-4 flex flex-wrap items-center gap-3">
             {!running ? (
               <Button onClick={start} size="lg">
                 Start Recording
@@ -213,6 +295,33 @@ function SessionPage() {
                 End Session
               </Button>
             )}
+            {trackerEnabled && running && (
+              <div className="flex items-center gap-2 rounded-lg border border-border px-3 py-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon"
+                  aria-label="Previous slide"
+                  disabled={currentSlide <= 1}
+                  onClick={() => goToSlide(currentSlide - 1)}
+                >
+                  <ChevronLeft className="size-4" />
+                </Button>
+                <span className="min-w-[7rem] text-center font-mono text-sm text-pearl">
+                  Slide {currentSlide} / {slideCount}
+                </span>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon"
+                  aria-label="Next slide"
+                  disabled={currentSlide >= slideCount!}
+                  onClick={() => goToSlide(currentSlide + 1)}
+                >
+                  <ChevronRight className="size-4" />
+                </Button>
+              </div>
+            )}
             <div className="ml-auto flex items-center gap-2">
               <Switch
                 id="live-feedback"
@@ -225,6 +334,11 @@ function SessionPage() {
               </Label>
             </div>
           </div>
+          {trackerEnabled && running && (
+            <p className="mt-2 font-mono text-xs text-muted-foreground">
+              Use ← / → or number keys 1–9 to track which slide you are presenting.
+            </p>
+          )}
         </div>
         <aside>
           <h3 className="font-mono text-xs font-semibold tracking-[0.14em] text-teal uppercase">
@@ -235,6 +349,12 @@ function SessionPage() {
             Mic + camera permission required. When you click End Session, your scored report
             renders in ≤60s.
           </p>
+          {trackerEnabled && (
+            <p className="mt-3 text-sm text-muted-foreground">
+              Deck loaded ({slideCount} slides). Advance the slide tracker as you rehearse so
+              delivery feedback can align speech with slides.
+            </p>
+          )}
         </aside>
       </div>
       <ToastStack events={events} />

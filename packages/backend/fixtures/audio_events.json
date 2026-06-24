@@ -40,5 +40,13 @@
     "end_ms": 30000,
     "text": "And then useTransition wraps state updates and yields back to React so the UI stays responsive.",
     "filler_flags": []
+  },
+  {
+    "kind": "warning",
+    "timestamp_ms": 245000,
+    "event_type": "STALE_SLIDE",
+    "severity": "MEDIUM",
+    "message": "You've been on slide 4 for over 4 minutes — consider advancing or wrapping up.",
+    "metadata": {"slide_index": 4, "dwell_ms": 245000}
   }
 ]

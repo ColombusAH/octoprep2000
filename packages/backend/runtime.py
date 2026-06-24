@@ -15,6 +15,7 @@ import uuid
 from agents.audio_agent import AudioAgent
 from agents.content_agent import ContentAnalysisAgent
 from agents.frame_service import FrameService
+from agents.pptx_agent import PPTXAgent
 from agents.report_agent import ReportAgent
 from agents.vision_agent import VisionAgent
 from orchestrator.orchestrator import Orchestrator
@@ -22,8 +23,10 @@ from workflows.live_window import LiveWindowAggregator
 
 
 class SessionRuntime:
-    def __init__(self, orchestrator: Orchestrator) -> None:
+    def __init__(self, session_id: uuid.UUID, orchestrator: Orchestrator) -> None:
+        self.session_id = session_id
         self.orchestrator = orchestrator
+        self.pptx: PPTXAgent | None = None
         self.vision: VisionAgent | None = None
         self.audio: AudioAgent | None = None
         self.frame_service: FrameService | None = None
@@ -44,9 +47,14 @@ class RuntimeRegistry:
                 return rt
             orch = Orchestrator()
             await orch.start_session(session_id)
-            rt = SessionRuntime(orch)
+            rt = SessionRuntime(session_id, orch)
+            rt.pptx = PPTXAgent(orch, session_id=session_id)
             rt.vision = VisionAgent(session_id, orch)
-            rt.audio = AudioAgent(session_id, orch)
+            rt.audio = AudioAgent(
+                session_id,
+                orch,
+                slide_state_provider=rt.pptx.get_slide_state,
+            )
             rt.aggregator = LiveWindowAggregator(session_id, rt.vision, rt.audio, orch)
 
             async def _on_keep_frame(frame: bytes, rt: SessionRuntime = rt) -> None:

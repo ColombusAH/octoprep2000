@@ -141,23 +141,29 @@ class VisionAgent(AgentPersistence):
         self._flush_task.cancel()
         await self.flush()
 
-    async def on_frame_instant(self, frame_bytes: bytes) -> None:
+    async def on_frame_instant(self, frame_bytes: bytes, ts_ms: int | None = None) -> None:
         """Instant deterministic path — runs on frame ingest, NOT inside the agno window,
-        so eye-contact/face cues keep sub-100ms latency. GCV is rate-limited to ~1 fps."""
-        now_ms = int(time.monotonic() * 1000)
-        if now_ms - self._gcv_last_ms >= self._gcv_min_interval_ms:
-            self._gcv_last_ms = now_ms
-            asyncio.create_task(self._run_face_detection(frame_bytes))
+        so eye-contact/face cues keep sub-100ms latency. GCV is rate-limited to ~1 fps.
 
-    async def feed_frame(self, frame_bytes: bytes) -> None:
+        `ts_ms` (feature 003 batch path) overrides the wall-clock stamp with a media-timeline
+        timestamp; live callers omit it and keep the existing behaviour. The rate limit is
+        applied on the media timeline when ts_ms is supplied."""
+        clock_ms = ts_ms if ts_ms is not None else int(time.monotonic() * 1000)
+        if clock_ms - self._gcv_last_ms >= self._gcv_min_interval_ms:
+            self._gcv_last_ms = clock_ms
+            asyncio.create_task(self._run_face_detection(frame_bytes, ts_ms))
+
+    async def feed_frame(self, frame_bytes: bytes, ts_ms: int | None = None) -> None:
         """LLM-batch path — invoked by the LiveSessionWorkflow vision step. Buffers to
         BATCH_SIZE then runs the GPT-4o posture/gesture pass. Batch/dedup/streak state
-        lives on this long-lived agent, so it survives across windows."""
+        lives on this long-lived agent, so it survives across windows.
+
+        `ts_ms` (feature 003 batch path) stamps emitted events with the media timeline."""
         self._frame_buf.append(frame_bytes)
         if len(self._frame_buf) >= BATCH_SIZE:
             frames = list(self._frame_buf)
             self._frame_buf.clear()
-            await self._analyse(frames)
+            await self._analyse(frames, ts_ms)
 
     async def push_frame(self, frame_bytes: bytes) -> None:
         """Back-compat: instant GCV + LLM batch in one call (used by direct callers/tests)."""
@@ -165,14 +171,14 @@ class VisionAgent(AgentPersistence):
         await self.feed_frame(frame_bytes)
 
     # ── GCV layer ────────────────────────────────────────────────────
-    async def _run_face_detection(self, frame_bytes: bytes) -> None:
+    async def _run_face_detection(self, frame_bytes: bytes, ts_ms: int | None = None) -> None:
         if get_settings().demo_replay or not face_detection.is_enabled():
             return
         metrics = await face_detection.detect(frame_bytes)
         if metrics is None:
             return
 
-        ts = self._now_ms()
+        ts = ts_ms if ts_ms is not None else self._now_ms()
 
         if metrics.face_count == 0:
             await self._emit_face_event(
@@ -246,7 +252,7 @@ class VisionAgent(AgentPersistence):
         await self._emit_event(payload)
 
     # ── LLM layer (posture / gestures only) ──────────────────────────
-    async def _analyse(self, frames: list[bytes]) -> None:
+    async def _analyse(self, frames: list[bytes], ts_ms: int | None = None) -> None:
         if get_settings().demo_replay:
             for ev in replay_vision_events(self.session_id):
                 await self._emit_event(ev)
@@ -278,7 +284,7 @@ class VisionAgent(AgentPersistence):
             logger.exception("Vision LLM call failed: {}", exc)
             return
 
-        ts = self._now_ms()
+        ts = ts_ms if ts_ms is not None else self._now_ms()
         for raw in result.get("events", []):
             event_type = raw.get("type")
             if event_type == self._last_event_type:

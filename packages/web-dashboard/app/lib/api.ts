@@ -88,6 +88,48 @@ export async function waitForPptxReady(
   throw new Error("Deck analysis timed out — try again or continue without slide feedback.");
 }
 
+/** Upload a pre-recorded rehearsal video for batch analysis (feature 003). */
+export async function uploadVideo(sessionId: string, file: File): Promise<void> {
+  const fd = new FormData();
+  fd.append("file", file);
+  const res = await fetch(`${BACKEND_URL}/sessions/${sessionId}/upload-video`, {
+    method: "POST",
+    headers: { ...authHeaders(sessionId) },
+    body: fd,
+  });
+  if (!res.ok) {
+    let detail = `${res.status}`;
+    try {
+      detail = (await res.json()).detail ?? detail;
+    } catch {
+      /* non-JSON error body */
+    }
+    throw new Error(`video upload failed: ${detail}`);
+  }
+}
+
+/**
+ * Poll session status until batch video analysis reaches a terminal state.
+ * Resolves on REPORT_READY; throws with the failure reason on FAILED or timeout.
+ */
+export async function waitForVideoReady(
+  sessionId: string,
+  opts?: { timeoutMs?: number; intervalMs?: number },
+): Promise<void> {
+  const timeoutMs = opts?.timeoutMs ?? 20 * 60_000; // up to a 15-min video + processing
+  const intervalMs = opts?.intervalMs ?? 3_000;
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    const session = await getSession(sessionId);
+    if (session.status === "REPORT_READY") return;
+    if (session.status === "FAILED") {
+      throw new Error(session.status_detail || "Video analysis failed.");
+    }
+    await new Promise((r) => setTimeout(r, intervalMs));
+  }
+  throw new Error("Video analysis timed out — try again or use a shorter video.");
+}
+
 export async function endSession(sessionId: string): Promise<void> {
   const res = await fetch(`${BACKEND_URL}/sessions/${sessionId}/end`, {
     method: "POST",

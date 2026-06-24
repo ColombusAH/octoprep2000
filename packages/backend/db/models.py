@@ -35,6 +35,7 @@ class Session(Base):
     topic: Mapped[str] = mapped_column(Text, nullable=False)
     topic_context: Mapped[str | None] = mapped_column(Text, nullable=True)
     status: Mapped[str] = mapped_column(String(32), nullable=False, default="ACTIVE")
+    status_detail: Mapped[str | None] = mapped_column(Text, nullable=True)
     pptx_ready: Mapped[bool] = mapped_column(Boolean, default=False)
     slides_raw_text: Mapped[list[dict[str, Any]] | None] = mapped_column(JSONB, nullable=True)
     research_bundle: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
@@ -54,6 +55,9 @@ class Session(Base):
         back_populates="session", cascade="all, delete-orphan"
     )
     slide_analyses: Mapped[list["SlideAnalysis"]] = relationship(
+        back_populates="session", cascade="all, delete-orphan"
+    )
+    slide_events: Mapped[list["SlideEvent"]] = relationship(
         back_populates="session", cascade="all, delete-orphan"
     )
     report: Mapped["Report | None"] = relationship(
@@ -104,6 +108,20 @@ class AudioWarning(Base):
     message: Mapped[str] = mapped_column(Text, nullable=False)
 
     session: Mapped[Session] = relationship(back_populates="audio_warnings")
+
+
+class SlideEvent(Base):
+    __tablename__ = "slide_events"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    session_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("sessions.session_id", ondelete="CASCADE"), index=True
+    )
+    slide_index: Mapped[int] = mapped_column(Integer, nullable=False)
+    timestamp_ms: Mapped[int] = mapped_column(Integer, nullable=False)
+    source: Mapped[str] = mapped_column(String(16), nullable=False, server_default="manual")
+
+    session: Mapped[Session] = relationship(back_populates="slide_events")
 
 
 class SlideAnalysis(Base):
