@@ -64,6 +64,7 @@ class AudioWarningPayload(BaseModel):
 
 # ── PPTX ──────────────────────────────────────────────────────────────
 FindingType = Literal["STRENGTH", "IMPROVEMENT"]
+AnalysisPhase = Literal["static", "delivery"]
 
 
 class SlideAnalysisPayload(BaseModel):
@@ -72,6 +73,7 @@ class SlideAnalysisPayload(BaseModel):
     finding_type: FindingType
     description: str
     suggested_fix: str = ""
+    analysis_phase: AnalysisPhase = "static"
 
 
 class SlideFindings(BaseModel):

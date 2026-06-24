@@ -21,8 +21,8 @@ from agents.llm import (
     pick_provider_order,
 )
 from agents.persistence import AgentPersistence
-from agents.replay_fixtures import replay_slide_findings
-from agents.schemas import SlideAnalysisPayload, SlideFindings
+from agents.replay_fixtures import replay_delivery_findings, replay_slide_findings
+from agents.schemas import ContentAnalysisPayload, SlideAnalysisPayload, SlideFindings
 from config import get_settings
 from db.repository import PostgreSQLRepository
 from orchestrator.orchestrator import Orchestrator
@@ -119,8 +119,55 @@ Look for narrative flow across slides for Factor #8 or #12.
  "description": "Slide 6 body repeats speaker notes verbatim.",
  "suggested_fix": "Leave a ≤5-word headline on-slide; paste the full script into notes only."}"""
 
+DELIVERY_PROMPT = """You are a presentation coach reviewing how well SLIDES supported what the speaker ACTUALLY SAID.
+You receive a timed transcript from a live rehearsal plus the slide deck text. There is NO slide-change timeline —
+infer which speech segments likely belong to which slides using semantic overlap only.
+
+## Focus (Tikal Playbook — delivery lens)
+  1  Slides support the talk — they are NOT the talk. Flag when speech carries the message but slides distract or mismatch.
+  8  Story structure — speech and slide sequence should feel like one narrative.
+ 10  Speaker notes belong off-slide — flag when the speaker reads slide text verbatim instead of paraphrasing.
+ 12  From subject to story — flag when spoken content wanders while slides stay on unrelated facts.
+
+Also cross-check the optional Content Analysis block: if the speaker made a factual error or skipped a key topic,
+note when the visible slide still shows outdated or missing information.
+
+## What NOT to do
+- Do not repeat static deck-design issues (font size, object count, bullet density) unless they caused a delivery problem.
+- Do not invent transcript quotes — only reference what appears in the timed transcript.
+- Do not invent slide content — only evaluate slides explicitly provided.
+- Do not emit more than 2 findings per slide.
+- Do not judge timing ("stayed too long on slide") — no slide timeline is provided.
+
+## Output format
+Return JSON only:
+{"findings": [{
+  "slide_index": int (1-based),
+  "playbook_factor": int (1, 8, 10, or 12 preferred),
+  "finding_type": "STRENGTH" | "IMPROVEMENT",
+  "description": string (≤120 chars) — diagnosis of speech vs slide support,
+  "suggested_fix": string (≤160 chars) — concrete slide or delivery change for IMPROVEMENT
+}]}
+
+Return 3–8 findings total. Every IMPROVEMENT must have a non-empty suggested_fix naming what to change on-slide or how to speak.
+
+## Examples
+{"slide_index": 4, "playbook_factor": 1, "finding_type": "IMPROVEMENT",
+ "description": "You explained JWT refresh in speech but slide 4 still shows generic auth bullets.",
+ "suggested_fix": "Replace slide 4 with a refresh-token flow diagram matching what you said."}
+
+{"slide_index": 11, "playbook_factor": 10, "finding_type": "IMPROVEMENT",
+ "description": "You read slide 11 bullet text verbatim instead of paraphrasing.",
+ "suggested_fix": "Leave a ≤5-word headline on slide 11; speak the detail without reading."}
+
+{"slide_index": 8, "playbook_factor": 1, "finding_type": "STRENGTH",
+ "description": "Slide 8 headline matched your spoken example — good slide support.",
+ "suggested_fix": "Keep pairing a short slide headline with a spoken walk-through."}"""
+
 
 MAX_FINDINGS_PER_SLIDE = 3
+MAX_DELIVERY_FINDINGS = 8
+MAX_DELIVERY_PER_SLIDE = 2
 MAX_DESCRIPTION_LEN = 120
 MAX_SUGGESTED_FIX_LEN = 160
 MIN_DISTINCT_FACTORS = 5
@@ -174,6 +221,8 @@ def _default_suggested_fix(factor: int, row: dict | None = None) -> str:
 def _normalize_finding(
     item: SlideAnalysisPayload,
     row: dict | None = None,
+    *,
+    phase: str = "static",
 ) -> SlideAnalysisPayload:
     desc = _truncate(item.description, MAX_DESCRIPTION_LEN)
     fix = _truncate(item.suggested_fix, MAX_SUGGESTED_FIX_LEN)
@@ -185,7 +234,51 @@ def _normalize_finding(
         finding_type=item.finding_type,
         description=desc,
         suggested_fix=fix,
+        analysis_phase=phase,
     )
+
+
+def _format_ms(ms: int) -> str:
+    total = max(0, ms // 1000)
+    m, s = divmod(total, 60)
+    return f"{m}:{s:02d}"
+
+
+def _format_timed_transcript(entries) -> str:
+    lines: list[str] = []
+    for e in entries:
+        text = (getattr(e, "text", "") or "").strip()
+        if not text:
+            continue
+        start = getattr(e, "start_ms", 0)
+        end = getattr(e, "end_ms", start)
+        lines.append(f"[{_format_ms(start)}–{_format_ms(end)}] {text}")
+    return "\n".join(lines)
+
+
+def _format_content_context(content: ContentAnalysisPayload | None) -> str:
+    if not content or not content.findings:
+        return "None provided."
+    parts: list[str] = []
+    for f in content.findings:
+        quote = f' Quote: "{f.context_quote}"' if f.context_quote else ""
+        parts.append(f"- [{f.type}] {f.message}{quote}")
+    return "\n".join(parts)
+
+
+def validate_delivery_findings(findings: list[SlideAnalysisPayload]) -> list[SlideAnalysisPayload]:
+    """Cap delivery findings — semantic pass, no metadata supplement."""
+    per_slide: dict[int, int] = {}
+    kept: list[SlideAnalysisPayload] = []
+    for item in findings:
+        if len(kept) >= MAX_DELIVERY_FINDINGS:
+            break
+        count = per_slide.get(item.slide_index, 0)
+        if count >= MAX_DELIVERY_PER_SLIDE:
+            continue
+        kept.append(_normalize_finding(item, row=None, phase="delivery"))
+        per_slide[item.slide_index] = count + 1
+    return kept
 
 
 def _notes_overlap_body(body: str, notes: str) -> bool:
@@ -219,7 +312,7 @@ def validate_findings(
         if count >= MAX_FINDINGS_PER_SLIDE:
             continue
         row = rows_by_index.get(item.slide_index)
-        kept.append(_normalize_finding(item, row))
+        kept.append(_normalize_finding(item, row, phase="static"))
         per_slide[item.slide_index] = count + 1
 
     factors = {f.playbook_factor for f in kept}
@@ -417,6 +510,7 @@ class PPTXAgent(AgentPersistence):
                         "finding_type": f.finding_type,
                         "description": f.description,
                         "suggested_fix": f.suggested_fix,
+                        "analysis_phase": "static",
                     }
                     for f in findings
                 ]
@@ -425,6 +519,65 @@ class PPTXAgent(AgentPersistence):
 
         await self._with_repo(write)
         await self.orchestrator.notify_complete(session_id, "PPTX")
+
+    async def analyse_delivery(
+        self,
+        session_id: uuid.UUID,
+        *,
+        topic: str,
+        topic_context: str | None,
+        slides_raw: list[dict],
+        transcript,
+        content: ContentAnalysisPayload | None = None,
+    ) -> None:
+        """Post-session pass: compare timed speech + slide text (+ content findings)."""
+        if not slides_raw:
+            return
+        transcript_text = _format_timed_transcript(transcript)
+        if not transcript_text.strip():
+            return
+
+        if get_settings().demo_replay:
+            findings = replay_delivery_findings()
+        else:
+            try:
+                findings = await self._evaluate_delivery(
+                    topic=topic,
+                    topic_context=topic_context,
+                    slides_raw=slides_raw,
+                    transcript_text=transcript_text,
+                    content=content,
+                )
+            except Exception as exc:  # noqa: BLE001
+                logger.exception("PPTX delivery LLM eval failed: {}", exc)
+                findings = []
+
+        findings = validate_delivery_findings(findings)
+        if not findings:
+            return
+
+        async def write(repo: PostgreSQLRepository) -> None:
+            await repo.delete_slide_analyses_by_phase(session_id, "delivery")
+            await repo.insert_slide_analyses(
+                [
+                    {
+                        "session_id": session_id,
+                        "slide_index": f.slide_index,
+                        "playbook_factor": f.playbook_factor,
+                        "finding_type": f.finding_type,
+                        "description": f.description,
+                        "suggested_fix": f.suggested_fix,
+                        "analysis_phase": "delivery",
+                    }
+                    for f in findings
+                ]
+            )
+
+        await self._with_repo(write)
+        if self.orchestrator is not None:
+            await self.orchestrator.notify_complete(
+                session_id, "PPTX", meta={"phase": "delivery", "findings": len(findings)}
+            )
 
     @staticmethod
     def _extract_notes(slide) -> str:
@@ -529,6 +682,65 @@ class PPTXAgent(AgentPersistence):
         raw = result.content.findings
         logger.info("PPTX LLM result: {} findings", len(raw))
         return raw
+
+    async def _evaluate_delivery(
+        self,
+        *,
+        topic: str,
+        topic_context: str | None,
+        slides_raw: list[dict],
+        transcript_text: str,
+        content: ContentAnalysisPayload | None,
+    ) -> list[SlideAnalysisPayload]:
+        dump = self.build_delivery_dump(
+            topic=topic,
+            topic_context=topic_context,
+            slides_raw=slides_raw,
+            transcript_text=transcript_text,
+            content=content,
+        )
+        agent = Agent(
+            model=get_text_model(),
+            instructions=DELIVERY_PROMPT,
+            output_schema=SlideFindings,
+        )
+
+        async def _gateway():
+            return await agent.arun(dump)
+
+        fb = get_text_model_fallback()
+
+        async def _claude():
+            return await Agent(model=fb, instructions=DELIVERY_PROMPT, output_schema=SlideFindings).arun(
+                dump
+            )
+
+        claude_fn = _claude if fb else None
+        primary, secondary = pick_provider_order(claude_fn, _gateway)
+        result = await call_with_fallback(primary, secondary)
+        raw = result.content.findings
+        logger.info("PPTX delivery LLM result: {} findings", len(raw))
+        return raw
+
+    @staticmethod
+    def build_delivery_dump(
+        *,
+        topic: str,
+        topic_context: str | None,
+        slides_raw: list[dict],
+        transcript_text: str,
+        content: ContentAnalysisPayload | None,
+    ) -> str:
+        audience = topic_context.strip() if topic_context else "not specified"
+        parts = [
+            f"=== Session topic ===\n{topic}\nAudience context: {audience}",
+            "=== Timed transcript (infer slide mapping from semantic overlap) ===",
+            transcript_text[:12000],
+            "=== Content analysis (cross-check speech accuracy vs slides) ===",
+            _format_content_context(content),
+            PPTXAgent.build_deck_dump(slides_raw),
+        ]
+        return "\n\n".join(parts)
 
     @staticmethod
     def build_deck_dump(slides_raw: list[dict]) -> str:

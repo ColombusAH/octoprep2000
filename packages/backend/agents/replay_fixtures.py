@@ -67,6 +67,16 @@ def replay_slide_findings() -> list[SlideAnalysisPayload]:
     return out
 
 
+def replay_delivery_findings() -> list[SlideAnalysisPayload]:
+    out: list[SlideAnalysisPayload] = []
+    for raw in _load("slide_delivery_findings.json") or []:
+        try:
+            out.append(SlideAnalysisPayload(**raw))
+        except Exception:  # noqa: BLE001
+            continue
+    return out
+
+
 def replay_content_analysis(session_id: uuid.UUID, topic: str) -> ContentAnalysisPayload:
     data = _load("content_findings.json") or {}
     findings: list[ContentFinding] = []
