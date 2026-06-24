@@ -2,14 +2,21 @@ import { Mic, Camera, Image, Brain, Lock, LockOpen, CheckCircle2, ArrowUpCircle,
 import { Card } from "~/components/ui/card";
 import { ScoreRing, ScoreBar, scoreColor } from "~/components/ScoreRing";
 import { CornerBrackets } from "~/components/chrome/CornerBrackets";
+import {
+  AI_DISCLAIMER,
+  CATEGORY_META,
+  formatInsightRefs,
+  type Insight,
+} from "~/lib/reportFormatting";
 
-type Insight = {
-  category: "voice" | "body" | "slide" | "content";
-  type: "STRENGTH" | "IMPROVEMENT";
-  message: string;
-  timestamps?: number[];
-  slides?: number[];
-};
+export type { Insight };
+
+const CATEGORY_ICONS = {
+  voice: Mic,
+  body: Camera,
+  slide: Image,
+  content: Brain,
+} as const;
 
 export type ReportData = {
   overall_score: number;
@@ -22,20 +29,6 @@ export type ReportData = {
   mentor_unlocked: boolean;
 };
 
-function formatTs(ms: number): string {
-  const total = Math.floor(ms / 1000);
-  const m = Math.floor(total / 60);
-  const s = (total % 60).toString().padStart(2, "0");
-  return `${m}:${s}`;
-}
-
-const CATEGORY_META = {
-  voice: { icon: Mic, title: "Voice & Delivery" },
-  body: { icon: Camera, title: "Body Language & Camera" },
-  slide: { icon: Image, title: "Slide Quality" },
-  content: { icon: Brain, title: "Technical Content" },
-} as const;
-
 function Panel({
   category,
   score,
@@ -45,7 +38,8 @@ function Panel({
   score: number | null;
   insights: Insight[];
 }) {
-  const { icon: Icon, title } = CATEGORY_META[category];
+  const Icon = CATEGORY_ICONS[category];
+  const { title } = CATEGORY_META[category];
   const strengths = insights.filter((i) => i.type === "STRENGTH");
   const improvements = insights.filter((i) => i.type === "IMPROVEMENT");
   const notScored = score === null && insights.length === 0;
@@ -108,16 +102,9 @@ function Panel({
                   />
                   <span>
                     {i.message}
-                    {i.timestamps && i.timestamps.length > 0 ? (
-                      <span className="ml-1.5 font-mono text-xs text-muted-foreground">
-                        → {i.timestamps.map(formatTs).join(", ")}
-                      </span>
-                    ) : null}
-                    {i.slides && i.slides.length > 0 ? (
-                      <span className="ml-1.5 font-mono text-xs text-muted-foreground">
-                        → slides {i.slides.join(", ")}
-                      </span>
-                    ) : null}
+                    <span className="ml-1.5 font-mono text-xs text-muted-foreground">
+                      {formatInsightRefs(i)}
+                    </span>
                   </span>
                 </div>
               ))
@@ -194,7 +181,7 @@ export function ScoreCard({
             ? "Reference lookup partially available — some external sources could not be reached."
             : report.content_research_status === "skipped"
               ? "Reference lookup unavailable — content scored from transcript and AI knowledge only."
-              : "Content accuracy powered by AI analysis. May not reflect features released after the model's training cutoff."}
+              : AI_DISCLAIMER}
       </p>
     </div>
   );
