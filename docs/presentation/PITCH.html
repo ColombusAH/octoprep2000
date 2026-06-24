@@ -243,15 +243,15 @@ img, video, canvas, svg { max-width:100%; max-height:100%; }
 .step-arrow { font-size:48px; color:var(--teal); margin:0 28px; opacity:0.7; }
 
 /* ===========================================
-   SLIDE 5 — ARCHITECTURE (two Mermaid diagrams)
+   SLIDE 5 — ARCHITECTURE (one Mermaid diagram per slide)
    =========================================== */
-.s5-wrap { position:absolute; inset:0; z-index:12; display:flex; flex-direction:column; align-items:center; padding-top:80px; }
-.s5-title { font-size:72px; margin-top:8px; margin-bottom:36px; }
-.s5-cols { display:flex; gap:40px; width:1740px; height:780px; }
-.s5-panel { flex:1; display:flex; flex-direction:column; padding:24px; }
-.s5-panel .panel-label { font-family:var(--font-mono); font-size:16px; color:var(--teal); letter-spacing:0.16em; text-transform:uppercase; margin-bottom:16px; text-align:center; }
-.s5-panel .mermaid { flex:1; display:flex; align-items:center; justify-content:center; background:transparent; overflow:auto; min-height:0; }
-.s5-panel .mermaid svg { max-width:100% !important; max-height:680px !important; width:auto !important; height:auto !important; }
+.s5-wrap { position:absolute; inset:0; z-index:12; display:flex; flex-direction:column; align-items:center; padding-top:60px; }
+.s5-title { font-size:58px; margin-top:6px; margin-bottom:18px; }
+.s5-cols { display:flex; gap:40px; width:1800px; height:888px; }
+.s5-panel { flex:1; display:flex; flex-direction:column; padding:20px 30px; }
+.s5-panel .panel-label { font-family:var(--font-mono); font-size:17px; color:var(--teal); letter-spacing:0.16em; text-transform:uppercase; margin-bottom:14px; text-align:center; }
+.s5-panel .mermaid { flex:1; width:100%; display:flex; align-items:center; justify-content:center; background:transparent; overflow:hidden; min-width:0; min-height:0; }
+.s5-panel .mermaid svg { max-width:100% !important; max-height:100% !important; width:auto !important; height:auto !important; min-width:0 !important; }
 
 /* ===========================================
    SLIDE 6 — THE SCORECARD
@@ -371,7 +371,7 @@ img, video, canvas, svg { max-width:100%; max-height:100%; }
         </div>
       </div>
       <div class="vhs-ts">SP · 00:00:20</div>
-      <div class="slide-num">02 / 08</div>
+      <div class="slide-num">02 / 09</div>
     </section>
 
     <!-- ===================== SLIDE 3: THE PROBLEM ===================== -->
@@ -386,14 +386,14 @@ img, video, canvas, svg { max-width:100%; max-height:100%; }
       <div class="s3-wrap">
         <div class="slide-title s3-title reveal">Presenters rehearse <span class="hl">blind.</span></div>
         <div class="s3-cards">
-          <div class="glass pain-card reveal reveal-2"><div class="ic">🕐</div><div class="txt">No structured feedback loop during rehearsal</div></div>
-          <div class="glass pain-card reveal reveal-3"><div class="ic">💸</div><div class="txt">Professional coaches are expensive and slow</div></div>
-          <div class="glass pain-card reveal reveal-4"><div class="ic">📹</div><div class="txt">Self-recordings are tedious and unguided</div></div>
+          <div class="glass pain-card reveal reveal-2"><div class="ic">🧑‍🏫</div><div class="txt">Lecture advisors at Tikal aren't always available</div></div>
+          <div class="glass pain-card reveal reveal-3"><div class="ic">🙈</div><div class="txt">Advising is easy to skip — so people show up unprepared</div></div>
+          <div class="glass pain-card reveal reveal-4"><div class="ic">🔁</div><div class="txt">No easy way to practice and get feedback alone</div></div>
         </div>
-        <div class="s3-stat reveal reveal-5">Hours of prep. <span class="hl">Zero structured feedback.</span></div>
+        <div class="s3-stat reveal reveal-5">Hours of prep. <span class="hl">No one to rehearse with.</span></div>
       </div>
       <div class="vhs-ts">SP · 00:00:40</div>
-      <div class="slide-num">03 / 08</div>
+      <div class="slide-num">03 / 09</div>
     </section>
 
     <!-- ===================== SLIDE 4: THE SOLUTION ===================== -->
@@ -417,7 +417,7 @@ img, video, canvas, svg { max-width:100%; max-height:100%; }
         </div>
       </div>
       <div class="vhs-ts">SP · 00:01:05</div>
-      <div class="slide-num">04 / 08</div>
+      <div class="slide-num">04 / 09</div>
     </section>
 
     <!-- ===================== SLIDE 5: ARCHITECTURE ===================== -->
@@ -431,26 +431,26 @@ img, video, canvas, svg { max-width:100%; max-height:100%; }
       <div class="rec-indicator"><div class="rec-dot"></div>REC</div>
       <div class="s5-wrap">
         <div class="eyebrow reveal">UNDER THE HOOD</div>
-        <div class="slide-title s5-title reveal reveal-2">How It's Built</div>
+        <div class="slide-title s5-title reveal reveal-2">System Context</div>
         <div class="s5-cols">
           <div class="glass s5-panel reveal reveal-3">
             <div class="panel-label">System Context · C4 L1</div>
             <!-- EDIT THIS DIAGRAM: change only the text inside this div -->
             <div class="mermaid">
 graph LR
-    presenter(["👤 Presenter<br/>uploads deck · rehearses live"])
+    presenter(["👤 Presenter<br/>   uploads deck ·rehearses" ])
     subgraph sys["🐙 OctoPrep2000"]
-        core["Analyses voice, body,<br/>slides &amp; content in real time"]
+        core["Analyses voice, body,<br/>slides &amp; content"]
     end
-    vision(["🤖 GPT-4o Vision + Google Cloud Vision<br/>via Tikal LiteLLM<br/>posture · gestures (GPT-4o)<br/>eye contact · face detect (GCV)"])
+    vision(["🤖 GPT-4o Vision<br/>+ Google Cloud Vision<br/>via Tikal LiteLLM"])
     stt(["🎙️ ElevenLabs Scribe v1<br/>speech-to-text"])
-    cal(["📅 Calendly<br/>deep-link only, read-only<br/>unlocked at score ≥80"])
-    presenter -->|"uploads deck · streams audio/video"| core
-    core -->|"scored, timestamp-anchored report"| presenter
+    cal(["📅 Calendly<br/>score ≥80 unlock"])
+    presenter -->|"uploads deck · streams A/V"| core
+    core -->|"scored report"| presenter
     core -->|"video frames"| vision
-    vision -->|"posture/gesture findings"| core
+    vision -->|"posture / gesture findings"| core
     core -->|"audio chunks"| stt
-    stt -->|"transcript + filler/WPM"| core
+    stt -->|"transcript + filler / WPM"| core
     core -.->|"deep-link redirect"| cal
     class presenter sky
     class core green
@@ -458,8 +458,27 @@ graph LR
     style sys fill:#0b1120,stroke:#4ade80,color:#86efac
             </div>
           </div>
-          <div class="glass s5-panel reveal reveal-4">
-            <div class="panel-label">Internal Agent Pipeline · C4 L3</div>
+        </div>
+      </div>
+      <div class="vhs-ts">SP · 00:01:30</div>
+      <div class="slide-num">05 / 09</div>
+    </section>
+
+    <!-- ===================== SLIDE 5B: ARCHITECTURE — AGENT PIPELINE ===================== -->
+    <section class="slide" data-slide="6">
+      <div class="slide-bg"></div>
+      <div class="grid-bg"></div>
+      <div class="vignette"></div>
+      <div class="bracket bracket-tl"></div><div class="bracket bracket-tr"></div>
+      <div class="bracket bracket-bl"></div><div class="bracket bracket-br"></div>
+      <div class="hud-tl">ARCHITECTURE</div>
+      <div class="rec-indicator"><div class="rec-dot"></div>REC</div>
+      <div class="s5-wrap">
+        <div class="eyebrow reveal">UNDER THE HOOD</div>
+        <div class="slide-title s5-title reveal reveal-2">Internal Agent Pipeline</div>
+        <div class="s5-cols">
+          <div class="glass s5-panel reveal reveal-3">
+            <div class="panel-label">Backend · Routes → Workflows → Agents → DB · C4 L3</div>
             <!-- EDIT THIS DIAGRAM: change only the text inside this div -->
             <div class="mermaid">
 graph LR
@@ -472,48 +491,48 @@ graph LR
         SM[SessionManager]; BC[Broadcaster]
     end
     subgraph Orch["🧠 Orchestrator"]
-        AG[Orchestrator<br/>lifecycle · coordination<br/>reads tables to build report]
+        AG[Orchestrator<br/>lifecycle · coord · report]
     end
-    subgraph Flows["🔀 agno Workflows · in-process glue · db=None · no writes"]
+    subgraph Flows["🔀 agno Workflows"]
         direction TB
-        PWF[PptxPrepWorkflow<br/>extract→review→research→write]
-        LWF[LiveSessionWorkflow<br/>Parallel LiveAnalysisTeam<br/>vision ‖ audio]
-        VWF[VideoAnalysisWorkflow<br/>extract→analyse→report<br/>uploaded video · ffmpeg]
-        RWF[ReportWorkflow<br/>read→content→delivery→score]
+        PWF[PptxPrepWorkflow<br/>extract→review→write]
+        LWF[LiveSessionWorkflow<br/>vision ‖ audio]
+        VWF[VideoAnalysisWorkflow<br/>extract→analyse→report]
+        RWF[ReportWorkflow<br/>read→score→deliver]
     end
-    subgraph Agents["🤖 Agents · async tasks · own their tables"]
+    subgraph Agents["🤖 Agents"]
         direction TB
         FS[FrameService]; VA[VisionAgent]; AA[AudioAgent]
         PA[PPTXAgent]; CA[ContentAgent]; RA[ReportAgent]
     end
-    subgraph Data["💾 Data · one writer per table"]
+    subgraph Data["💾 Data"]
         RP[Repository]; DB[(PostgreSQL)]
     end
     SR --> SM --> AG
-    UR --> PWF -.->|delegate phases| PA
+    UR --> PWF -.->|delegate| PA
     VUR --> VWF
-    VWF -.->|feed frames + audio| VA
-    VWF -.->|feed audio| AA
-    VWF -.->|session end handoff| RWF
+    VWF -.->|frames + audio| VA
+    VWF -.->|audio| AA
+    VWF -.->|handoff| RWF
     VW --> LWF
     AW --> LWF
-    LWF -.->|vision step| VA
-    LWF -.->|audio step| AA
-    AG -->|session end| RWF -.->|delegate phases| RA
+    LWF -.->|vision| VA
+    LWF -.->|audio| AA
+    AG -->|session end| RWF -.->|delegate| RA
     FW --> BC
     AG --> FS --> VA
     VA -->|writes video_events| RP
-    AA -->|writes transcript_entries + audio_warnings| RP
-    PA -->|writes slide_analyses + slides_raw_text| RP
+    AA -->|writes transcript + warnings| RP
+    PA -->|writes slide_analyses| RP
     CA -->|writes content findings| RP
     RA -->|writes reports| RP
     RP --> DB
-    VA -.->|notify_complete| AG
-    AA -.->|notify_complete| AG
-    PA -.->|notify_complete| AG
-    CA -.->|notify_complete| AG
-    AG -.->|read tables to assemble report| RA
-    RA -.->|notify_complete| AG
+    VA -.->|notify| AG
+    AA -.->|notify| AG
+    PA -.->|notify| AG
+    CA -.->|notify| AG
+    AG -.->|assemble report| RA
+    RA -.->|notify| AG
     AG --> BC
     class SR,UR,VUR,VW,AW,FW sky
     class SM,BC green
@@ -531,12 +550,12 @@ graph LR
           </div>
         </div>
       </div>
-      <div class="vhs-ts">SP · 00:01:30</div>
-      <div class="slide-num">05 / 08</div>
+      <div class="vhs-ts">SP · 00:01:45</div>
+      <div class="slide-num">06 / 09</div>
     </section>
 
     <!-- ===================== SLIDE 6: THE SCORECARD ===================== -->
-    <section class="slide" data-slide="6">
+    <section class="slide" data-slide="7">
       <div class="slide-bg"></div>
       <div class="grid-bg"></div>
       <div class="vignette"></div>
@@ -569,11 +588,11 @@ graph LR
         overall = voice×0.30 + body×0.30 + slides×0.20 + content×0.20
       </div>
       <div class="vhs-ts">SP · 00:02:10</div>
-      <div class="slide-num">06 / 08</div>
+      <div class="slide-num">07 / 09</div>
     </section>
 
     <!-- ===================== SLIDE 7: LIVE DEMO ===================== -->
-    <section class="slide" data-slide="7">
+    <section class="slide" data-slide="8">
       <div class="slide-bg"></div>
       <div class="grid-bg"></div>
       <svg class="s7-wave" viewBox="0 0 1920 1080" preserveAspectRatio="none">
@@ -591,11 +610,11 @@ graph LR
         <div class="s7-sub reveal reveal-3">upload → record → score</div>
       </div>
       <div class="vhs-ts">SP · 00:02:35</div>
-      <div class="slide-num">07 / 08</div>
+      <div class="slide-num">08 / 09</div>
     </section>
 
     <!-- ===================== SLIDE 8: CTA / THANK YOU ===================== -->
-    <section class="slide" data-slide="8">
+    <section class="slide" data-slide="9">
       <div class="slide-bg"></div>
       <div class="grid-bg"></div>
       <div class="vignette"></div>
@@ -614,7 +633,7 @@ graph LR
       <div class="s8-footer reveal reveal-4">OctoPrep2000 · Built in 6 hours · Tikal Fuse Day 2026</div>
       <div class="s8-octo-corner">🐙</div>
       <div class="vhs-ts">SP · 00:04:35</div>
-      <div class="slide-num">08 / 08</div>
+      <div class="slide-num">09 / 09</div>
     </section>
 
   </div>
@@ -664,7 +683,7 @@ mermaid.initialize({
     mainBkg:"#1e293b", nodeBorder:"#334155",
     attributeBackgroundColorOdd:"#0f172a", attributeBackgroundColorEven:"#111c33"
   },
-  flowchart:{useMaxWidth:false, htmlLabels:true, curve:"basis", nodeSpacing:55, rankSpacing:65, padding:14, diagramPadding:18},
+  flowchart:{useMaxWidth:true, htmlLabels:true, wrappingWidth:420, curve:"basis", nodeSpacing:55, rankSpacing:65, padding:14, diagramPadding:18},
   sequence:{useMaxWidth:false, mirrorActors:false, boxMargin:12, messageFontWeight:500, actorMargin:60, noteMargin:14, wrap:true, width:170},
   er:{useMaxWidth:false, entityPadding:14, fontSize:14},
   class:{useMaxWidth:false}
@@ -684,7 +703,11 @@ document.querySelectorAll(".mermaid").forEach(function(el){
   if(/^(flowchart|graph)\b/.test(src)) src += "\n" + PALETTE;
   el.textContent = src;
 });
-mermaid.run({ querySelector:".mermaid", suppressErrors:true });
+/* Render AFTER webfonts load — else mermaid measures labels with the fallback
+   font, the wider webfont swaps in, and node text overflows its baked box. */
+function runMermaid(){ mermaid.run({ querySelector:".mermaid", suppressErrors:true }); }
+if(document.fonts && document.fonts.ready){ document.fonts.ready.then(runMermaid); }
+else { runMermaid(); }
 
 /* ============ STAGE SCALING ============ */
 function scaleStage() {
