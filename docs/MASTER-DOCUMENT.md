@@ -78,7 +78,7 @@ The team is structured to support a highly distributed, parallelized end-to-end 
 | **Dev 2** — Audio Agent Developer (STT/Audio) | Real-time audio streaming, Speech-to-Text, filler word detection, WPM analysis, timestamped transcripts to DB |
 | **Dev 3** — Content Analysis Agent Developer | Post-session agent: reads full transcript + session topic, evaluates technical accuracy and coverage gaps via LLM |
 | **Dev 4** — PPTX Agent Developer | Post-upload slide analysis against Tikal's 12-factor Presentation Skills Playbook |
-| **Dev 5** — Orchestration & Report Developer (Agno BE) | Orchestrator (central brain, session state, all DB writes) + Report Generator Agent (deduplication, scoring) — tightly coupled, one owner |
+| **Dev 5** — Orchestration & Report Developer (Agno BE) | Orchestrator (central brain — session lifecycle, cross-agent coordination via completion signals, fallback) + Report Generator Agent (owns the `reports` table, deduplication, scoring) — tightly coupled, one owner. Each agent owns and writes its own role-scoped table; the Orchestrator is no longer the sole DB writer. |
 | **Dev 6** — Frontend Developer (TanStack Start) | Core web dashboard UI. Chrome Extension UI is a **stretch goal only** — tackled in Hackathon PM if Sprint 1 is finished early |
 | **Dev 7** — Pitch Presentation & Content | Hackathon pitch deck (Fuse skill framework) + LinkedIn posts and social content for the team during and after the event |
 
@@ -89,7 +89,7 @@ The team is structured to support a highly distributed, parallelized end-to-end 
 The architecture is inherently event-driven and synchronized over persistent WebSockets, driven by a FastAPI backend and coordinated via Agno.
 
 ### 1. 🤖 The Orchestrator (Central Brain)
-Acts as the central State Manager and Event Dispatcher. It coordinates asynchronous concurrent real-time streams (Audio, Video Deltas, and optional Slide Changes), cross-references them in a shared state context, and pushes live UI events or final analysis data without blocking parallel processing.
+Acts as the central State Manager and Coordinator. It owns the session lifecycle (ACTIVE→ENDED→REPORT_READY), coordinates the asynchronous concurrent real-time streams (Audio, Video Deltas, and optional Slide Changes) via per-agent completion signals, handles audio-only fallback, and emits the lifecycle broadcasts (REPORT_READY / FALLBACK_ACTIVATED) — all without blocking parallel processing. Each agent persists its own role-scoped data directly; the Orchestrator reads the agreed tables to assemble the final report.
 
 ### 2. 📹 Algorithmic Frame Service
 A core non-agent utility. It establishes a WebSocket connection with the client, ingests the video feed, and algorithmically discards redundant data, forwarding only optimized frame matrices to save token costs.
@@ -98,7 +98,7 @@ A core non-agent utility. It establishes a WebSocket connection with the client,
 Subscribes to the live frame stream to instantly evaluate presentation presence, posture, and facial framing.
 
 ### 4. 🤖 Audio & Transcription Agent (Real-Time Socket-Enabled)
-Processes live audio chunks, passes them through a low-latency STT model, commits timestamps to the DB under the unique Session/Video ID, and streams text to the Orchestrator.
+Processes live audio chunks, passes them through a low-latency STT model, and writes its timestamped transcripts (and audio warnings) directly to its own tables in the DB under the unique Session/Video ID, then signals the Orchestrator on completion.
 
 ### 5. 🤖 Presentation Analysis Agent (PPTX Base Feature)
 Ingests the baseline PPTX document uploaded by the user. It evaluates slide layouts, text balance, and visual clarity using the Tikal Presentation Skills Playbook / 12 Factors as its primary contextual guide.

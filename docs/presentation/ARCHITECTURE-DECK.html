@@ -418,7 +418,7 @@ graph TB
 
   <!-- 15 BACKEND COMPONENTS -->
   <section class="slide" data-title="Backend Components">
-    <div class="kicker">C4 · Level 3</div><h2>Backend — Routes → Orchestrator → Agents</h2>
+    <div class="kicker">C4 · Level 3</div><h2>Backend — Routes → Agents → DB → Orchestrator</h2>
     <div class="body"><div class="diagram"><pre class="mermaid">
 graph LR
     subgraph Routes["🌐 Routes"]
@@ -430,32 +430,35 @@ graph LR
         SM[SessionManager]; BC[Broadcaster]
     end
     subgraph Orch["🧠 Orchestrator"]
-        AG[Orchestrator<br/>sole DB writer]
+        AG[Orchestrator<br/>lifecycle · coordination<br/>reads tables to build report]
     end
-    subgraph Agents["🤖 Agents · async tasks"]
+    subgraph Agents["🤖 Agents · async tasks · own their tables"]
         direction TB
         FS[FrameService]; VA[VisionAgent]; AA[AudioAgent]
         PA[PPTXAgent]; CA[ContentAgent]; RA[ReportAgent]
     end
-    subgraph Data["💾 Data"]
+    subgraph Data["💾 Data · one writer per table"]
         RP[Repository]; DB[(PostgreSQL)]
     end
     SR --> SM --> AG
     UR --> PA
-    VW --> AG
-    AW --> AG
+    VW --> VA
+    AW --> AA
     FW --> BC
     AG --> FS --> VA
-    AG --> AA
-    VA -->|emit payload| AG
-    AA -->|emit payload| AG
-    PA -->|emit payload| AG
-    CA -->|emit payload| AG
-    RA -->|emit payload| AG
+    VA -->|writes video_events| RP
+    AA -->|writes transcript_entries + audio_warnings| RP
+    PA -->|writes slide_analyses + slides_raw_text| RP
+    CA -->|writes content findings| RP
+    RA -->|writes reports| RP
+    RP --> DB
+    VA -.->|notify_complete| AG
+    AA -.->|notify_complete| AG
+    PA -.->|notify_complete| AG
+    CA -.->|notify_complete| AG
+    AG -.->|read tables to assemble report| RA
+    RA -.->|notify_complete| AG
     AG --> BC
-    AG -->|validate + persist| RP --> DB
-    RA -.->|read-only| RP
-    CA -.->|read-only| RP
     class SR,UR,VW,AW,FW sky
     class SM,BC green
     class AG violet
@@ -476,13 +479,13 @@ graph LR
       <table>
         <tr><th>Agent</th><th>Phase</th><th>Model / Service</th><th>Emits</th></tr>
         <tr><td>Frame Service</td><td>P1</td><td><code>imagehash</code> dhash (algorithmic)</td><td>filtered frame stream</td></tr>
-        <tr><td>Audio Agent</td><td>P1</td><td>ElevenLabs Scribe v1</td><td>Transcript + AudioWarning</td></tr>
-        <tr><td>Vision Agent</td><td>P2</td><td>GPT-4o Vision (LiteLLM)</td><td>VideoEvent</td></tr>
-        <tr><td>PPTX Agent</td><td>P1</td><td>LiteLLM · 12-factor Playbook</td><td>SlideAnalysis[]</td></tr>
-        <tr><td>Content Agent</td><td>P2</td><td>LiteLLM · reads transcript</td><td>ContentAnalysis</td></tr>
-        <tr><td>Report Agent</td><td>P1/P2</td><td>LiteLLM · reads all events</td><td>Report (4 vectors)</td></tr>
+        <tr><td>Audio Agent</td><td>P1</td><td>ElevenLabs Scribe v1</td><td>writes <code>transcript_entries</code> + <code>audio_warnings</code></td></tr>
+        <tr><td>Vision Agent</td><td>P2</td><td>GPT-4o Vision (LiteLLM)</td><td>writes <code>video_events</code> (batched 1s/N=20)</td></tr>
+        <tr><td>PPTX Agent</td><td>P1</td><td>LiteLLM · 12-factor Playbook</td><td>writes <code>slide_analyses</code> + <code>slides_raw_text</code></td></tr>
+        <tr><td>Content Agent</td><td>P2</td><td>LiteLLM · reads transcript</td><td>writes content findings</td></tr>
+        <tr><td>Report Agent</td><td>P1/P2</td><td>LiteLLM · reads agreed tables</td><td>writes <code>reports</code> (4 vectors)</td></tr>
       </table>
-      <p class="sub"><b>Golden rule:</b> agents are pure AI logic — they <b>emit typed Pydantic payloads</b> to the Orchestrator and never touch the DB. Orchestrator is the <b>sole writer</b>; Report + Content agents get read-only access for aggregation.</p>
+      <p class="sub"><b>Golden rule:</b> <b>one writer per table</b>. Each agent owns its role-scoped rows, writes them to Postgres, and only after the commit lands sends a <code>notify_complete</code> completion signal to the Orchestrator. The Orchestrator owns lifecycle + cross-agent coordination and <b>reads the agreed tables</b> to assemble the final report.</p>
     </div>
   </section>
 
@@ -497,6 +500,7 @@ sequenceDiagram
     participant ORC as Orchestrator
     participant VA as VisionAgent
     participant AA as AudioAgent
+    participant RA as ReportAgent
     participant BC as Broadcaster
     participant GPT as GPT-4o Vision
     participant STT as ElevenLabs STT
@@ -511,27 +515,32 @@ sequenceDiagram
     loop frames ~200ms, post-dhash dedup
         FE->>VA: JPEG frame
         VA->>VA: GCV face_detection (~1fps cap, NFR-004)
-        VA->>ORC: emit EYE_CONTACT_LOST / FACE_TILTED / SMILING_STRONG
+        VA->>DB: INSERT video_events (batched 1s/N=20)
+        VA->>BC: publish live feedback
+        BC-->>P: 🔴 Toast "Look at the camera!"
         opt every 3rd frame
             VA->>GPT: batch(3 frames) — posture/gestures
             GPT-->>VA: POSTURE_ISSUE / GESTURE_CLOSED / OUT_OF_FRAME
-            VA->>ORC: emit(VideoEventPayload)
+            VA->>DB: INSERT video_events
         end
-        ORC->>DB: INSERT VideoEvent (batched 1s/N=20)
-        ORC->>BC: publish warning
-        BC-->>P: 🔴 Toast "Look at the camera!"
     end
     loop audio ~2s
         FE->>AA: PCM chunk (16-bit · 16kHz)
         AA->>STT: transcribe
         STT-->>AA: text + timestamps
-        AA->>ORC: emit(Transcript + AudioWarning)
-        ORC->>DB: INSERT TranscriptEntry
+        AA->>DB: INSERT transcript_entries + audio_warnings
     end
     P->>FE: Click "End Session"
     FE->>API: POST /sessions/:id/end
-    API->>ORC: cancel tasks → trigger ReportAgent
+    API->>ORC: cancel video/audio tasks
+    VA-->>ORC: notify_complete (after final commit)
+    AA-->>ORC: notify_complete (after final commit)
+    ORC->>RA: trigger ReportAgent
+    RA->>DB: READ video_events + transcript_entries + slide_analyses
+    RA->>DB: INSERT reports
+    RA-->>ORC: notify_complete
     ORC->>DB: UPDATE status=REPORT_READY
+    ORC->>BC: REPORT_READY
     BC-->>FE: REPORT_READY → /session/:id/report
     </pre></div></div>
     <p class="sub">Two vision providers, not one: <b>Google Cloud Vision</b> runs on every kept frame (capped ~1fps for cost, NFR-004) for fast deterministic eye-contact/face signals; <b>GPT-4o Vision</b> only sees a 3-frame batch for the slower semantic posture/gesture call. See <code>agents/vision_agent.py</code>.</p>
@@ -555,14 +564,14 @@ sequenceDiagram
     UR-->>FE: 202 Accepted
     FE-->>P: "Analysing your deck…"
     PA->>PA: python-pptx extract slide text
-    Note over PA: persist slides_raw_text to DB<br/>survives restart
+    PA->>DB: WRITE slides_raw_text<br/>survives restart
     PA->>PA: LLM eval vs 12-factor Playbook
-    PA->>ORC: emit(SlideAnalysisPayload[])
-    Note over ORC: Pydantic validation wall ✓
-    loop per validated finding
-        ORC->>DB: INSERT SlideAnalysis
+    loop per finding
+        PA->>DB: INSERT slide_analyses
     end
-    ORC->>DB: UPDATE Session(pptx_ready=true)
+    PA->>DB: UPDATE Session(pptx_ready=true)
+    Note over PA,DB: PPTXAgent owns these tables<br/>commit before signalling
+    PA-->>ORC: notify_complete
     FE->>FE: poll GET /sessions/:id
     FE-->>P: "Deck analysed ✓ — ready to start"
     </pre></div></div>
@@ -722,8 +731,8 @@ graph TB
           <ul><li><code>asyncio.Queue</code> + <code>dict[session_id → set[WS]]</code></li><li>No Redis · clean interface, swappable post-hackathon</li></ul>
         </div>
         <div class="card">
-          <h3><span class="dot" style="background:var(--green)"></span>Orchestrator = sole DB writer</h3>
-          <ul><li>Agents pure AI, emit typed payloads · Pydantic validation wall</li><li>VideoEvents batched 1s/N=20 to avoid write bottleneck</li></ul>
+          <h3><span class="dot" style="background:var(--green)"></span>One writer per table + completion signals</h3>
+          <ul><li>Each agent writes its own role-scoped rows, then sends <code>notify_complete</code> (durability before signal)</li><li>Orchestrator coordinates + reads the agreed tables to build the report · VideoEvents batched 1s/N=20</li></ul>
         </div>
         <div class="card">
           <h3><span class="dot" style="background:var(--amber)"></span>Capability tokens</h3>
