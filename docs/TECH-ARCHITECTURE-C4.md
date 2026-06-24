@@ -1,11 +1,38 @@
 # OctoPrep2000 — Technical Architecture (C4)
 
 **System**: OctoPrep2000
-**Version**: 1.4
-**Date**: 2026-06-23
+**Version**: 1.6
+**Date**: 2026-06-24
 **Architect**: Tikal Fuse Day Team
-**Status**: Approved for implementation — frontend stack sync applied (v1.4)
+**Status**: Approved for implementation — agno-Workflow orchestration layer added (v1.6)
 
+> **v1.6 changelog (2026-06-24)** — agno-Workflow orchestration layer (implemented + tested on
+> branch `agno-workflows-flow`). Adds an in-process orchestration substrate; **no change to
+> persistence ownership or the pub/sub model** (Constitution v2.0.0 Principle II + V preserved):
+> - New package `packages/backend/workflows/` with **three agno (v2.6.16) Workflows**. agno
+>   `Workflow`/`Team`/`Parallel` objects are pure **in-process orchestration glue**: every one is
+>   constructed with `telemetry=False` and `db=None`, performs **no DB writes**, and holds **no
+>   durable session state**. Agents remain the sole writers of their own role-scoped tables and
+>   emit completion signals exactly as before.
+> - **PptxPrepWorkflow** (`workflows/pptx_prep.py`) — pre-session, one-shot, triggered by the PPTX
+>   upload background task. Three sequential Steps delegating to PPTXAgent phases:
+>   `extract` → `review` → `write`.
+> - **LiveSessionWorkflow** (`workflows/live_session.py` + `workflows/live_window.py`) — window-based.
+>   A `LiveWindowAggregator` (owned per session by `SessionRuntime`) buffers deduped frames; each
+>   arriving ~2s audio chunk closes a window and fires ONE workflow run as a detached task (a
+>   periodic tick flushes vision-only tails). Each run is a single agno **`Parallel`** group named
+>   **`LiveAnalysisTeam`** with two concurrent steps (`vision`, `audio`) that delegate into the
+>   long-lived, stateful VisionAgent/AudioAgent on `SessionRuntime`. Intentionally a `Parallel`, NOT
+>   a coordinator `Team`. Instant GCV face-detection feedback stays fire-and-forget on frame ingest,
+>   OUTSIDE the window.
+> - **ReportWorkflow** (`workflows/report.py`) — runs at session end; `ReportAgent.generate` is now a
+>   thin wrapper that runs it. A **sequential** pipeline of genuine data dependencies:
+>   `read` → `content` → `delivery` → `score`. Deterministic scoring stays pure Python (replay
+>   baseline equivalence holds).
+> - The §11 "Agno session task model" open decision is now **resolved** — Agno is load-bearing
+>   orchestration glue, not just brand-tax; the raw-`asyncio` fallback path is retired.
+> - No data-model, endpoint-contract, scoring-weight, or persistence-ownership changes in this revision.
+>
 > **v1.4 changelog (2026-06-23)** — frontend stack + structure sync (Y2K redesign), no backend changes:
 > - UI component stack added: shadcn/ui, Radix UI primitives, Tailwind CSS v4, `class-variance-authority`,
 >   `clsx`, `tailwind-merge`, `tw-animate-css`, `lucide-react` — see §6 Technology Stack.
@@ -157,6 +184,13 @@ graph TB
             Agno["Orchestrator\nCentral state manager\nSpawns & cancels agent tasks\nper session lifecycle\nHolds shared session context"]
         end
 
+        subgraph Workflows["agno Workflows  (in-process glue — telemetry=False, db=None, no DB writes, no durable state)"]
+            PptxWF["PptxPrepWorkflow\n[agno Workflow — sequential]\nextract → review → write\nPre-session, one-shot"]
+            LiveWF["LiveSessionWorkflow\n[agno Workflow — per ~2s window]\nParallel(\"LiveAnalysisTeam\")\nvision ‖ audio"]
+            LiveAgg["LiveWindowAggregator\n[per-session, on SessionRuntime]\nbuffers deduped frames\ncloses window per audio chunk\n+ tick flushes vision tails"]
+            ReportWF["ReportWorkflow\n[agno Workflow — sequential]\nread → content → delivery → score\nGenuine data dependencies"]
+        end
+
         subgraph Agents["Agents & Services  (async tasks)"]
             FrameSvc["FrameService\n[Non-agent utility]\nImage delta algorithm\n60fps → ≤5fps output\nDrops redundant frames"]
             VisionAgent["VisionAgent\n[Agno Agent]\nAnalyses optimised frames\nDetects eye contact, posture,\nframing issues\nWrites VideoEvent to DB"]
@@ -179,18 +213,26 @@ graph TB
     %% Route → Core
     SessionRouter --> SessionMgr
     FeedbackWS --> Broadcaster
-    VideoWS --> Agno
-    AudioWS --> Agno
-    UploadRouter --> PPTXAgent
+    VideoWS --> LiveAgg
+    AudioWS --> LiveAgg
+    UploadRouter --> PptxWF
 
     %% Core → Orchestrator
     SessionMgr --> Agno
 
-    %% Orchestrator → Agents (dispatch work)
+    %% Workflows are in-process glue — they delegate INTO the agents, never write the DB themselves
+    PptxWF -. "delegate phases" .-> PPTXAgent
+    LiveAgg -- "fires one run per ~2s window\n(detached task)" --> LiveWF
+    LiveWF -. "Parallel(\"LiveAnalysisTeam\")\nvision step delegates" .-> VisionAgent
+    LiveWF -. "audio step delegates" .-> AudioAgent
+    Agno -- "trigger at session end\n(ReportAgent.generate wraps it)" --> ReportWF
+    ReportWF -. "delegate phases" .-> ReportAgent
+    ReportWF -. "content phase" .-> ContentAgent
+
+    %% Orchestrator → Agents (lifecycle + fallback; live tier checks is_fallback at the vision step)
     Agno --> FrameSvc
     Agno --> VisionAgent
     Agno --> AudioAgent
-    Agno --> ReportAgent
 
     %% Agent pipeline
     FrameSvc --> VisionAgent
@@ -246,6 +288,10 @@ graph TB
 | `SessionManager` | Service | Generates UUID, creates DB record, manages status state machine |
 | `FeedbackBroadcaster` | Service | `dict[session_id → set[WebSocket]]`; `publish()` sends to all subscribers |
 | `Orchestrator` | Coordinator | Spawns async tasks per session, holds shared state. Owns **session lifecycle** (ACTIVE→ENDED→REPORT_READY via `start_session`/`end_session`/`mark_report_ready`), **cross-agent coordination** (`notify_complete`/`completed`), **audio-only fallback** (`activate_fallback`/`is_fallback`), and the **REPORT_READY / FALLBACK_ACTIVATED** broadcasts. No longer a persistence pipe — agents write their own tables; the Orchestrator **reads** the agreed tables to assemble the report (via ReportAgent) |
+| `PptxPrepWorkflow` | agno Workflow (`workflows/pptx_prep.py`) | **In-process glue** (`telemetry=False`, `db=None`, no DB writes, no durable state). Pre-session, one-shot, triggered by the upload background task. Three **sequential** Steps delegating to PPTXAgent phases: `extract` (python-pptx parse) → `review` (12-factor playbook LLM, or replay fixtures) → `write` (persist `slide_analyses` + `mark_pptx_ready` + `notify_complete("PPTX")`). The PPTXAgent — not the workflow — owns the writes and the signal. |
+| `LiveSessionWorkflow` | agno Workflow (`workflows/live_session.py`) | **In-process glue** (`telemetry=False`, `db=None`, no DB writes, no durable state). One run per ~2s capture window. A single agno **`Parallel`** group named **`LiveAnalysisTeam`** with two concurrent steps: `vision` (GPT-4o posture/gesture batch) and `audio` (ElevenLabs STT + filler + WPM). Both steps **delegate** into the long-lived, stateful VisionAgent/AudioAgent on `SessionRuntime` so per-session state (WPM window, dedup, timeout-streak, batch buffer) survives across windows. Uses `Parallel`, **NOT a coordinator `Team`** — the two modalities are fixed/independent and audio is deterministic (no LLM), so a routing leader would be pure latency. Audio-only fallback is enforced at the `vision` step (it checks `orchestrator.is_fallback` and skips). |
+| `LiveWindowAggregator` | Per-session runtime object (`workflows/live_window.py`) | Owned per session by `SessionRuntime`. Buffers deduped frames; each arriving ~2s audio chunk closes a window (frames-since-last-chunk + that chunk) and fires **one** `LiveSessionWorkflow` run as a detached task so the WS receive loop never blocks. A periodic tick flushes vision-only tails. Holds only the in-flight window buffer (transient), not durable session state. |
+| `ReportWorkflow` | agno Workflow (`workflows/report.py`) | **In-process glue** (`telemetry=False`, `db=None`, no DB writes, no durable state). Runs at session end; `ReportAgent.generate` is now a thin wrapper that runs it. A **sequential** pipeline of genuine data dependencies (so a Workflow of Steps, NOT a `Team`): `read` agreed tables → `content` (ContentAgent technical-accuracy/coverage) → `delivery` (PPTX delivery pass that CONSUMES the content findings) → `score` (deterministic pure-Python scoring, UNCHANGED, + the agent-owned `reports` write + `notify_complete("REPORT")`). |
 | `FrameService` | Utility (non-agent) — **Dev 1** | Delta algorithm; drops frames below threshold; outputs ≤5fps stream |
 | `VisionAgent` | Agno agent — **Dev 1** | Calls GPT-4o Vision (via LiteLLM) per frame batch (≥3 frames per call to amortise tokens). **Owns `video_events`** — batches the buffer and flushes (every 1s OR N=20) directly via the Repository, publishes live feedback to the Broadcaster itself, then `notify_complete(VIDEO)`. |
 | `AudioAgent` | Agno agent — **Dev 2** | Calls STT per chunk; detects filler words + WPM. **Owns `transcript_entries` + `audio_warnings`** — writes them directly via the Repository, publishes warnings to the Broadcaster itself, then `notify_complete(AUDIO)`. |
@@ -275,11 +321,11 @@ sequenceDiagram
     Dashboard->>UploadRouter: POST /sessions/:id/upload (multipart)
     UploadRouter->>UploadRouter: Save to /tmp/{session_id}.pptx
     UploadRouter->>PPTXAgent: analyse_async(path, session_id)
-    Note over PPTXAgent: Runs as background task<br/>does not block the HTTP response
+    Note over PPTXAgent: Runs as background task<br/>does not block the HTTP response.<br/>Wrapped by PptxPrepWorkflow (agno, in-process glue —<br/>telemetry=False, db=None): sequential Steps<br/>extract → review → write delegate to PPTXAgent phases.<br/>The workflow writes nothing; the agent owns all writes.
     UploadRouter-->>Dashboard: 202 Accepted
     Dashboard-->>Presenter: "Analysing your deck…"
 
-    PPTXAgent->>PPTXAgent: python-pptx: extract slide content
+    PPTXAgent->>PPTXAgent: extract step — python-pptx: extract slide content
     PPTXAgent->>DB: UPDATE Session(slides_raw_text) before LLM call
     PPTXAgent->>PPTXAgent: LLM: evaluate against 12-factor Playbook
     Note over PPTXAgent: PPTXAgent owns slide_analyses + pptx_ready<br/>and writes them itself via the Repository
@@ -306,6 +352,8 @@ sequenceDiagram
     participant AudioWS as AudioStreamWS
     participant FeedbackWS
     participant Orchestrator
+    participant LiveAgg as LiveWindowAggregator
+    participant LiveWF as LiveSessionWorkflow
     participant FrameSvc as FrameService
     participant VisionAgent
     participant AudioAgent
@@ -331,42 +379,59 @@ sequenceDiagram
 
     FeedbackWS->>Broadcaster: register(session_id, ws_client)
     VideoWS->>Orchestrator: start_session(session_id)
-    Orchestrator->>Orchestrator: spawn video_task + audio_task
+    Orchestrator->>Orchestrator: spawn LiveWindowAggregator (per session, on SessionRuntime)<br/>+ periodic vision-tail tick
+
+    Note over VideoWS,LiveAgg: Frames are deduped + buffered into the open window.<br/>Each ~2s audio chunk CLOSES the window and fires ONE workflow run.
 
     loop Every ~200ms (browser captures frame)
         Dashboard->>VideoWS: binary frame (JPEG)
-        VideoWS->>FrameSvc: enqueue_frame(frame)
-        alt Frame is meaningfully different (delta > threshold)
-            FrameSvc->>VisionAgent: analyse_frame(frame, session_id)
-            VisionAgent->>VisionAPI: POST image for analysis
-            VisionAPI-->>VisionAgent: { eye_contact, posture, framing }
-            Note over VisionAgent: VisionAgent owns video_events:<br/>buffers + flushes (every 1s OR N=20) itself
-            VisionAgent->>DB: INSERT VideoEvent(type, severity, timestamp_ms) (batched)
-            VisionAgent->>Broadcaster: publish(session_id, warning_payload)
+        VideoWS->>FrameSvc: dhash dedup (drop near-duplicates)
+        alt Frame is meaningfully different
+            FrameSvc->>VisionAgent: on_frame_instant(frame) — GCV face detect (fire-and-forget, sub-100ms, OUTSIDE the window)
+            VisionAgent->>Broadcaster: publish(session_id, instant face/eye-contact feedback)
             Broadcaster->>FeedbackWS: send { type, severity, message, timestamp_ms }
             FeedbackWS-->>Dashboard: warning event
             Dashboard-->>Presenter: 🔴 Toast: "Look at the camera!"
+            FrameSvc->>LiveAgg: add_frame(frame) — buffer into the open window
         else Frame is duplicate — drop silently
             FrameSvc->>FrameSvc: discard
         end
     end
 
-    loop Every ~5 seconds (audio chunk)
-        Dashboard->>AudioWS: PCM audio chunk
-        AudioWS->>AudioAgent: enqueue_chunk(chunk, session_id)
-        AudioAgent->>STT: stream audio chunk
-        STT-->>AudioAgent: { text, start_ms, end_ms }
-        AudioAgent->>AudioAgent: detect_fillers(text) + calc_wpm(rolling_30s)
-        Note over AudioAgent: AudioAgent owns transcript_entries + audio_warnings<br/>and writes them itself via the Repository
-        AudioAgent->>DB: INSERT TranscriptEntry(text, start_ms, end_ms)
-        alt Filler word or WPM threshold crossed
-            AudioAgent->>DB: INSERT AudioWarning(type, severity, timestamp_ms)
-            AudioAgent->>Broadcaster: publish(session_id, warning_payload)
-            Broadcaster->>FeedbackWS: send { type, severity, message, timestamp_ms }
-            FeedbackWS-->>Dashboard: warning event
-            Dashboard-->>Presenter: 🔴 Toast: "Speaking too fast!"
+    loop Every ~2 seconds (audio chunk closes a window)
+        Dashboard->>AudioWS: PCM audio chunk (16-bit, 16kHz)
+        AudioWS->>LiveAgg: add_chunk(chunk) — closes the window (frames-since-last-chunk + this chunk)
+        LiveAgg->>LiveWF: run window as a detached task (WS loop never blocks)
+        Note over LiveWF: One agno Parallel group "LiveAnalysisTeam"<br/>(in-process glue — telemetry=False, db=None, no DB writes).<br/>Steps DELEGATE into the long-lived stateful agents.
+
+        par LiveAnalysisTeam — vision ‖ audio (concurrent)
+            LiveWF->>VisionAgent: vision step — feed_frame(frames) → _analyse (heavier LLM batch)
+            alt orchestrator.is_fallback(session_id)
+                VisionAgent->>VisionAgent: vision step skips (audio-only fallback)
+            else
+                VisionAgent->>VisionAPI: POST 3-frame batch — posture/gesture
+                VisionAPI-->>VisionAgent: { posture, gesture, framing }
+                Note over VisionAgent: VisionAgent owns video_events:<br/>buffers + flushes (every 1s OR N=20) itself
+                VisionAgent->>DB: INSERT VideoEvent(type, severity, timestamp_ms) (batched)
+                VisionAgent->>Broadcaster: publish(session_id, warning_payload)
+                Broadcaster-->>Dashboard: warning event
+            end
+        and
+            LiveWF->>AudioAgent: audio step — transcribe(chunk)
+            AudioAgent->>STT: stream audio chunk
+            STT-->>AudioAgent: { text, start_ms, end_ms }
+            AudioAgent->>AudioAgent: detect_fillers(text) + calc_wpm(rolling_30s)
+            Note over AudioAgent: AudioAgent owns transcript_entries + audio_warnings<br/>and writes them itself via the Repository
+            AudioAgent->>DB: INSERT TranscriptEntry(text, start_ms, end_ms)
+            alt Filler word or WPM threshold crossed
+                AudioAgent->>DB: INSERT AudioWarning(type, severity, timestamp_ms)
+                AudioAgent->>Broadcaster: publish(session_id, warning_payload)
+                Broadcaster-->>Dashboard: 🔴 Toast: "Speaking too fast!"
+            end
         end
     end
+
+    Note over LiveAgg,LiveWF: A periodic tick flushes vision-only tails<br/>(windows with frames but no closing chunk).
 
     Presenter->>Dashboard: Click "End Session"
     Dashboard->>SessionRouter: POST /sessions/:id/end
@@ -379,10 +444,11 @@ sequenceDiagram
 
     Note over Orchestrator,DB: Report generation (async, ≤60s)
     Orchestrator->>ReportAgent: generate(session_id)
-    ReportAgent->>DB: READ all VideoEvent, TranscriptEntry, SlideAnalysis
-    Note over ReportAgent: Reads the agreed tables.<br/>ReportAgent owns the reports table.
-    ReportAgent->>ReportAgent: deduplicate_events() — group by type, collect timestamps[]
-    ReportAgent->>ReportAgent: calculate_scores() — weighted average
+    Note over ReportAgent: generate() is a thin wrapper that runs ReportWorkflow<br/>(agno, in-process glue — telemetry=False, db=None, no DB writes):<br/>a SEQUENTIAL pipeline read → content → delivery → score.
+    ReportAgent->>DB: read step — READ all VideoEvent, TranscriptEntry, SlideAnalysis (agreed tables)
+    ReportAgent->>ReportAgent: content step — ContentAgent technical-accuracy/coverage
+    ReportAgent->>ReportAgent: delivery step — PPTX delivery pass (CONSUMES content findings)
+    ReportAgent->>ReportAgent: score step — deduplicate_events() + deterministic pure-Python scoring (UNCHANGED)
     ReportAgent->>DB: INSERT Report(scores, insights, mentor_unlocked)
     Note over ReportAgent,Orchestrator: Only after the write commits
     ReportAgent->>Orchestrator: notify_complete(session_id, REPORT)
@@ -412,7 +478,7 @@ sequenceDiagram
     end
 
     Orchestrator->>Orchestrator: activate_fallback() / is_fallback = true
-    Orchestrator->>Orchestrator: cancel video_task
+    Note over Orchestrator,VisionAgent: With the window-based LiveSessionWorkflow,<br/>fallback is enforced at the vision STEP — each run checks<br/>orchestrator.is_fallback(session_id) and skips the vision step.<br/>The audio step keeps running. (No task cancellation needed —<br/>the prior "cancel video_task" line is superseded.)
     Orchestrator->>Orchestrator: adjust score weights\nVoice 40% + Slides 30% + Content 30%
     Orchestrator->>Broadcaster: publish(session_id,\n{ type: FALLBACK_ACTIVATED })
     Broadcaster-->>Dashboard: fallback event
@@ -930,6 +996,11 @@ octoprep2000/                     ← pnpm workspace root
 │   │   │   └── feedback_broadcaster.py
 │   │   ├── orchestrator/
 │   │   │   └── orchestrator.py
+│   │   ├── workflows/                ← agno Workflows — in-process orchestration glue (telemetry=False, db=None, no DB writes, no durable state)
+│   │   │   ├── pptx_prep.py          ← PptxPrepWorkflow (sequential: extract → review → write)
+│   │   │   ├── live_session.py       ← LiveSessionWorkflow (per-window Parallel "LiveAnalysisTeam": vision ‖ audio)
+│   │   │   ├── live_window.py        ← LiveWindowAggregator (per-session on SessionRuntime; buffers frames, closes window per audio chunk)
+│   │   │   └── report.py             ← ReportWorkflow (sequential: read → content → delivery → score)
 │   │   ├── agents/
 │   │   │   ├── schemas.py            ← ALL typed Pydantic payloads (only contract agents expose)
 │   │   │   ├── frame_service.py      ← non-agent utility, no DB access
@@ -1143,7 +1214,7 @@ Vision/Content/PPTX fall back to **Claude** (`claude-sonnet-4-6`, via agno's `Cl
 | 1 | ~~Vision API choice~~ | Dev 1 | ✅ **Decided (v1.3): GPT-4o Vision via Tikal LiteLLM** — multimodal model evaluates posture, eye contact, framing, gestures (Google Cloud Vision dropped — only did face landmarks, no body language). Batched 3 frames per call to amortise tokens. Uses existing LiteLLM gateway — no separate IT key. | ~~June 20~~ **Done** |
 | 2 | ~~STT provider choice~~ | Dev 2 | ✅ **Decided: ElevenLabs Scribe v1** — API key provided by IT. | ~~June 20~~ **Done** |
 | 3 | ~~Frame delta library~~ | Dev 1 | ✅ **Decided: `imagehash` (dhash)**. `pip install imagehash Pillow`. Hamming distance threshold = 8 (tune up to drop more frames, down to keep more). Fallback: OpenCV `absdiff` if more control is needed. | ~~June 20~~ **Done** |
-| 4 | Agno session task model | Dev 5 | **PoC by June 20**: confirm Agno async model handles 3 concurrent WS streams without blocking. **Fallback path (locked in advance)**: raw `asyncio.create_task` per session — Agno is brand-tax, not load-bearing. If PoC fails, drop Agno entirely; agents become plain async coroutines, Orchestrator stays. | June 20 |
+| 4 | ~~Agno session task model~~ | Dev 5 | ✅ **Resolved (v1.6)**: agno (v2.6.16) is now load-bearing **in-process orchestration glue** via the three Workflows in `packages/backend/workflows/` (PptxPrepWorkflow, LiveSessionWorkflow's `Parallel("LiveAnalysisTeam")`, ReportWorkflow) — implemented + tested on branch `agno-workflows-flow`. Every `Workflow`/`Parallel` is `telemetry=False`, `db=None`, writes no DB, holds no durable state; agents stay sole table writers. The raw-`asyncio.create_task` fallback path is retired. | ~~June 20~~ **Done** |
 | 5 | Audio format + chunk size | Dev 2 | ✅ **Decided (v1.3)**: PCM 16-bit 16kHz, **2-second chunks** (down from 5s) to meet NFR-002 ≤1s filler latency. WebM Opus considered — rejected (encode overhead in browser). | ~~June 20~~ **Done** |
 | 6 | TanStack Start: SSR vs. SPA | Dev 6 | Full SSR adds complexity; SPA mode is simpler for a WS-heavy app | June 14 |
 | 7 | DB migrations strategy | Dev 5 | Alembic auto-generate on startup vs. hand-written migration scripts | June 14 |
