@@ -27,6 +27,7 @@ export type ReportData = {
   content_research_status?: "full" | "partial" | "skipped" | "not_applicable";
   insights: Insight[];
   mentor_unlocked: boolean;
+  topic?: string;
 };
 
 function Panel({
