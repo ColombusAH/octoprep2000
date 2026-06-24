@@ -34,6 +34,7 @@ function SessionPage() {
   const handlesRef = useRef<{ video?: CaptureHandles; audio?: CaptureHandles }>({});
   const slideWsRef = useRef<WSHandle | null>(null);
   const recordingStartedAtRef = useRef<number>(0);
+  const endingInFlightRef = useRef(false);
 
   useEffect(() => {
     getSession(id)
@@ -236,7 +237,9 @@ function SessionPage() {
   };
 
   const stop = async () => {
-    if (awaitingReport) return;
+    if (awaitingReport || endingInFlightRef.current) return;
+
+    endingInFlightRef.current = true;
     handlesRef.current.video?.stop();
     handlesRef.current.audio?.stop();
     slideWsRef.current?.close();
@@ -248,6 +251,7 @@ function SessionPage() {
       await endSession(id);
     } catch (err) {
       setAwaitingReport(false);
+      endingInFlightRef.current = false;
       setEvents((es) => [
         ...es,
         {
@@ -312,6 +316,10 @@ function SessionPage() {
               </Button>
             ) : (
               <Button size="lg" disabled aria-busy="true">
+                <span
+                  className="size-4 animate-spin rounded-full border-2 border-current border-r-transparent"
+                  aria-hidden="true"
+                />
                 Generating report…
               </Button>
             )}

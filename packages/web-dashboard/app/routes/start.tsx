@@ -1,5 +1,5 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import {
   createSession,
   storeToken,
@@ -29,9 +29,24 @@ function LandingPage() {
   const [analysing, setAnalysing] = useState(false);
   const [processingVideo, setProcessingVideo] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const startInFlightRef = useRef(false);
+
+  const isStarting = loading || analysing || processingVideo;
+  const startButtonLabel = processingVideo
+    ? "Analysing your video…"
+    : analysing
+      ? "Analysing your deck…"
+      : loading
+        ? "Starting…"
+        : video
+          ? "Upload & Analyze →"
+          : "Start Session →";
 
   const handleStart = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (startInFlightRef.current) return;
+
+    startInFlightRef.current = true;
     setError(null);
     setLoading(true);
     try {
@@ -52,16 +67,17 @@ function LandingPage() {
         setProcessingVideo(true);
         await uploadVideo(session_id, video);
         await waitForVideoReady(session_id);
-        nav({ to: "/session/$id/report", params: { id: session_id } });
+        await nav({ to: "/session/$id/report", params: { id: session_id } });
         return;
       }
-      nav({ to: "/session/$id", params: { id: session_id } });
+      await nav({ to: "/session/$id", params: { id: session_id } });
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
       setLoading(false);
       setAnalysing(false);
       setProcessingVideo(false);
+      startInFlightRef.current = false;
     }
   };
 
@@ -149,19 +165,18 @@ function LandingPage() {
 
             <Button
               type="submit"
-              disabled={loading || analysing || processingVideo}
+              disabled={isStarting}
+              aria-busy={isStarting}
               size="lg"
               className="mt-1"
             >
-              {processingVideo
-                ? "Analysing your video…"
-                : analysing
-                  ? "Analysing your deck…"
-                  : loading
-                    ? "Starting…"
-                    : video
-                      ? "Upload & Analyze →"
-                      : "Start Session →"}
+              {isStarting && (
+                <span
+                  className="size-4 animate-spin rounded-full border-2 border-current border-r-transparent"
+                  aria-hidden="true"
+                />
+              )}
+              {startButtonLabel}
             </Button>
 
             {error && (
